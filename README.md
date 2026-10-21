@@ -31,6 +31,10 @@ L'installateur vérifie les prérequis (Quickshell, Python 3, CLI `claude` conne
 Restent à faire à la main, car ils dépendent de ton shell : le bouton dans la barre (`integration/Bar.qml.snippet`) et le clic sur une alerte (`integration/NotificationToast.qml.snippet`). L'overlay attend un objet `theme` (`ff`, `fs`, `hi()`, `barBg`…).
 Contrôle : `qs ipc call assistant toggle|open|close|ask "…"`.
 
+## Installation assistée par IA
+
+`AGENTS.md` (lu aussi via `CLAUDE.md` par Claude Code) décrit la procédure, le contrat avec le shell hôte et les règles de sécurité : lance ton assistant de code dans le repo et demande-lui « installe Iris ».
+
 ## Personnalisation
 
 `assistant-prompt.md` est le prompt par défaut (français, tutoiement) : à adapter à ton goût.

@@ -99,11 +99,17 @@ m = re.search(r"^([ \t]*)id:\s*root\b.*$", s, re.M)
 if not m:
     sys.exit("shell.qml : pas de racine 'id: root' — câblage manuel nécessaire (integration/shell.qml.snippet)")
 ind = m.group(1)
+extra = ""
+if not re.search(r"\bconfigDir\b", s):
+    extra += f"{ind}property string configDir: Quickshell.shellDir\n"
+if not re.search(r"\bhomeDir\b", s):
+    extra += f"{ind}property string homeDir: Quickshell.env(\"HOME\")\n"
 props = f"""
 {ind}{b}
 {ind}property bool   assistantOpen: false
 {ind}property string assistantMood: "idle"   // idle | thinking | talking
 {ind}property int    assistantUnread: 0
+{extra.rstrip(chr(10))}
 {ind}function openAssistant()   {{ assistantOpen = true }}
 {ind}function closeAssistant()  {{ assistantOpen = false }}
 {ind}function toggleAssistant() {{ assistantOpen = !assistantOpen }}
@@ -122,7 +128,7 @@ s = s[:m.end()] + "\n" + props.rstrip("\n") + s[m.end():]
 open(p, "w").write(s)
 PY
   grep -q "import Quickshell.Io" "$SHELLQML" || warn "shell.qml n'importe pas Quickshell.Io (IpcHandler) : ajoute 'import Quickshell.Io'."
-  grep -qE "id:\s*theme" "$SHELLQML" || warn "Pas d'objet 'id: theme' dans shell.qml : l'overlay attend un thème (ff, fs, hi(), barBg…)."
+  grep -qE "id:\s*theme" "$SHELLQML" || warn "Pas d'objet 'id: theme' dans shell.qml : l'overlay attend un thème avec : bg, fg, ff, fs, primary, secondary, tertiary, lavender, light, outline, txt2, error, warn."
 fi
 
 # ── Hyprland : flou derrière le panneau ───────────────────────────────────
