@@ -473,19 +473,31 @@ def check_updates(state):
     if run(["git", "fetch", "--quiet"], cwd=repo, timeout=60)[0]:
         return
     code, behind = run(["git", "rev-list", "--count", "HEAD..@{u}"], cwd=repo)
+    if code or not behind.isdigit():
+        return                                   # unknown: leave the flag alone
     flag = os.path.join(DATA_DIR, "update-available")     # read by the panel's Update button
-    if code or not behind.isdigit() or int(behind) == 0:
-        if not code:
-            try:
-                os.remove(flag)
-            except OSError:
-                pass
-        return
-    _, upstream = run(["git", "rev-parse", "@{u}"], cwd=repo)
     n = int(behind)
+    # The clone can also be ahead of what is installed (pulled by hand, or the
+    # push came from this very clone): that is an update to install too.
+    try:
+        with open(os.path.join(DATA_DIR, "installed-rev")) as f:
+            installed = f.read().strip()
+    except OSError:
+        installed = ""
+    _, head = run(["git", "rev-parse", "HEAD"], cwd=repo)
+    if installed and installed != head:
+        code, local = run(["git", "rev-list", "--count", f"{installed}..HEAD"], cwd=repo)
+        n += int(local) if code == 0 and local.isdigit() else 1
+    if n == 0:
+        try:
+            os.remove(flag)
+        except OSError:
+            pass
+        return
+    _, latest = run(["git", "rev-parse", "@{u}" if int(behind) else "HEAD"], cwd=repo)
     with open(flag, "w") as f:
         f.write(str(n))
-    nudge(state, f"update:{upstream}", "update",
+    nudge(state, f"update:{latest}", "update",
           "\uf019 " + pick(
               f"**Mise à jour d'Iris disponible** ({n} nouveauté{'s' if n > 1 else ''}). "
               "Dis-moi « mets-toi à jour » et je m'en occupe.",

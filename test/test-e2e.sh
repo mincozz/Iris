@@ -178,8 +178,9 @@ check "iris-update installe la nouveauté"          bash -c "'$T/qs2/scripts/iri
 check "update-available retiré après mise à jour"  test ! -e "$DATA/update-available"
 check "config conservée après mise à jour"         python3 -I -c "import json,sys; assert json.load(open(sys.argv[1]))['user_name']=='Testeur'" "$DATA/config.json"
 check "iris-update : à jour ensuite (code 0)"      "$T/qs2/scripts/iris-update" --check
+( cd "$T/upd/src" && echo "# v2b" >> README.md && git -c user.name=t -c user.email=t@t commit -qam "v2b" && git push -q "$T/upd/origin.git" main ) >/dev/null 2>&1
 ( cd "$T/upd/clone" && echo dirty >> README.md )
-check "iris-update refuse un clone modifié"        bash -c "! '$T/qs2/scripts/iris-update' --check >/dev/null 2>&1"
+check "iris-update refuse de tirer dans un clone modifié" bash -c "! '$T/qs2/scripts/iris-update' -y >/dev/null 2>&1"
 ( cd "$T/upd/clone" && git checkout -q README.md )
 ( cd "$T/upd/src" && echo "# button-marker" >> scripts/i18n.py && git -c user.name=t -c user.email=t@t commit -qam "v3: button" && git push -q "$T/upd/origin.git" main ) >/dev/null 2>&1
 # Boutons d'action d'une alerte (git pull) : dépôt en retard sous $HOME
@@ -193,6 +194,16 @@ mkdir -p "$T/home/proj"
 want="$(git -C "$T/home/proj/work" rev-parse HEAD 2>/dev/null)"
 check "boutons d'action : git pull et refus (daemon)" python3 "$SRC/test/test-actions.py" "$T/qs2" "$T/home/proj/behind" "$want"
 check "bouton « Mettre à jour » (daemon)"          python3 "$SRC/test/test-update-button.py" "$T/qs2" scripts/i18n.py button-marker
+
+# Le clone est plus récent que l'installation (poussé depuis ce clone, ou tiré à la main)
+( cd "$T/upd/clone" && echo "# local-marker" >> scripts/i18n.py && git -c user.name=t -c user.email=t@t commit -qam "local only" ) >/dev/null 2>&1
+"$T/qs2/scripts/iris-update" --check >/dev/null 2>&1; rc=$?
+[ "$rc" = 10 ] && ok "clone plus récent que l'installation : détecté (code 10)" || ko "clone en avance : --check a renvoyé $rc au lieu de 10"
+python3 "$T/qs2/scripts/iris-watch.py" --once updates > "$T/alert2.json" 2>/dev/null
+check "clone en avance : alerte « mise à jour » (iris-watch)" grep -q '"kind": "update"' "$T/alert2.json"
+check "clone en avance : iris-update réinstalle sans pull"  bash -c "'$T/qs2/scripts/iris-update' -y >/dev/null 2>&1 && grep -q local-marker '$T/qs2/scripts/i18n.py'"
+check "clone en avance : ensuite à jour (code 0)"           "$T/qs2/scripts/iris-update" --check
+( cd "$T/upd/clone" && git reset -q --hard HEAD~1 ) >/dev/null 2>&1
 "$SRC/install.sh" --prefix "$T/qs" --no-hypr -y >/dev/null 2>&1
 
 # ── 3. Désinstallation ────────────────────────────────────────────────────

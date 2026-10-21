@@ -27,27 +27,33 @@ PREFIX="$(head -n1 "$DATA/prefix" 2>/dev/null || true)"
 [ -d "$REPO/.git" ] || die "$REPO n'est plus un clone git. Re-clone le repo puis relance ./install.sh dedans."
 command -v git >/dev/null || die "git est requis."
 
-if [ -n "$(git -C "$REPO" status --porcelain --untracked-files=no)" ]; then
-  die "Le clone $REPO a des modifications locales : commit-les ou annule-les (git stash) avant de mettre à jour."
-fi
 git -C "$REPO" rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1 || die "La branche de $REPO n'a pas de remote de suivi (git branch -u origin/main)."
 
 say "Recherche de mises à jour…"
 GIT_TERMINAL_PROMPT=0 git -C "$REPO" fetch --quiet || die "git fetch a échoué (réseau, accès au repo ?)."
 behind="$(git -C "$REPO" rev-list --count 'HEAD..@{u}')"
 ahead="$(git -C "$REPO" rev-list --count '@{u}..HEAD')"
+head_rev="$(git -C "$REPO" rev-parse HEAD)"
+inst_rev="$(head -n1 "$DATA/installed-rev" 2>/dev/null || true)"
 
+# Deux sortes de nouveauté : le remote a avancé (il faut tirer), ou le clone est
+# plus récent que ce qui est installé (tiré à la main, ou poussé depuis ce clone).
+if [ "$behind" != 0 ] && [ "$ahead" != 0 ]; then
+  die "Ton clone a $ahead commit(s) locaux que le remote n'a pas, et le remote $behind que toi : mets à jour à la main (git pull --rebase)."
+fi
 if [ "$behind" = 0 ]; then
-  rm -f "$DATA/update-available"
-  say "Iris est déjà à jour ($(git -C "$REPO" rev-parse --short HEAD))."
-  exit 0
+  if [ -z "$inst_rev" ] || [ "$inst_rev" = "$head_rev" ]; then
+    rm -f "$DATA/update-available"
+    say "Iris est déjà à jour ($(git -C "$REPO" rev-parse --short HEAD))."
+    exit 0
+  fi
+  say "Le clone ($(git -C "$REPO" rev-parse --short HEAD)) est plus récent que l'installation ($(git -C "$REPO" rev-parse --short "$inst_rev" 2>/dev/null || echo "${inst_rev:0:7}")) :"
+  git -C "$REPO" log --format='  • %s' "$inst_rev..HEAD" 2>/dev/null | head -20 || true
+  [ -z "$(git -C "$REPO" status --porcelain --untracked-files=no)" ] || warn "Le clone a des modifications non commitées : elles seront installées aussi."
+else
+  say "$behind nouveauté(s) :"
+  git -C "$REPO" log --format='  • %s' 'HEAD..@{u}' | head -20
 fi
-if [ "$ahead" != 0 ]; then
-  die "Ton clone a $ahead commit(s) locaux que le remote n'a pas : mets à jour à la main (git pull --rebase)."
-fi
-
-say "$behind nouveauté(s) :"
-git -C "$REPO" log --format='  • %s' 'HEAD..@{u}' | head -20
 [ "$CHECK" = 1 ] && exit 10
 
 if [ "$YES" = 0 ] && [ -t 0 ]; then
@@ -55,9 +61,13 @@ if [ "$YES" = 0 ] && [ -t 0 ]; then
   [[ "$a" =~ ^[nN]$ ]] && { echo "Annulé."; exit 0; }
 fi
 
-old="$(git -C "$REPO" rev-parse --short HEAD)"
-git -C "$REPO" pull --ff-only --quiet || die "git pull --ff-only a échoué : mets à jour le clone à la main."
-say "Clone mis à jour : $old → $(git -C "$REPO" rev-parse --short HEAD)"
+if [ "$behind" != 0 ]; then
+  [ -z "$(git -C "$REPO" status --porcelain --untracked-files=no)" ] \
+    || die "Le clone $REPO a des modifications locales : commit-les ou annule-les (git stash) avant de mettre à jour."
+  old="$(git -C "$REPO" rev-parse --short HEAD)"
+  git -C "$REPO" pull --ff-only --quiet || die "git pull --ff-only a échoué : mets à jour le clone à la main."
+  say "Clone mis à jour : $old → $(git -C "$REPO" rev-parse --short HEAD)"
+fi
 
 say "Réinstallation dans $PREFIX"
 "$REPO/install.sh" --prefix "$PREFIX" -y
