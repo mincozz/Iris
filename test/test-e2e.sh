@@ -162,7 +162,9 @@ check "iris-update --check : à jour (code 0)"      "$T/qs2/scripts/iris-update"
 [ "$rc" = 10 ] && ok "iris-update --check : nouveauté détectée (code 10)" || ko "iris-update --check a renvoyé $rc au lieu de 10"
 python3 "$T/qs2/scripts/iris-watch.py" --once updates > "$T/alert.json" 2>/dev/null
 check "alerte « mise à jour disponible » (iris-watch)" grep -q '"kind": "update"' "$T/alert.json"
+check "iris-watch écrit update-available"          test -s "$DATA/update-available"
 check "iris-update installe la nouveauté"          bash -c "'$T/qs2/scripts/iris-update' -y >/dev/null 2>&1 && grep -q iris-update-marker '$T/qs2/scripts/i18n.py'"
+check "update-available retiré après mise à jour"  test ! -e "$DATA/update-available"
 check "config conservée après mise à jour"         python3 -I -c "import json,sys; assert json.load(open(sys.argv[1]))['user_name']=='Testeur'" "$DATA/config.json"
 check "iris-update : à jour ensuite (code 0)"      "$T/qs2/scripts/iris-update" --check
 ( cd "$T/upd/clone" && echo dirty >> README.md )

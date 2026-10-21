@@ -469,10 +469,18 @@ def check_updates(state):
     if run(["git", "fetch", "--quiet"], cwd=repo, timeout=60)[0]:
         return
     code, behind = run(["git", "rev-list", "--count", "HEAD..@{u}"], cwd=repo)
+    flag = os.path.join(DATA_DIR, "update-available")     # read by the panel's Update button
     if code or not behind.isdigit() or int(behind) == 0:
+        if not code:
+            try:
+                os.remove(flag)
+            except OSError:
+                pass
         return
     _, upstream = run(["git", "rev-parse", "@{u}"], cwd=repo)
     n = int(behind)
+    with open(flag, "w") as f:
+        f.write(str(n))
     nudge(state, f"update:{upstream}", "update",
           "\uf019 " + pick(
               f"**Mise à jour d'Iris disponible** ({n} nouveauté{'s' if n > 1 else ''}). "

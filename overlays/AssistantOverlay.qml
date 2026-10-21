@@ -90,8 +90,13 @@ PanelWindow {
     }
 
     // "Update now" button on an update alert: the daemon runs iris-update.
+    property bool updateAvailable: false   // a newer Iris exists (badge on the header button)
+    property bool updating: false          // iris-update is running
     function runUpdate(i) {
-        messages.setProperty(i, "actionState", "running")
+        if (updating) return
+        updating = true
+        if (i >= 0) messages.setProperty(i, "actionState", "running")
+        else _push("nudge", tr("updating_msg", "Mise à jour en cours… le panneau peut se recharger."))
         cmd({ cmd: "update" })
     }
 
@@ -271,7 +276,13 @@ PanelWindow {
             if (d.week !== null && d.week !== undefined) usageWeek = d.week
             if (d.resets) usageResets = d.resets > 1e12 ? d.resets : d.resets * 1000
             break
+        case "update_state":
+            updateAvailable = d.available
+            updating = d.running
+            break
         case "update_done":
+            updating = false
+            if (d.ok) updateAvailable = false
             for (let k = 0; k < messages.count; k++)
                 if (messages.get(k).actionState === "running")
                     messages.setProperty(k, "actionState", d.ok ? "done" : "failed")
@@ -281,6 +292,7 @@ PanelWindow {
             if (list.stick) Qt.callLater(() => list.positionViewAtEnd())
             break
         case "nudge":
+            if (d.kind === "update") updateAvailable = true
             _push("nudge", d.v, d.kind === "update" ? "update" : "")
             if (!_open) {
                 shellRoot.assistantUnread++
@@ -466,11 +478,13 @@ PanelWindow {
                 Repeater {
                     model: [
                         { icon: "", tip: "history" },
-                        { icon: "", tip: "new" }
+                        { icon: "", tip: "new" },
+                        { icon: "\uf019", tip: "update" }      // always there: click = update now
                     ]
                     delegate: Rectangle {
                         required property var modelData
-                        readonly property bool on: modelData.tip === "history" && overlay.showHistory
+                        readonly property bool on: (modelData.tip === "history" && overlay.showHistory)
+                                                   || (modelData.tip === "update" && overlay.updating)
                         width: 34; height: 34; radius: 17
                         color: on ? overlay.alpha(overlay.theme.primary, 0.18)
                              : aHover.hovered ? overlay.cardHover : overlay.cardFill
@@ -480,12 +494,30 @@ PanelWindow {
                         Text {
                             anchors.centerIn: parent
                             text: modelData.icon
-                            color: parent.on ? overlay.theme.primary : overlay.theme.txt2
+                            color: parent.on ? overlay.theme.primary
+                                 : modelData.tip === "update" && overlay.updateAvailable ? overlay.theme.tertiary
+                                 : overlay.theme.txt2
                             font.family: overlay.theme.ff; font.pixelSize: 15
+                            SequentialAnimation on opacity {
+                                running: modelData.tip === "update" && overlay.updating; loops: Animation.Infinite
+                                NumberAnimation { to: 0.35; duration: 600 }
+                                NumberAnimation { to: 1;    duration: 600 }
+                            }
+                        }
+                        // Badge: a newer version is available.
+                        Rectangle {
+                            visible: modelData.tip === "update" && overlay.updateAvailable && !overlay.updating
+                            x: parent.width - 11; y: 3
+                            width: 9; height: 9; radius: 4.5
+                            color: overlay.theme.tertiary
+                            border.color: overlay.cardFill; border.width: 1
                         }
                         HoverHandler { id: aHover; cursorShape: Qt.PointingHandCursor }
                         TapHandler {
-                            onTapped: modelData.tip === "history" ? overlay.toggleHistory() : overlay.newChat()
+                            enabled: modelData.tip !== "update" || !overlay.updating
+                            onTapped: modelData.tip === "history" ? overlay.toggleHistory()
+                                    : modelData.tip === "new"     ? overlay.newChat()
+                                    : overlay.runUpdate(-1)
                         }
                     }
                 }
@@ -812,7 +844,7 @@ PanelWindow {
                 Rectangle {
                     visible: msg.hasAction
                     anchors { left: bubble.left; top: bubble.bottom; topMargin: 8 }
-                    readonly property bool idle: msg.actionState === "" || msg.actionState === "failed"
+                    readonly property bool idle: (msg.actionState === "" || msg.actionState === "failed") && !overlay.updating
                     width: actionText.implicitWidth + 32; height: 32; radius: 16
                     color: !idle ? overlay.cardFill
                          : actHover.hovered ? Qt.lighter(overlay.theme.primary, 1.1) : overlay.theme.primary

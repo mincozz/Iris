@@ -43,7 +43,7 @@ Contrôle : `qs ipc call assistant toggle|open|close|ask "…"`.
 ~/.config/quickshell/scripts/iris-update --check  # voir s'il y a du nouveau, sans rien changer
 ```
 
-L'installateur retient où est ton clone ; `iris-update` fait `git pull --ff-only` dedans puis relance l'installation avec ta config actuelle (conservée). Iris le vérifie aussi toute seule toutes les 6 h et te prévient quand une version est sortie, avec un bouton **Mettre à jour** sous l'alerte (`"check_updates": false` dans `watch.json` pour couper). Le bouton lance `iris-update` sans passer par Claude (aucun quota) ; le panneau peut se recharger à la fin, un message confirme le résultat. Le clone doit rester en place et sans modification locale. Les fichiers installés sont remplacés : pour personnaliser, passe par `config.json` (ou `prompt_file`).
+L'installateur retient où est ton clone ; `iris-update` fait `git pull --ff-only` dedans puis relance l'installation avec ta config actuelle (conservée). Iris le vérifie aussi toute seule toutes les 6 h et te prévient quand une version est sortie, avec un bouton **Mettre à jour** sous l'alerte. Un bouton ⬇ reste en permanence dans l'en-tête du panneau, cliquable à tout moment, avec une pastille quand une version est disponible (`"check_updates": false` dans `watch.json` pour couper les alertes). Les boutons lancent `iris-update` sans passer par Claude (aucun quota) ; le panneau peut se recharger à la fin, un message confirme le résultat. Le clone doit rester en place et sans modification locale. Les fichiers installés sont remplacés : pour personnaliser, passe par `config.json` (ou `prompt_file`).
 
 ## Alertes et résumé du matin
 

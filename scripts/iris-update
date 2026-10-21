@@ -38,6 +38,7 @@ behind="$(git -C "$REPO" rev-list --count 'HEAD..@{u}')"
 ahead="$(git -C "$REPO" rev-list --count '@{u}..HEAD')"
 
 if [ "$behind" = 0 ]; then
+  rm -f "$DATA/update-available"
   say "Iris est déjà à jour ($(git -C "$REPO" rev-parse --short HEAD))."
   exit 0
 fi
@@ -60,6 +61,7 @@ say "Clone mis à jour : $old → $(git -C "$REPO" rev-parse --short HEAD)"
 
 say "Réinstallation dans $PREFIX"
 "$REPO/install.sh" --prefix "$PREFIX" -y
+rm -f "$DATA/update-available"
 
 echo
 say "Terminé. Quickshell recharge normalement tout seul ; sinon : qs kill && qs"

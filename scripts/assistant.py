@@ -62,6 +62,7 @@ UPDATE = os.path.join(SCRIPT_DIR, "iris-update")
 UPDATE_LOG = os.path.join(DATA_DIR, "update.log")
 UPDATE_RESULT = os.path.join(DATA_DIR, "update-result")   # exit code of the last button update
 UPDATE_RUNNING = os.path.join(DATA_DIR, "update-running")  # exists while it runs
+UPDATE_AVAILABLE = os.path.join(DATA_DIR, "update-available")  # written by iris-watch
 
 # Iris must only ever use the claude.ai Pro subscription: strip anything
 # that would switch Claude Code to pay-as-you-go API billing.
@@ -654,7 +655,7 @@ class Daemon:
     # writes its exit code to UPDATE_RESULT, and whoever is alive at the end
     # (this process, or the next daemon at startup) reports it once.
     def _start_update(self):
-        if self.updating:
+        if self.updating or update_is_running():
             return
         if not os.path.isfile(UPDATE):
             emit("update_done", ok=False, v=pick("iris-update est introuvable.", "iris-update not found."))
@@ -686,6 +687,7 @@ class Daemon:
         with self.lock:
             self.updating = False
             report_update_result()
+            emit_update_state()
 
     def _new(self):
         self._drop_claude()
@@ -874,6 +876,18 @@ def report_update_result():
              + "\n".join(log[-6:]))
 
 
+def update_is_running():
+    try:
+        return time.time() - os.path.getmtime(UPDATE_RUNNING) < 900
+    except OSError:
+        return False
+
+
+def emit_update_state():
+    """Tell the overlay whether an update is available / running (header button)."""
+    emit("update_state", available=os.path.exists(UPDATE_AVAILABLE), running=update_is_running())
+
+
 def watch_running_update():
     """A previous daemon started an update that is still running (Quickshell
     reloaded mid-way): report its result when it lands."""
@@ -907,6 +921,8 @@ def ui_strings():
         "update_btn": pick("Mettre à jour", "Update now"),
         "updating": pick("Mise à jour…", "Updating…"),
         "updated_state": pick("À jour", "Up to date"),
+        "update_tip": pick("Mettre Iris à jour", "Update Iris"),
+        "updating_msg": pick("Mise à jour en cours… le panneau peut se recharger.", "Updating… the panel may reload."),
         "allowed": pick("Autorisé", "Allowed"),
         "denied": pick("Refusé", "Denied"),
         "replying": pick("Iris répond…", "Iris is replying…"),
@@ -928,11 +944,9 @@ def main():
     # An update from the "Update" button may have finished (or still run)
     # while the overlay was reloading.
     report_update_result()
-    try:
-        if time.time() - os.path.getmtime(UPDATE_RUNNING) < 900:
-            threading.Thread(target=watch_running_update, daemon=True).start()
-    except OSError:
-        pass
+    emit_update_state()
+    if update_is_running():
+        threading.Thread(target=watch_running_update, daemon=True).start()
     for line in sys.stdin:
         try:
             cmd = json.loads(line)

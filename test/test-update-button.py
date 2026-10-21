@@ -10,9 +10,10 @@ tourne, un seul rapport arrive, le fichier attendu est installé.
 """
 import json
 import os
-import selectors
+import queue
 import subprocess
 import sys
+import threading
 import time
 
 prefix, rel, marker = sys.argv[1:4]
@@ -26,10 +27,14 @@ def check(ok, label):
         fails.append(label)
 
 
+flag = os.path.join(data, "update-available")
+with open(flag, "w") as f:      # what iris-watch writes when a new version is out
+    f.write("1")
+
 p = subprocess.Popen(["python3", os.path.join(prefix, "scripts/assistant.py")], stdin=subprocess.PIPE,
                      stdout=subprocess.PIPE, text=True, bufsize=1, env=dict(os.environ, IRIS_LANG="en"))
-sel = selectors.DefaultSelector()
-sel.register(p.stdout, selectors.EVENT_READ)
+lines = queue.Queue()
+threading.Thread(target=lambda: [lines.put(ln) for ln in p.stdout] and lines.put(None), daemon=True).start()
 
 
 def send(obj):
@@ -40,17 +45,21 @@ def send(obj):
 def read_until(pred, timeout=90):
     end, seen = time.time() + timeout, []
     while time.time() < end:
-        if sel.select(0.5):
-            line = p.stdout.readline()
-            if not line:
-                break
-            d = json.loads(line)
-            seen.append(d)
-            if pred(d):
-                return d, seen
+        try:
+            line = lines.get(timeout=0.5)
+        except queue.Empty:
+            continue
+        if line is None:
+            break
+        d = json.loads(line)
+        seen.append(d)
+        if pred(d):
+            return d, seen
     return None, seen
 
 
+d, _ = read_until(lambda d: d["t"] == "update_state", 15)
+check(bool(d) and d["available"] is True and d["running"] is False, "au démarrage : mise à jour disponible signalée au panneau")
 send({"cmd": "nudge", "text": "update please", "kind": "update"})
 d, _ = read_until(lambda d: d["t"] == "nudge")
 check(bool(d) and d.get("kind") == "update", "l'alerte garde son type « update »")
@@ -61,8 +70,11 @@ send({"cmd": "update"})
 send({"cmd": "update"})
 d, _ = read_until(lambda d: d["t"] == "update_done")
 check(bool(d) and d["ok"] is True, "update_done ok=True")
+st, rest = read_until(lambda d: d["t"] == "update_state", 15)
+check(bool(st) and st["available"] is False, "après la mise à jour : plus de pastille (available=False)")
 _, rest = read_until(lambda d: d["t"] == "update_done", 3)
 check(not any(o["t"] == "update_done" for o in rest), "un seul rapport malgré le double clic")
+check(not os.path.exists(flag), "fichier update-available retiré")
 p.stdin.close()
 p.wait(10)
 check(marker in open(os.path.join(prefix, rel)).read(), "la nouveauté est installée")
