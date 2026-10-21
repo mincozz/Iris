@@ -628,7 +628,7 @@ PanelWindow {
             model: messages
             boundsBehavior: Flickable.StopAtBounds
             // Mouse drags select text instead of flicking; the wheel /
-            // touchpad scrolls (smoothly) through the WheelHandler below.
+            // touchpad scrolls (smoothly) through the MouseArea below the list.
             interactive: false
 
             // Follow the bottom while the reply streams in (Markdown
@@ -649,13 +649,6 @@ PanelWindow {
             }
             NumberAnimation { id: scrollAnim; target: list; property: "contentY"
                               duration: 220; easing.type: Easing.OutCubic }
-            WheelHandler {
-                target: null
-                onWheel: e => {
-                    if (e.pixelDelta.y !== 0) list.scrollBy(e.pixelDelta.y, false)
-                    else list.scrollBy(e.angleDelta.y / 120 * 90, true)
-                }
-            }
 
             // Empty state: greeting, date and a few suggestions.
             Column {
@@ -916,6 +909,20 @@ PanelWindow {
                         }
                     }
                 }
+            }
+        }
+
+        // Wheel / touchpad scrolling for the message list. A wheel-only
+        // MouseArea (no buttons) sits above the delegates: clicks, links and
+        // text selection pass through, but the wheel always reaches the list.
+        MouseArea {
+            anchors.fill: list
+            visible: !overlay.showHistory
+            acceptedButtons: Qt.NoButton
+            onWheel: wheel => {
+                if (wheel.pixelDelta.y !== 0) list.scrollBy(wheel.pixelDelta.y, false)
+                else list.scrollBy(wheel.angleDelta.y / 120 * 90, true)
+                wheel.accepted = true
             }
         }
 
