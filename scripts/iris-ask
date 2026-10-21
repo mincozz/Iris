@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Envoie à Iris le texte sélectionné (sinon le presse-papiers) et ouvre son panneau.
+# À brancher sur un raccourci clavier ; l'installateur le fait pour Hyprland.
+#   IRIS_ASK_DRY=1 iris-ask   affiche ce qui serait envoyé, sans rien envoyer
+set -u
+MAX=20000   # caractères ; au-delà, le texte est coupé
+
+paste() { wl-paste "$@" --no-newline --type text/plain 2>/dev/null || true; }
+blank() { [ -z "${1//[[:space:]]/}" ]; }
+
+text="$(paste --primary)"
+blank "$text" && text="$(paste)"
+
+if blank "$text"; then
+  notify-send -a Iris "Iris" "Rien de sélectionné ni dans le presse-papiers." 2>/dev/null
+  [ "${IRIS_ASK_DRY:-0}" = 1 ] && { echo "[dry] open"; exit 0; }
+  exec qs ipc call assistant open
+fi
+
+note=""
+if [ "${#text}" -gt "$MAX" ]; then
+  text="${text:0:$MAX}"
+  note=$'\n\n(texte coupé après '"$MAX"' caractères)'
+fi
+
+# Le préfixe donne le contexte à Iris et évite qu'un texte commençant par « - »
+# soit pris pour une option par la ligne de commande.
+msg="Voici le texte que j'ai sélectionné :"$'\n\n'"$text$note"
+
+if [ "${IRIS_ASK_DRY:-0}" = 1 ]; then printf '[dry] ask: %s\n' "$msg"; exit 0; fi
+exec qs ipc call assistant ask "$msg"

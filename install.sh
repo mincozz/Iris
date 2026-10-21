@@ -2,7 +2,7 @@
 # Installateur d'Iris pour un shell Quickshell.
 #   ./install.sh [--prefix DIR] [--dry-run] [--no-hypr] [--uninstall] [-y]
 #                [--name NOM] [--deny-read "~/.ssh,~/.gnupg"] [--reconfigure]
-#                [--fast-model ID] [--power-model ID]
+#                [--fast-model ID] [--power-model ID] [--ask-key "SUPER + I"]
 # Sans option de config et dans un terminal, l'installateur pose quelques
 # questions ; avec -y ou sans terminal, il garde les défauts.
 # Idempotent : on peut le relancer sans risque. Chaque fichier existant
@@ -14,7 +14,7 @@ PREFIX="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell"
 HYPR="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
 DATA="$HOME/.local/share/qs-assistant"
 DRY=0; HYPR_ON=1; UNINSTALL=0; YES=0
-CFG_NAME=""; CFG_DENY=""; CFG_FAST=""; CFG_POWER=""; RECONF=0; CFG_SET=0
+ASK_KEY="SUPER + I"; CFG_NAME=""; CFG_DENY=""; CFG_FAST=""; CFG_POWER=""; RECONF=0; CFG_SET=0
 BEGIN="// >>> iris (install.sh) >>>"; END="// <<< iris (install.sh) <<<"
 
 while [ $# -gt 0 ]; do
@@ -29,6 +29,7 @@ while [ $# -gt 0 ]; do
     --fast-model)  CFG_FAST="$2"; CFG_SET=1; shift ;;
     --power-model) CFG_POWER="$2"; CFG_SET=1; shift ;;
     --reconfigure) RECONF=1 ;;
+    --ask-key)     ASK_KEY="$2"; shift ;;
     -h|--help)   sed -n '2,5p' "$0"; exit 0 ;;
     *) echo "option inconnue : $1" >&2; exit 2 ;;
   esac; shift
@@ -41,7 +42,7 @@ run()  { if [ "$DRY" = 1 ]; then echo "  [dry-run] $*"; else "$@"; fi; }
 FILES=(
   "overlays/AssistantOverlay.qml" "overlays/AssistantAvatar.qml"
   "scripts/assistant.py" "scripts/assistant-prompt.md"
-  "scripts/iris-watch.py" "scripts/organize.py"
+  "scripts/iris-watch.py" "scripts/organize.py" "scripts/iris-ask"
 )
 
 backup() { [ -e "$1" ] && [ ! -e "$1.iris-bak" ] && run cp -p "$1" "$1.iris-bak" || true; }
@@ -61,7 +62,7 @@ open(p, "w").write(s)
 PY
   fi
   warn "Ton état (mémoire, historique) reste dans $DATA : supprime-le à la main si tu veux."
-  warn "Retire aussi à la main le bouton de Bar.qml et la règle Hyprland 'assistant-glass' s'ils existent."
+  warn "Retire aussi à la main le bouton de Bar.qml, la règle Hyprland 'assistant-glass' et le raccourci iris-ask s'ils existent."
   exit 0
 fi
 
@@ -82,7 +83,7 @@ say "Copie vers $PREFIX"
 for f in "${FILES[@]}"; do
   run mkdir -p "$PREFIX/$(dirname "$f")"
   if [ -e "$PREFIX/$f" ] && ! cmp -s "$SRC/$f" "$PREFIX/$f"; then backup "$PREFIX/$f"; fi
-  run install -m "$([[ $f == scripts/*.py ]] && echo 755 || echo 644)" "$SRC/$f" "$PREFIX/$f"
+  run install -m "$([[ $f == scripts/*.py || $f == scripts/iris-ask ]] && echo 755 || echo 644)" "$SRC/$f" "$PREFIX/$f"
 done
 
 # ── État utilisateur (jamais écrasé) ──────────────────────────────────────
@@ -199,6 +200,33 @@ if [ "$HYPR_ON" = 1 ]; then
     [ "$DRY" = 1 ] || printf '\n-- Iris : flou derrière le panneau\n%s\n' "$RULE" >> "$HYPR/hyprland.lua"
   else
     warn "Config Hyprland au format .conf : ajoute (selon ta version) par ex.  layerrule = blur, quickshell-assistant  et  layerrule = ignorealpha 0.1, quickshell-assistant"
+  fi
+
+  # Raccourci « envoyer la sélection à Iris » (scripts/iris-ask)
+  ASK="$PREFIX/scripts/iris-ask"
+  if grep -rqs "iris-ask" "$HYPR" 2>/dev/null; then
+    say "Raccourci iris-ask déjà présent"
+  elif [ -f "$HYPR/hyprland.lua" ]; then
+    if python3 -I - "$HYPR" "$ASK_KEY" <<'PY'
+import glob, re, sys
+d, want = sys.argv[1:]
+norm = lambda k: re.sub(r"[\s\"']|\.\.", "", k.replace("mainMod", "SUPER")).upper()
+want = norm(want)
+for f in glob.glob(d + "/**/*.lua", recursive=True):
+    for m in re.finditer(r"hl\.bind\(\s*([^,]+?)\s*,", open(f, errors="replace").read()):
+        if norm(m.group(1)) == want:
+            sys.exit(0)
+sys.exit(1)
+PY
+    then
+      warn "Le raccourci « $ASK_KEY » semble déjà pris : relance avec --ask-key \"SUPER + SHIFT + I\" (par ex.), ou ajoute-le toi-même."
+    else
+      say "Raccourci $ASK_KEY → envoyer la sélection à Iris"
+      backup "$HYPR/hyprland.lua"
+      [ "$DRY" = 1 ] || printf '\n-- Iris : envoie le texte sélectionné (ou le presse-papiers) à Iris\nhl.bind("%s", hl.dsp.exec_cmd("%s"))\n' "$ASK_KEY" "$ASK" >> "$HYPR/hyprland.lua"
+    fi
+  else
+    warn "Pour le raccourci (hyprland.conf) : bind = SUPER, I, exec, $ASK"
   fi
 fi
 

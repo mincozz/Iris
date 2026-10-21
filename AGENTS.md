@@ -18,6 +18,7 @@ Tu es une IA qui aide un utilisateur à installer **Iris**, un assistant en pixe
 | `scripts/assistant-prompt.md` | Prompt système |
 | `scripts/iris-watch.py` | Alertes locales (git, agenda, santé système) |
 | `scripts/organize.py` | Rangement de dossiers : `scan`, `apply`, `undo` |
+| `scripts/iris-ask` | Raccourci : envoie la sélection (ou le presse-papiers) à Iris |
 | `integration/` | Extraits à greffer à la main, exemples de config |
 
 ## Procédure d'installation
@@ -30,7 +31,7 @@ Tu es une IA qui aide un utilisateur à installer **Iris**, un assistant en pixe
    - un objet `theme` existe (voir plus bas) ;
    - l'overlay est bien instancié : `AssistantOverlay { id: assistantOverlay; shellRoot: root; theme: theme }`.
    Si la racine n'est pas `id: root`, le patch échoue proprement : câble à la main avec `integration/shell.qml.snippet`.
-6. **Hyprland** : l'installateur ajoute la règle de flou dans `hyprland.lua` s'il existe. Pour un `hyprland.conf`, ajoute les `layerrule` pour le namespace `quickshell-assistant` selon la version de Hyprland de l'utilisateur (la syntaxe a changé entre versions : vérifie-la sur sa version).
+6. **Hyprland** : l'installateur ajoute la règle de flou dans `hyprland.lua` s'il existe. Il ajoute aussi le raccourci `SUPER + I` vers `scripts/iris-ask` (option `--ask-key` si la touche est prise ; demande à l'utilisateur quelle touche il préfère). Pour un `hyprland.conf`, ajoute les `layerrule` pour le namespace `quickshell-assistant` selon la version de Hyprland de l'utilisateur (la syntaxe a changé entre versions : vérifie-la sur sa version).
 7. **Optionnel, à proposer** : bouton d'avatar dans la barre (`integration/Bar.qml.snippet`) ; un clic sur une alerte « Iris » ouvre le panneau (`integration/NotificationToast.qml.snippet`).
 8. **Recharger** Quickshell, puis tester : `qs ipc call assistant toggle`. En cas d'erreur, regarde les logs de Quickshell (`qs log`).
 

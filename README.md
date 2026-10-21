@@ -13,6 +13,7 @@ Elle s'appuie sur la CLI `claude -p` : chat, fichiers, agenda/mails via les conn
 | `scripts/assistant-prompt.md` | Prompt système d'Iris |
 | `scripts/iris-watch.py` | Alertes locales sans quota : `git pull` à faire, commits non poussés, agenda, disque/batterie/units en échec |
 | `scripts/organize.py` | `scan` / `apply` / `undo` pour ranger des dossiers |
+| `scripts/iris-ask` | Raccourci : envoie la sélection (ou le presse-papiers) à Iris |
 | `integration/` | Extraits à greffer dans `shell.qml`, `Bar.qml`, `NotificationToast.qml`, règle de blur Hyprland, `watch.json` d'exemple |
 
 ## Installation
@@ -31,6 +32,12 @@ L'installateur vérifie les prérequis (Quickshell, Python 3, CLI `claude` conne
 
 Restent à faire à la main, car ils dépendent de ton shell : le bouton dans la barre (`integration/Bar.qml.snippet`) et le clic sur une alerte (`integration/NotificationToast.qml.snippet`). L'overlay attend un objet `theme` (`ff`, `fs`, `hi()`, `barBg`…).
 Contrôle : `qs ipc call assistant toggle|open|close|ask "…"`.
+
+## Raccourci « demande à Iris »
+
+`scripts/iris-ask` envoie à Iris le texte sélectionné (sinon le presse-papiers) et ouvre son panneau. L'installateur ajoute `SUPER + I` à `hyprland.lua` (changeable avec `--ask-key "SUPER + SHIFT + I"`, ignoré si le raccourci est déjà pris). Pour un `hyprland.conf` : `bind = SUPER, I, exec, ~/.config/quickshell/scripts/iris-ask`. Nécessite `wl-clipboard`. `IRIS_ASK_DRY=1 iris-ask` montre ce qui serait envoyé, sans rien envoyer.
+
+Le texte sélectionné part tel quel à Claude : évite de le déclencher sur un mot de passe.
 
 ## Configuration
 

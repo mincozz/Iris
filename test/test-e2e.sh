@@ -53,9 +53,18 @@ check "dry-run sans erreur"           "${INST[0]}" "${INST[@]:1}" --dry-run
 check "dry-run n'écrit rien"          test ! -e "$T/qs/overlays"
 check "installation sans erreur"      "${INST[@]}"
 for f in overlays/AssistantOverlay.qml overlays/AssistantAvatar.qml scripts/assistant.py \
-         scripts/assistant-prompt.md scripts/iris-watch.py scripts/organize.py; do
+         scripts/assistant-prompt.md scripts/iris-watch.py scripts/organize.py scripts/iris-ask; do
   check "fichier copié : $f" test -f "$T/qs/$f"
 done
+check "iris-ask exécutable"           test -x "$T/qs/scripts/iris-ask"
+mkdir -p "$T/home/.config/hypr" "$T/bin"
+printf 'require("modules.keybinds")\n' > "$T/home/.config/hypr/hyprland.lua"
+printf '#!/bin/sh\nprintf "%%s" "texte test"\n' > "$T/bin/wl-paste"; chmod +x "$T/bin/wl-paste"
+check "iris-ask envoie la sélection (dry)" bash -c "IRIS_ASK_DRY=1 PATH='$T/bin':\$PATH '$T/qs/scripts/iris-ask' | grep -q 'texte test'"
+"$SRC/install.sh" --prefix "$T/qs" -y >/dev/null 2>&1
+check "raccourci Hyprland ajouté (1 fois)" bash -c "[ \$(grep -c 'iris-ask' '$T/home/.config/hypr/hyprland.lua') = 1 ]"
+"$SRC/install.sh" --prefix "$T/qs" -y >/dev/null 2>&1
+check "raccourci non dupliqué à la relance" bash -c "[ \$(grep -c 'iris-ask' '$T/home/.config/hypr/hyprland.lua') = 1 ]"
 check "shell.qml câblé (bloc balisé)"  grep -q ">>> iris (install.sh)" "$T/qs/shell.qml"
 check "import \"./overlays\" ajouté"    grep -q 'import "./overlays"' "$T/qs/shell.qml"
 check "configDir et homeDir définis"   bash -c "grep -q 'configDir' '$T/qs/shell.qml' && grep -q 'homeDir' '$T/qs/shell.qml'"
