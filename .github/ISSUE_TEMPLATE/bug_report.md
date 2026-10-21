@@ -6,15 +6,15 @@ labels: bug
 
 **Ce qui se passe / What happens**
 
-**Ce que tu attendais / What you expected**
+**Ce que vous attendiez / What you expected**
 
 **Pour reproduire / Steps to reproduce**
 1.
 2.
 
 **Diagnostic**
-Colle la sortie de `~/.config/quickshell/scripts/iris-doctor` (elle ne contient pas de secret ; relis-la quand même).
-Paste the output of `~/.config/quickshell/scripts/iris-doctor` (it holds no secrets; still, read it first).
+Collez la sortie de `~/.config/quickshell/scripts/iris-doctor` (elle ne contient pas de secret, mais elle indique des chemins : relisez-la avant de la publier).
+Paste the output of `~/.config/quickshell/scripts/iris-doctor` (it holds no secrets, but it shows paths: read it before posting).
 
 ```
 ```
@@ -26,4 +26,4 @@ Paste the output of `~/.config/quickshell/scripts/iris-doctor` (it holds no secr
 - Distribution :
 - Compositeur (Hyprland…) :
 - Version de Quickshell (`qs --version`) :
-- Version d'Iris (`git -C <ton clone> rev-parse --short HEAD`) :
+- Version d'Iris (`git -C <votre clone> rev-parse --short HEAD`) :

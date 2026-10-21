@@ -3,14 +3,18 @@
 **A personal assistant for Quickshell, powered by Claude Code.**
 
 [![CI](https://github.com/mincozz/Iris/actions/workflows/ci.yml/badge.svg)](https://github.com/mincozz/Iris/actions/workflows/ci.yml)
-[![MIT License](https://img.shields.io/github/license/mincozz/Iris)](LICENSE)
+[![MIT License](https://img.shields.io/github/license/mincozz/Iris)](../LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Linux%20%C2%B7%20Wayland%20%C2%B7%20Quickshell-informational)
 
-[Français](README.md) · English
+[Français](../README.md) · English
 
 Iris is a chat panel built into the bar of your [Quickshell](https://quickshell.org) shell. It drives the [Claude Code](https://claude.com/claude-code) CLI on **your** Claude account: every user uses their own subscription, and no data goes through a project server.
 
 > Independent project, not affiliated with Anthropic. "Claude" is a trademark of Anthropic.
+
+<!-- Screenshot: drop screenshot.png next to this file, then uncomment the following lines.
+<p align="center"><img src="screenshot.png" alt="The Iris panel" width="420"></p>
+-->
 
 ## Contents
 
@@ -45,7 +49,7 @@ qs ipc call assistant toggle
 ~/.config/quickshell/scripts/iris-doctor
 ```
 
-You can also let a coding assistant do the install: run it in the repository and ask "install Iris" ([AGENTS.md](AGENTS.md), in French, describes the procedure).
+You can also let a coding assistant do the install: run it in the repository and ask "install Iris" ([AGENTS.md](../AGENTS.md), in French, describes the procedure).
 
 ## Requirements
 
@@ -55,7 +59,7 @@ You can also let a coding assistant do the install: run it in the repository and
 | Tools | Python 3.9+, `git` | Daemon, alerts, updating. |
 | Account | The `claude` CLI, **logged in** | Run `claude` once to sign in. |
 | Optional | `wl-clipboard`, `libnotify`, `glib2` (`gio`), Nautilus (otherwise `xdg-open`) | Shortcuts, notifications, trash for tidying, opening files. |
-| Theme | A `theme` object in your `shell.qml` | Expected fields: `bg, fg, ff, fs, primary, secondary, tertiary, lavender, light, outline, txt2, error, warn`. [`test/shell.qml`](test/shell.qml) provides a minimal one. |
+| Theme | A `theme` object in your `shell.qml` | Expected fields: `bg, fg, ff, fs, primary, secondary, tertiary, lavender, light, outline, txt2, error, warn`. [`test/shell.qml`](../test/shell.qml) provides a minimal one. |
 
 ## Installation
 
@@ -81,7 +85,7 @@ In a terminal the installer asks four questions: the language, your first name, 
 
 **What it does**: checks the requirements, copies the files (a `.iris-bak` backup is made for any replaced file), creates `~/.local/share/qs-assistant/` (memory, `config.json`, `watch.json`, example recipes, never overwritten), wires `shell.qml` in a marked block, adds the blur rule and the two shortcuts to `hyprland.lua`, then runs the diagnostic. It is safe to re-run. The installer's own messages are in French.
 
-**Left to do by hand**, because they depend on your shell (optional): the avatar button in the bar ([`integration/Bar.qml.snippet`](integration/Bar.qml.snippet)) and clicking an alert to open the panel ([`integration/NotificationToast.qml.snippet`](integration/NotificationToast.qml.snippet)).
+**Left to do by hand**, because they depend on your shell (optional): the avatar button in the bar ([`integration/Bar.qml.snippet`](../integration/Bar.qml.snippet)) and clicking an alert to open the panel ([`integration/NotificationToast.qml.snippet`](../integration/NotificationToast.qml.snippet)).
 
 ## Usage
 
@@ -105,7 +109,7 @@ Iris gets the list (name and description) and reads a recipe when your request m
 
 ## Alerts and morning brief
 
-`iris-watch.py` runs with the panel and writes to Iris without using Claude quota (only reading the calendar through the connectors does). Settings are in `~/.local/share/qs-assistant/watch.json` (template: [`integration/watch.example.json`](integration/watch.example.json)).
+`iris-watch.py` runs with the panel and writes to Iris without using Claude quota (only reading the calendar through the connectors does). Settings are in `~/.local/share/qs-assistant/watch.json` (template: [`integration/watch.example.json`](../integration/watch.example.json)).
 
 | Alert | When |
 |---|---|
@@ -130,7 +134,7 @@ Test: `python3 scripts/iris-watch.py --once morning`.
 ## Updating
 
 ```bash
-~/.config/quickshell/scripts/iris-update          # or the ⬇ button in the panel, or "update yourself"
+~/.config/quickshell/scripts/iris-update          # or the ⬇ button in the panel, or by asking Iris to update herself
 ~/.config/quickshell/scripts/iris-update --check  # see if there is something new, change nothing
 ```
 
@@ -153,9 +157,9 @@ The button does not go through Claude (no quota); the panel may reload at the en
 | `extra_readonly_commands` | Commands run without asking: make sure they have no side effects |
 | `extra_denied_commands` | Commands refused even with a click |
 
-**Memory.** Iris reads `~/.local/share/qs-assistant/memory.md` and updates it when you ask her to remember something, with an authorisation request. An empty template is in [`integration/memory.example.md`](integration/memory.example.md). History, memory and calendar stay in `~/.local/share/qs-assistant/` and are never versioned.
+**Memory.** Iris reads `~/.local/share/qs-assistant/memory.md` and updates it when you ask her to remember something, with an authorisation request. An empty template is in [`integration/memory.example.md`](../integration/memory.example.md). History, memory and calendar stay in `~/.local/share/qs-assistant/` and are never versioned.
 
-**Prompts.** [`assistant-prompt.md`](scripts/assistant-prompt.md) (French) and [`assistant-prompt.en.md`](scripts/assistant-prompt.en.md) are yours to adapt, or replace them with `prompt_file`.
+**Prompts.** [`assistant-prompt.md`](../scripts/assistant-prompt.md) (French) and [`assistant-prompt.en.md`](../scripts/assistant-prompt.en.md) are yours to adapt, or replace them with `prompt_file`.
 
 ## Architecture
 
@@ -190,6 +194,7 @@ The overlay starts the daemon and the alert watcher as child processes. The daem
 | `scripts/i18n.py` | Language choice shared by the scripts |
 | `integration/` | Snippets to graft, example config and recipes |
 | `test/` | Minimal shell, end-to-end test, daemon tests |
+| `docs/` | English README and changelog |
 
 ## Security
 
@@ -201,7 +206,7 @@ Iris runs `claude` with your rights.
 - Alert buttons only run known actions (`update`, `git_pull`), with arguments checked by the daemon.
 - Data lives in a mode-700 folder; CI scans for secrets (Gitleaks).
 
-No assistant that reads external content is immune to prompt injection: keep an eye on the permission cards. Full model and how to report a vulnerability: [SECURITY.md](SECURITY.md) (French).
+No assistant that reads external content is immune to prompt injection: keep an eye on the permission cards. Full model and how to report a vulnerability: [SECURITY.md](../.github/SECURITY.md) (French).
 
 ## Known limits
 
@@ -216,8 +221,8 @@ No assistant that reads external content is immune to prompt injection: keep an 
 test/test-e2e.sh --no-gui    # installs into /tmp, checks, uninstalls; leaves your config alone
 ```
 
-This test touches neither your shell, nor your data, nor your Claude account (`--with-claude` explicitly allows it for one tiny message). CI runs ShellCheck, Python compilation, this test and Gitleaks. Conventions (strings through `pick()` / `overlay.tr()`, no personal data, a test per change) and the pull-request process are in [CONTRIBUTING.md](CONTRIBUTING.md); the history of changes is in [CHANGELOG.md](CHANGELOG.md).
+This test touches neither your shell, nor your data, nor your Claude account (`--with-claude` explicitly allows it for one tiny message). CI runs ShellCheck, Python compilation, this test and Gitleaks. Conventions (strings through `pick()` / `overlay.tr()`, no personal data, a test per change) and the pull-request process are in [CONTRIBUTING.md](../.github/CONTRIBUTING.md); the history of changes is in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-[MIT](LICENSE). Contributions are accepted under the same license.
+[MIT](../LICENSE). Contributions are accepted under the same license.
