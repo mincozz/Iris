@@ -18,16 +18,18 @@ Elle s'appuie sur la CLI `claude -p` : chat, fichiers, agenda/mails via les conn
 
 ## Installation
 
-Prérequis : Quickshell, Python 3, la CLI `claude` connectée, `gio` (corbeille), `git`.
+```bash
+git clone git@github.com:mincozz/IRIS.git && cd IRIS
+./install.sh --dry-run   # voir ce qui sera fait
+./install.sh             # installer
+```
 
-1. Copier `overlays/*.qml` dans `~/.config/quickshell/overlays/`, `scripts/*` dans `~/.config/quickshell/scripts/`, `assets/*` dans `~/.config/quickshell/assets/`.
-2. Greffer les extraits de `integration/` :
-   - `shell.qml.snippet` : propriétés/IPC + `AssistantOverlay { id: assistantOverlay; shellRoot: root; theme: theme }`
-   - `Bar.qml.snippet` : bouton d'avatar dans la barre
-   - `NotificationToast.qml.snippet` : un clic sur une alerte « Iris » ouvre le panneau
-   - `hyprland-layer-rule.lua` : flou derrière le panneau
-3. Optionnel : `integration/watch.example.json` → `~/.local/share/qs-assistant/watch.json`.
-4. Contrôle : `qs ipc call assistant toggle|open|close|ask "…"`.
+Options : `--prefix DIR` (autre dossier Quickshell), `--no-hypr`, `-y` (sans question), `--uninstall`.
+
+L'installateur vérifie les prérequis (Quickshell, Python 3, CLI `claude` connectée, git, `gio`), copie les fichiers, crée `~/.local/share/qs-assistant/` (mémoire et `watch.json` vierges, jamais écrasés), câble `shell.qml` (bloc balisé, sauvegarde `.iris-bak`) et ajoute la règle de flou dans `hyprland.lua`. Il est relançable sans risque.
+
+Restent à faire à la main, car ils dépendent de ton shell : le bouton dans la barre (`integration/Bar.qml.snippet`) et le clic sur une alerte (`integration/NotificationToast.qml.snippet`). L'overlay attend un objet `theme` (`ff`, `fs`, `hi()`, `barBg`…).
+Contrôle : `qs ipc call assistant toggle|open|close|ask "…"`.
 
 ## Personnalisation
 
