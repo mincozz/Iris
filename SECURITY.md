@@ -1,0 +1,25 @@
+# Sécurité
+
+## Signaler une faille
+
+Merci de **ne pas ouvrir d'issue publique** pour une faille de sécurité.
+Utilise le signalement privé de GitHub : onglet **Security → Report a vulnerability** de ce repo.
+Donne de quoi reproduire (version ou commit, étapes, ce que tu observes) ; je réponds dès que possible.
+
+## Versions concernées
+
+Seule la dernière version de la branche `main` est maintenue. Mets à jour avec `scripts/iris-update` (ou le bouton ⬇ du panneau).
+
+## Ce que le projet fait et ne fait pas
+
+Iris lance la CLI `claude` sur ta machine, avec tes droits. Quelques points utiles pour juger un signalement :
+
+- **Autorisations** : lire des fichiers et lancer des commandes en lecture seule se fait sans demander ; tout ce qui modifie quelque chose passe par une carte Autoriser / Refuser (voir `READONLY_BASH` et `ALLOWED_TOOLS` dans `scripts/assistant.py`). `sudo`, `su`, `doas`, `dd`, `mkfs` et `wipefs` sont refusés.
+- **Contenu non fiable** : mails, pages web et fichiers sont traités comme des données. Une injection de prompt qui contourne les autorisations ci-dessus est une faille à signaler.
+- **Pas un bac à sable** : `deny_read_paths` (dans `config.json`) est un garde-fou au mieux, pas une isolation.
+- **Données locales** : historique, mémoire et agenda restent dans `~/.local/share/qs-assistant/` (droits 700) et ne sont jamais envoyés ailleurs que vers Claude, via la CLI.
+- **Aucun secret dans le repo** : la CI lance Gitleaks. Si tu en vois un, signale-le de la même façon.
+
+## Hors périmètre
+
+Les failles de Claude Code, de Quickshell, de Hyprland ou de Claude lui-même sont à signaler à leurs projets respectifs.

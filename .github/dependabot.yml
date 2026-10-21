@@ -1,0 +1,10 @@
+# Garde à jour les actions GitHub utilisées par la CI (checkout, gitleaks…).
+# Iris n'a pas de dépendances Python : la CI n'a que ces actions à surveiller.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"
