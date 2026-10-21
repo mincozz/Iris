@@ -1,0 +1,8 @@
+{
+  "ics_url": "",
+  "repo_roots": ["~"],
+  "exclude": ["Downloads", "node_modules", ".cache", ".local"],
+  "remind_minutes": 15,
+  "unpushed_hour": 19,
+  "calendar_refresh_hours": 3
+}

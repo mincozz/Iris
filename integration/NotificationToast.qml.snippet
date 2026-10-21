@@ -1,0 +1,8 @@
+                    anchors.fill: parent
+                    acceptedButtons: Qt.LeftButton
+                    z: -1
+                    onClicked: {
+                        // An Iris alert opens her panel.
+                        if (toast.modelData.appName === "Iris") overlay.shellRoot.openAssistant()
+                        overlay.shellRoot.removeToast(toast.modelData)
+                    }

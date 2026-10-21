@@ -1,0 +1,1060 @@
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import Quickshell.Wayland
+
+// Chat panel for "Iris", the pixel-art assistant. Slides in on the right,
+// under the bar. Talks to scripts/assistant.py, a daemon that keeps a
+// streaming `claude -p` open (fast replies), routes between Haiku and
+// Sonnet, stores the conversation history and forwards permission requests
+// here as Autoriser / Refuser cards.
+// Look: "liquid glass" — a translucent panel that Hyprland blurs behind
+// (layer rule on the "quickshell-assistant" namespace, see
+// ~/.config/hypr/modules/animation.lua), with a specular edge.
+// Messages are selectable (drag to select, Ctrl+C or the copy button), and
+// file paths written in backticks become links that open the file manager.
+// Enter sends, Esc closes, Ctrl+N new chat, Ctrl+H history.
+PanelWindow {
+    id: overlay
+
+    required property var shellRoot
+    required property var theme
+
+    readonly property bool _open: shellRoot.assistantOpen
+    visible: _open || exitAnim.running
+    WlrLayershell.namespace: "quickshell-assistant"
+    WlrLayershell.keyboardFocus: _open ? WlrKeyboardFocus.Exclusive
+                                       : WlrKeyboardFocus.None
+
+    anchors { top: true; left: true; right: true; bottom: true }
+    exclusiveZone: 0
+    color: "transparent"
+
+    readonly property int panelWidth: 460
+
+    // ── Glass tokens (derived from the active theme) ──────────────────
+    readonly property bool  light:       theme.light
+    readonly property color glassFill:   light ? Qt.rgba(1, 1, 1, 0.55)
+                                               : Qt.rgba(theme.bg.r, theme.bg.g, theme.bg.b, 0.58)
+    readonly property color glassStroke: light ? Qt.rgba(1, 1, 1, 0.75) : Qt.rgba(1, 1, 1, 0.11)
+    readonly property color glassShine:  light ? Qt.rgba(1, 1, 1, 0.55) : Qt.rgba(1, 1, 1, 0.07)
+    readonly property color cardFill:    light ? Qt.rgba(1, 1, 1, 0.6)  : Qt.rgba(1, 1, 1, 0.055)
+    readonly property color cardStroke:  light ? Qt.rgba(0, 0, 0, 0.06) : Qt.rgba(1, 1, 1, 0.08)
+    readonly property color cardHover:   light ? Qt.rgba(1, 1, 1, 0.85) : Qt.rgba(1, 1, 1, 0.10)
+    readonly property color wellFill:    light ? Qt.rgba(1, 1, 1, 0.7)  : Qt.rgba(0, 0, 0, 0.22)
+    function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
+
+    // Chat items: role = "user" | "assistant" | "error" | "ask" | "nudge"
+    // (an alert Iris sends on her own, from scripts/iris-watch.py).
+    // Ask items also carry askId / askTool / askState (pending|allowed|denied).
+    ListModel { id: messages }
+    ListModel { id: history }
+
+    property bool   busy:        false
+    property bool   streaming:   false   // last item is the reply being streamed
+    property bool   replying:    false   // text is flowing right now
+    property string toolStatus:  ""
+    property string modelName:   ""      // "haiku" | "sonnet" (last reply)
+    property string mode:        "auto"  // auto | fast | power
+    property bool   showHistory: false
+    // Subscription usage (0..1) reported by Claude Code; -1 = unknown yet.
+    property real   usage5h:     -1
+    property real   usageWeek:   -1
+    property real   usageResets: 0       // epoch ms of the next reset, 0 = unknown
+    readonly property var modeList: [
+        { key: "auto",  label: "Auto",     icon: "󰁨" },
+        { key: "fast",  label: "Rapide",   icon: "󱐋" },
+        { key: "power", label: "Puissant", icon: "󰧑" }
+    ]
+
+    readonly property string mood:
+        !busy ? "idle" : (toolStatus !== "" || !replying) ? "thinking" : "talking"
+    onMoodChanged: shellRoot.assistantMood = mood
+
+    // Wall clock, refreshed every 30 s (greeting, date, reset countdown).
+    property date now: new Date()
+    Timer { interval: 30000; repeat: true; running: overlay.visible; triggeredOnStart: true
+            onTriggered: overlay.now = new Date() }
+
+    function close()  { shellRoot.closeAssistant() }
+    function cmd(o)   { daemon.write(JSON.stringify(o) + "\n") }
+
+    function _push(role, text) {
+        messages.append({ role: role, text: text, askId: "", askTool: "", askState: "" })
+    }
+
+    function send() {
+        const msg = input.text.trim()
+        if (!msg || busy) return
+        input.text  = ""
+        showHistory = false
+        _push("user", msg)
+        busy = true; streaming = false; replying = false; toolStatus = ""
+        cmd({ cmd: "send", text: msg, mode: mode })
+        list.stick = true; list.positionViewAtEnd()
+    }
+    function ask(text) { input.text = text; send() }
+    function stop()    { if (busy) cmd({ cmd: "stop" }) }
+    function newChat() { showHistory = false; cmd({ cmd: "new" }) }
+    function answer(index, allow) {
+        const it = messages.get(index)
+        if (it.askState !== "pending") return
+        messages.setProperty(index, "askState", allow ? "allowed" : "denied")
+        cmd({ cmd: "answer", id: it.askId, allow: allow })
+    }
+    function toggleHistory() {
+        showHistory = !showHistory
+        if (showHistory) cmd({ cmd: "list" })
+    }
+    function copy(text) { Quickshell.execDetached(["wl-copy", "--", text]) }
+
+    // ── File links ────────────────────────────────────────────────────
+    // A path in backticks (`~/Documents/x.pdf`, `/home/…/dossier/`) becomes
+    // a link "iris-file:<path>"; clicking it shows the item in Nautilus
+    // (file selected inside its folder, or the folder opened).
+    // Inline HTML anchor (Qt's Markdown keeps it): lets us colour the link,
+    // TextEdit ignores palette.link and would draw it pure blue.
+    function _linkText(s) {
+        return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                .replace(/([\\\[\]_*`~])/g, "\\$1")
+    }
+    function linkify(t) {
+        return t.replace(/`((?:~\/|~$|\/)[^`\n]*)`/g, (m, p) => {
+            p = p.trim()
+            if (p === "/" || /\s{2,}/.test(p)) return m
+            const name = p.replace(/\/+$/, "").split("/").pop() || p
+            const isDir = /\/$/.test(p) || !/\.[A-Za-z0-9]{1,8}$/.test(name)
+            return "<a href=\"iris-file:" + encodeURIComponent(p) + "\" style=\"color:"
+                   + theme.primary + "; text-decoration:none; font-weight:600\">"
+                   + (isDir ? " " : " ") + _linkText(p) + "</a>"
+        })
+    }
+    function openLink(link) {
+        let path = ""
+        if (link.startsWith("iris-file:")) path = decodeURIComponent(link.slice(10))
+        else if (link.startsWith("file://")) path = decodeURIComponent(link.slice(7))
+        console.log("[iris] open link", link)
+        if (path === "") { Qt.openUrlExternally(link); return }
+        path = path.replace(/^~(?=\/|$)/, shellRoot.homeDir)
+        Quickshell.execDetached(["sh", "-c",
+            // The shell runs without LANG: GLib would then reject accented
+            // paths ("Invalid byte sequence"), so force UTF-8.
+            'export LANG="${LANG:-C.UTF-8}"; '
+          + 'if [ -d "$1" ]; then exec nautilus --new-window "$1"; '
+          + 'elif [ -e "$1" ]; then exec nautilus --select "$1"; '
+          + 'else exec nautilus --new-window "$(dirname "$1")"; fi'
+          + ' >"$XDG_RUNTIME_DIR/iris-reveal.log" 2>&1', "reveal", path])
+        close()
+    }
+
+    function _relTime(ts) {
+        const s = Date.now() / 1000 - ts
+        if (s < 3600)     return Math.max(1, Math.round(s / 60)) + " min"
+        if (s < 86400)    return Math.round(s / 3600) + " h"
+        if (s < 7 * 86400) return Math.round(s / 86400) + " j"
+        return Qt.formatDate(new Date(ts * 1000), "dd/MM")
+    }
+    function _resetLabel() {
+        if (usageResets <= 0) return ""
+        const left = (usageResets - now.getTime()) / 60000
+        if (left <= 0) return ""
+        const h = Math.floor(left / 60), m = Math.round(left % 60)
+        return "réinit. " + (h > 0 ? h + " h " + String(m).padStart(2, "0") : m + " min")
+    }
+    readonly property string greeting: {
+        const h = now.getHours()
+        return h < 5 ? "Encore debout ?" : h < 18 ? "Bonjour" : "Bonsoir"
+    }
+
+    // ── Daemon ────────────────────────────────────────────────────────
+    Process {
+        id: daemon
+        running: true
+        stdinEnabled: true
+        command: ["python3", overlay.shellRoot.configDir + "/scripts/assistant.py"]
+        stdout: SplitParser {
+            onRead: line => {
+                let d
+                try { d = JSON.parse(line) } catch (e) { return }
+                overlay._onEvent(d)
+            }
+        }
+        // Restart if it ever dies (keeps the panel usable).
+        onExited: { overlay.busy = false; restartTimer.restart() }
+    }
+    Timer { id: restartTimer; interval: 1000; onTriggered: daemon.running = true }
+
+    // Watcher: local checks (git, agenda, PC health) → alerts, no quota.
+    Process {
+        id: watcher
+        running: true
+        command: ["python3", overlay.shellRoot.configDir + "/scripts/iris-watch.py"]
+        stdout: SplitParser {
+            onRead: line => {
+                let d
+                try { d = JSON.parse(line) } catch (e) { return }
+                if (d.t === "nudge") overlay.cmd({ cmd: "nudge", text: d.text })
+            }
+        }
+        onExited: watcherRestart.restart()
+    }
+    Timer { id: watcherRestart; interval: 60000; onTriggered: watcher.running = true }
+
+    // Plain-text version of an alert for the desktop notification.
+    function _plain(t) {
+        return t.replace(/[\uE000-\uF8FF]\s*/g, "").replace(/\*\*|`/g, "").replace(/\n+/g, " ").trim()
+    }
+
+    function _onEvent(d) {
+        switch (d.t) {
+        case "conversation":
+            messages.clear()
+            for (const m of d.messages) _push(m.role, m.text)
+            busy = false; streaming = false
+            list.stick = true; Qt.callLater(() => list.positionViewAtEnd())
+            break
+        case "model":
+            modelName = d.v
+            break
+        case "text": {
+            toolStatus = ""
+            replying   = true
+            if (!streaming) { _push("assistant", ""); streaming = true }
+            const i = messages.count - 1
+            messages.setProperty(i, "text", messages.get(i).text + d.v)
+            if (list.stick) list.positionViewAtEnd()
+            break
+        }
+        case "tool":
+            toolStatus = d.v
+            replying   = false
+            break
+        case "ask":
+            streaming  = false
+            replying   = false
+            messages.append({ role: "ask", text: d.detail, askId: d.id,
+                              askTool: d.tool, askState: "pending" })
+            list.stick = true; list.positionViewAtEnd()
+            break
+        case "error":
+            _push("error", d.v)
+            break
+        case "done":
+            busy = false; streaming = false; replying = false; toolStatus = ""
+            for (let k = 0; k < messages.count; k++)
+                if (messages.get(k).askState === "pending")
+                    messages.setProperty(k, "askState", "denied")
+            break
+        case "usage":
+            if (d.five !== null && d.five !== undefined) usage5h   = d.five
+            if (d.week !== null && d.week !== undefined) usageWeek = d.week
+            if (d.resets) usageResets = d.resets > 1e12 ? d.resets : d.resets * 1000
+            break
+        case "nudge":
+            _push("nudge", d.v)
+            if (!_open) {
+                shellRoot.assistantUnread++
+                Quickshell.execDetached(["notify-send", "-a", "Iris", "Iris", _plain(d.v)])
+            }
+            if (list.stick) Qt.callLater(() => list.positionViewAtEnd())
+            break
+        case "history":
+            history.clear()
+            for (const h of d.v) history.append({ cid: h.id, title: h.title, updated: h.updated })
+            break
+        }
+    }
+
+    on_OpenChanged: {
+        if (_open) {
+            exitAnim.stop()
+            enterAnim.restart()
+            now = new Date()
+            shellRoot.assistantUnread = 0
+            list.stick = true; Qt.callLater(() => list.positionViewAtEnd())
+            cmd({ cmd: "warm" })     // start Claude now so the first reply is quick
+            Qt.callLater(() => input.forceActiveFocus())
+        } else {
+            enterAnim.stop()
+            exitAnim.restart()
+        }
+    }
+
+    // Window-wide shortcuts (work even while a message has focus for copying).
+    Shortcut { sequence: "Escape"; enabled: overlay._open
+               onActivated: overlay.showHistory ? overlay.showHistory = false : overlay.close() }
+    Shortcut { sequence: "Ctrl+N"; enabled: overlay._open; onActivated: overlay.newChat() }
+    Shortcut { sequence: "Ctrl+H"; enabled: overlay._open; onActivated: overlay.toggleHistory() }
+
+    // Backdrop: click outside the panel closes it.
+    MouseArea {
+        anchors.fill: parent
+        onClicked: overlay.close()
+    }
+
+    ParallelAnimation {
+        id: enterAnim
+        NumberAnimation { target: panel;      property: "opacity"; from: 0; to: 1;     duration: 320; easing.type: Easing.OutCubic }
+        NumberAnimation { target: panelSlide; property: "x";       from: 48; to: 0;    duration: 420; easing.type: Easing.OutBack; easing.overshoot: 0.8 }
+        NumberAnimation { target: panel;      property: "scale";   from: 0.97; to: 1;  duration: 420; easing.type: Easing.OutCubic }
+    }
+    ParallelAnimation {
+        id: exitAnim
+        NumberAnimation { target: panel;      property: "opacity"; to: 0;    duration: 200; easing.type: Easing.InCubic }
+        NumberAnimation { target: panelSlide; property: "x";       to: 48;   duration: 200; easing.type: Easing.InCubic }
+        NumberAnimation { target: panel;      property: "scale";   to: 0.98; duration: 200; easing.type: Easing.InCubic }
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // Glass panel
+    // ═════════════════════════════════════════════════════════════════
+    Rectangle {
+        id: panel
+        anchors {
+            right: parent.right; rightMargin: 10
+            top: parent.top;     topMargin: 44
+            bottom: parent.bottom; bottomMargin: 10
+        }
+        width: overlay.panelWidth
+        radius: 24
+        color: overlay.glassFill
+        border.color: overlay.glassStroke; border.width: 1
+        opacity: 0
+        transformOrigin: Item.Right
+        transform: Translate { id: panelSlide; x: 48 }
+
+        MouseArea { anchors.fill: parent }   // swallow clicks
+
+        // Sheen: light from the top, a faint accent glow at the bottom.
+        Rectangle {
+            anchors.fill: parent; anchors.margins: 1
+            radius: parent.radius - 1
+            gradient: Gradient {
+                GradientStop { position: 0.0;  color: overlay.glassShine }
+                GradientStop { position: 0.28; color: "transparent" }
+                GradientStop { position: 0.8;  color: "transparent" }
+                GradientStop { position: 1.0;  color: overlay.alpha(overlay.theme.primary, overlay.light ? 0.10 : 0.07) }
+            }
+        }
+        // Specular highlight along the top edge.
+        Rectangle {
+            anchors { top: parent.top; topMargin: 1; horizontalCenter: parent.horizontalCenter }
+            width: parent.width - 2 * parent.radius; height: 1
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop { position: 0.0; color: "transparent" }
+                GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, overlay.light ? 0.9 : 0.32) }
+                GradientStop { position: 1.0; color: "transparent" }
+            }
+        }
+
+        // ── Header ────────────────────────────────────────────────────
+        Item {
+            id: header
+            anchors { left: parent.left; right: parent.right; top: parent.top }
+            height: 78
+
+            // Avatar sits in a small glass disc.
+            Rectangle {
+                id: avatarDisc
+                anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
+                width: 52; height: 52; radius: 26
+                color: overlay.cardFill
+                border.color: overlay.cardStroke; border.width: 1
+                AssistantAvatar {
+                    anchors.centerIn: parent
+                    theme: overlay.theme
+                    mood: overlay.mood
+                    size: 36
+                }
+            }
+
+            Column {
+                anchors {
+                    left: avatarDisc.right; leftMargin: 12
+                    right: actions.left; rightMargin: 8
+                    verticalCenter: parent.verticalCenter
+                }
+                spacing: 3
+                Row {
+                    spacing: 8
+                    Text {
+                        text: "Iris"
+                        color: overlay.theme.fg
+                        font.family: overlay.theme.ff; font.weight: Font.DemiBold
+                        font.pixelSize: overlay.theme.fs + 4
+                    }
+                    Rectangle {
+                        visible: overlay.modelName !== ""
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: modelTxt.implicitWidth + 12; height: 18; radius: 9
+                        color: overlay.alpha(modelTxt.color, 0.14)
+                        Text {
+                            id: modelTxt
+                            anchors.centerIn: parent
+                            text: overlay.modelName === "sonnet" ? "Sonnet" : "Haiku"
+                            color: overlay.modelName === "sonnet" ? overlay.theme.secondary : overlay.theme.tertiary
+                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 4
+                            font.weight: Font.Medium
+                        }
+                    }
+                }
+                Row {
+                    spacing: 6
+                    width: parent.width
+                    // Status dot: steady green when idle, pulsing accent when busy.
+                    Rectangle {
+                        id: statusDot
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 7; height: 7; radius: 3.5
+                        color: overlay.busy ? overlay.theme.primary : overlay.theme.tertiary
+                        SequentialAnimation on opacity {
+                            running: overlay.busy; loops: Animation.Infinite
+                            onRunningChanged: if (!running) statusDot.opacity = 1
+                            NumberAnimation { to: 0.25; duration: 550; easing.type: Easing.InOutSine }
+                            NumberAnimation { to: 1;    duration: 550; easing.type: Easing.InOutSine }
+                        }
+                    }
+                    Text {
+                        width: parent.width - 13
+                        elide: Text.ElideRight
+                        text: overlay.toolStatus !== "" ? overlay.toolStatus
+                            : overlay.mood === "thinking" ? "Je réfléchis…"
+                            : overlay.mood === "talking"  ? "J'écris…"
+                            : "En ligne"
+                        color: overlay.busy ? overlay.theme.primary : overlay.theme.txt2
+                        opacity: overlay.busy ? 1 : 0.75
+                        font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 2
+                    }
+                }
+            }
+
+            Row {
+                id: actions
+                anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                spacing: 6
+                Repeater {
+                    model: [
+                        { icon: "", tip: "history" },
+                        { icon: "", tip: "new" }
+                    ]
+                    delegate: Rectangle {
+                        required property var modelData
+                        readonly property bool on: modelData.tip === "history" && overlay.showHistory
+                        width: 34; height: 34; radius: 17
+                        color: on ? overlay.alpha(overlay.theme.primary, 0.18)
+                             : aHover.hovered ? overlay.cardHover : overlay.cardFill
+                        border.color: on ? overlay.alpha(overlay.theme.primary, 0.4) : overlay.cardStroke
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 140 } }
+                        Text {
+                            anchors.centerIn: parent
+                            text: modelData.icon
+                            color: parent.on ? overlay.theme.primary : overlay.theme.txt2
+                            font.family: overlay.theme.ff; font.pixelSize: 15
+                        }
+                        HoverHandler { id: aHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler {
+                            onTapped: modelData.tip === "history" ? overlay.toggleHistory() : overlay.newChat()
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Mode selector (segmented glass control) ───────────────────
+        Rectangle {
+            id: modeBar
+            anchors { top: header.bottom; horizontalCenter: parent.horizontalCenter }
+            width: parent.width - 32; height: 34; radius: 17
+            color: overlay.wellFill
+            border.color: overlay.cardStroke; border.width: 1
+
+            readonly property int idx: overlay.modeList.findIndex(m => m.key === overlay.mode)
+            readonly property real segW: (width - 6) / 3
+
+            // Sliding knob
+            Rectangle {
+                x: 3 + modeBar.idx * modeBar.segW; y: 3
+                width: modeBar.segW; height: parent.height - 6; radius: height / 2
+                color: overlay.light ? "#ffffff" : Qt.rgba(1, 1, 1, 0.12)
+                border.color: overlay.light ? Qt.rgba(0, 0, 0, 0.05) : Qt.rgba(1, 1, 1, 0.14)
+                border.width: 1
+                Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+            }
+            Row {
+                x: 3; anchors.verticalCenter: parent.verticalCenter
+                Repeater {
+                    model: overlay.modeList
+                    delegate: Item {
+                        required property var modelData
+                        readonly property bool on: overlay.mode === modelData.key
+                        width: modeBar.segW; height: 28
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: 6
+                            Text {
+                                text: modelData.icon
+                                color: !parent.parent.on ? overlay.theme.outline
+                                     : modelData.key === "power" ? overlay.theme.secondary
+                                     : modelData.key === "fast"  ? overlay.theme.tertiary
+                                     : overlay.theme.primary
+                                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                            }
+                            Text {
+                                text: modelData.label
+                                color: parent.parent.on ? overlay.theme.fg : overlay.theme.txt2
+                                opacity: parent.parent.on ? 1 : 0.7
+                                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 2
+                                font.weight: parent.parent.on ? Font.DemiBold : Font.Normal
+                            }
+                        }
+                        HoverHandler { cursorShape: Qt.PointingHandCursor }
+                        TapHandler { onTapped: overlay.mode = modelData.key }
+                    }
+                }
+            }
+        }
+
+        // ── History ────────────────────────────────────────────────────
+        ListView {
+            id: historyList
+            visible: overlay.showHistory
+            anchors {
+                left: parent.left; right: parent.right
+                top: modeBar.bottom; bottom: inputBox.top
+                margins: 16
+            }
+            clip: true
+            spacing: 6
+            model: history
+            boundsBehavior: Flickable.StopAtBounds
+
+            header: Text {
+                width: historyList.width; height: 28
+                text: "Conversations"
+                color: overlay.theme.outline
+                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                font.weight: Font.DemiBold; font.letterSpacing: 1
+                font.capitalization: Font.AllUppercase
+            }
+
+            Text {
+                visible: history.count === 0
+                anchors.centerIn: parent
+                text: "Aucune conversation pour l'instant"
+                color: overlay.theme.outline
+                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs
+            }
+
+            delegate: Rectangle {
+                id: hrow
+                required property string cid
+                required property string title
+                required property real   updated
+                width: historyList.width; height: 48
+                radius: 14
+                color: hHover.hovered ? overlay.cardHover : overlay.cardFill
+                border.color: overlay.cardStroke; border.width: 1
+                Behavior on color { ColorAnimation { duration: 120 } }
+
+                HoverHandler { id: hHover }
+                MouseArea {
+                    anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                    onClicked: { overlay.cmd({ cmd: "load", id: hrow.cid }); overlay.showHistory = false }
+                }
+                Text {
+                    id: hIcon
+                    anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                    text: "󰍩"
+                    color: overlay.theme.primary; opacity: 0.8
+                    font.family: overlay.theme.ff; font.pixelSize: 15
+                }
+                Text {
+                    anchors { left: hIcon.right; leftMargin: 10; right: hDate.left; rightMargin: 10
+                              verticalCenter: parent.verticalCenter }
+                    text: hrow.title
+                    elide: Text.ElideRight
+                    color: overlay.theme.fg
+                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                }
+                Text {
+                    id: hDate
+                    anchors { right: hDel.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                    text: overlay._relTime(hrow.updated)
+                    color: overlay.theme.outline
+                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                }
+                Text {
+                    id: hDel
+                    anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
+                    text: ""                       // trash
+                    opacity: hHover.hovered ? 1 : 0
+                    color: delHover.hovered ? overlay.theme.error : overlay.theme.outline
+                    font.family: overlay.theme.ff; font.pixelSize: 14
+                    Behavior on opacity { NumberAnimation { duration: 120 } }
+                    HoverHandler { id: delHover }
+                    MouseArea {
+                        anchors.fill: parent; anchors.margins: -6
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: overlay.cmd({ cmd: "delete", id: hrow.cid })
+                    }
+                }
+            }
+        }
+
+        // ── Messages ───────────────────────────────────────────────────
+        ListView {
+            id: list
+            visible: !overlay.showHistory
+            anchors {
+                left: parent.left; right: parent.right
+                top: modeBar.bottom; bottom: inputBox.top
+                leftMargin: 16; rightMargin: 16; topMargin: 12; bottomMargin: 10
+            }
+            clip: true
+            spacing: 12
+            model: messages
+            boundsBehavior: Flickable.StopAtBounds
+            // Mouse drags select text instead of flicking; the wheel /
+            // touchpad scrolls (smoothly) through the WheelHandler below.
+            interactive: false
+
+            // Follow the bottom while the reply streams in (Markdown
+            // bubbles resize after layout, so react to the content height),
+            // unless the user scrolled up to read.
+            property bool stick: true
+            onContentHeightChanged: if (stick) Qt.callLater(positionViewAtEnd)
+            onCountChanged:         if (stick) Qt.callLater(positionViewAtEnd)
+
+            readonly property real maxY: Math.max(originY, originY + contentHeight - height)
+            function scrollBy(dy, smooth) {
+                const from = scrollAnim.running ? scrollAnim.to : contentY
+                const to = Math.max(originY, Math.min(maxY, from - dy))
+                scrollAnim.stop()
+                if (smooth) { scrollAnim.from = contentY; scrollAnim.to = to; scrollAnim.start() }
+                else contentY = to
+                stick = to >= maxY - 2
+            }
+            NumberAnimation { id: scrollAnim; target: list; property: "contentY"
+                              duration: 220; easing.type: Easing.OutCubic }
+            WheelHandler {
+                target: null
+                onWheel: e => {
+                    if (e.pixelDelta.y !== 0) list.scrollBy(e.pixelDelta.y, false)
+                    else list.scrollBy(e.angleDelta.y / 120 * 90, true)
+                }
+            }
+
+            // Empty state: greeting, date and a few suggestions.
+            Column {
+                visible: messages.count === 0
+                anchors.centerIn: parent
+                spacing: 6
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: overlay.greeting
+                    color: overlay.theme.fg
+                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs + 8
+                    font.weight: Font.DemiBold
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: {
+                        const d = Qt.locale("fr_FR").toString(overlay.now, "dddd d MMMM · HH:mm")
+                        return d.charAt(0).toUpperCase() + d.slice(1)
+                    }
+                    color: overlay.theme.txt2; opacity: 0.7
+                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                }
+                Item { width: 1; height: 16 }
+                Repeater {
+                    model: [
+                        { icon: "", text: "Qu'est-ce que j'ai aujourd'hui ?" },
+                        { icon: "󰃭", text: "Aide-moi à planifier ma semaine" },
+                        { icon: "", text: "Où est mon dernier PDF téléchargé ?" },
+                        { icon: "󰍛", text: "Qu'est-ce qui ralentit mon PC ?" }
+                    ]
+                    delegate: Rectangle {
+                        required property var modelData
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: 300; height: 40
+                        radius: 20
+                        color: sugHover.hovered ? overlay.cardHover : overlay.cardFill
+                        border.color: sugHover.hovered ? overlay.alpha(overlay.theme.primary, 0.35) : overlay.cardStroke
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 120 } }
+                        Text {
+                            id: sugIcon
+                            anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
+                            text: modelData.icon
+                            color: overlay.theme.primary
+                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs
+                        }
+                        Text {
+                            anchors { left: sugIcon.right; leftMargin: 10; verticalCenter: parent.verticalCenter }
+                            text: modelData.text
+                            color: overlay.theme.fg
+                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                        }
+                        HoverHandler { id: sugHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler { onTapped: overlay.ask(modelData.text) }
+                    }
+                }
+            }
+
+            delegate: Item {
+                id: msg
+                required property string role
+                required property string text
+                required property string askTool
+                required property string askState
+                required property int    index
+                readonly property bool mine: role === "user"
+                readonly property bool live: overlay.streaming && index === messages.count - 1
+                width: list.width
+                height: role === "ask" ? askCard.height : bubble.height
+
+                HoverHandler { id: msgHover }
+
+                // Chat bubble (user / assistant / error)
+                Rectangle {
+                    id: bubble
+                    visible: msg.role !== "ask"
+                    anchors.right: msg.mine ? parent.right : undefined
+                    anchors.left:  msg.mine ? undefined : parent.left
+                    width: Math.min(body.implicitWidth + 28, list.width * 0.86)
+                    height: body.implicitHeight + 20
+                    radius: 18
+                    bottomRightRadius: msg.mine ? 6 : 18
+                    bottomLeftRadius:  msg.mine ? 18 : 6
+                    gradient: msg.mine ? userGrad : null
+                    color: msg.role === "error" ? overlay.alpha(overlay.theme.error, 0.14)
+                         : msg.role === "nudge" ? overlay.alpha(overlay.theme.primary, 0.10)
+                         : overlay.cardFill
+                    border.width: msg.mine ? 0 : 1
+                    border.color: msg.role === "error" ? overlay.alpha(overlay.theme.error, 0.35)
+                                : msg.role === "nudge" ? overlay.alpha(overlay.theme.primary, 0.45)
+                                : overlay.cardStroke
+
+                    Gradient {
+                        id: userGrad
+                        orientation: Gradient.Horizontal
+                        GradientStop { position: 0; color: overlay.theme.primary }
+                        GradientStop { position: 1; color: Qt.tint(overlay.theme.primary, overlay.alpha(overlay.theme.lavender, 0.55)) }
+                    }
+
+                    // Selectable text (drag to select, Ctrl+C to copy).
+                    TextEdit {
+                        id: body
+                        x: 14; y: 10
+                        width: Math.min(implicitWidth, list.width * 0.86 - 28)
+                        readOnly: true
+                        selectByMouse: true
+                        text: msg.mine || msg.role === "error" ? msg.text : overlay.linkify(msg.text)
+                        textFormat: msg.mine ? TextEdit.PlainText : TextEdit.MarkdownText
+                        wrapMode: TextEdit.Wrap
+                        color: msg.mine ? overlay.theme.bg
+                             : msg.role === "error" ? overlay.theme.error
+                             : overlay.theme.fg
+                        selectionColor: msg.mine ? overlay.alpha(overlay.theme.bg, 0.35)
+                                                 : overlay.alpha(overlay.theme.primary, 0.4)
+                        selectedTextColor: color
+                        font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs
+                        // Click on a link (TapHandler: also fires when the
+                        // pointer moved a hair, which cancels linkActivated).
+                        TapHandler {
+                            onTapped: (pt) => {
+                                const l = body.linkAt(pt.position.x, pt.position.y)
+                                if (l !== "") overlay.openLink(l)
+                            }
+                        }
+                        // Typing while a message has focus goes back to the input.
+                        Keys.onPressed: e => {
+                            if (e.modifiers & Qt.ControlModifier || e.text === "" || e.text < " ") return
+                            input.forceActiveFocus()
+                            input.insert(input.cursorPosition, e.text)
+                            e.accepted = true
+                        }
+                        HoverHandler {
+                            cursorShape: body.hoveredLink !== "" ? Qt.PointingHandCursor : Qt.IBeamCursor
+                        }
+                    }
+                }
+
+                // Copy button, beside the bubble on hover.
+                Rectangle {
+                    visible: msg.role !== "ask" && !msg.live && msg.text !== ""
+                    opacity: msgHover.hovered ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: 140 } }
+                    anchors.bottom: bubble.bottom
+                    anchors.right: msg.mine ? bubble.left : undefined
+                    anchors.left:  msg.mine ? undefined : bubble.right
+                    anchors.leftMargin: 6; anchors.rightMargin: 6
+                    width: 28; height: 28; radius: 14
+                    color: cpHover.hovered ? overlay.cardHover : overlay.cardFill
+                    border.color: overlay.cardStroke; border.width: 1
+                    property bool done: false
+                    Timer { id: cpReset; interval: 1400; onTriggered: parent.done = false }
+                    Text {
+                        anchors.centerIn: parent
+                        text: parent.done ? "" : ""
+                        color: parent.done ? overlay.theme.tertiary : overlay.theme.txt2
+                        font.family: overlay.theme.ff; font.pixelSize: 13
+                    }
+                    HoverHandler { id: cpHover; cursorShape: Qt.PointingHandCursor }
+                    TapHandler {
+                        onTapped: { overlay.copy(msg.text); parent.done = true; cpReset.restart() }
+                    }
+                }
+
+                // Permission request card
+                Rectangle {
+                    id: askCard
+                    visible: msg.role === "ask"
+                    width: list.width
+                    height: askCol.implicitHeight + 28
+                    radius: 18
+                    color: overlay.cardFill
+                    border.width: 1
+                    border.color: msg.askState === "pending" ? overlay.alpha(overlay.theme.warn, 0.55)
+                                : msg.askState === "allowed" ? overlay.alpha(overlay.theme.tertiary, 0.45)
+                                : overlay.cardStroke
+
+                    Column {
+                        id: askCol
+                        x: 14; y: 14
+                        width: parent.width - 28
+                        spacing: 10
+
+                        Row {
+                            spacing: 8
+                            width: parent.width
+                            Rectangle {
+                                width: 24; height: 24; radius: 12
+                                color: overlay.alpha(overlay.theme.warn, 0.16)
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: ""
+                                    color: overlay.theme.warn
+                                    font.family: overlay.theme.ff; font.pixelSize: 12
+                                }
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width - 32
+                                text: "Iris veut utiliser <b>" + msg.askTool.replace(/^mcp__claude_ai_/, "").replace(/__/g, " · ") + "</b>"
+                                textFormat: Text.StyledText
+                                color: overlay.theme.fg
+                                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                                elide: Text.ElideRight
+                            }
+                        }
+                        Rectangle {
+                            width: parent.width
+                            height: detail.implicitHeight + 16
+                            radius: 10
+                            color: overlay.wellFill
+                            TextEdit {
+                                id: detail
+                                x: 10; y: 8
+                                width: parent.width - 20
+                                readOnly: true; selectByMouse: true
+                                text: msg.text
+                                wrapMode: TextEdit.WrapAnywhere
+                                color: overlay.theme.fg
+                                selectionColor: overlay.alpha(overlay.theme.primary, 0.4)
+                                font.family: "JetBrainsMono Nerd Font Mono"; font.pixelSize: overlay.theme.fs - 2
+                            }
+                        }
+                        Row {
+                            visible: msg.askState === "pending"
+                            spacing: 8
+                            Repeater {
+                                model: [
+                                    { label: "Autoriser", allow: true  },
+                                    { label: "Refuser",   allow: false }
+                                ]
+                                delegate: Rectangle {
+                                    required property var modelData
+                                    width: btnText.implicitWidth + 32; height: 32
+                                    radius: 16
+                                    color: modelData.allow
+                                           ? (bHover.hovered ? Qt.lighter(overlay.theme.tertiary, 1.1) : overlay.theme.tertiary)
+                                           : (bHover.hovered ? overlay.cardHover : overlay.cardFill)
+                                    border.color: modelData.allow ? "transparent" : overlay.cardStroke
+                                    border.width: 1
+                                    Text {
+                                        id: btnText
+                                        anchors.centerIn: parent
+                                        text: modelData.label
+                                        color: modelData.allow ? overlay.theme.bg : overlay.theme.fg
+                                        font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                                        font.weight: Font.DemiBold
+                                    }
+                                    HoverHandler { id: bHover; cursorShape: Qt.PointingHandCursor }
+                                    TapHandler { onTapped: overlay.answer(msg.index, modelData.allow) }
+                                }
+                            }
+                        }
+                        Text {
+                            visible: msg.askState !== "pending"
+                            text: msg.askState === "allowed" ? "  Autorisé" : "  Refusé"
+                            color: msg.askState === "allowed" ? overlay.theme.tertiary : overlay.theme.outline
+                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 2
+                        }
+                    }
+                }
+            }
+        }
+
+        // Thin scroll indicator for the message list.
+        Rectangle {
+            visible: !overlay.showHistory && list.contentHeight > list.height + 4
+            x: panel.width - 7; width: 3; radius: 1.5
+            readonly property real ratio: list.height / Math.max(1, list.contentHeight)
+            height: Math.max(24, list.height * ratio)
+            y: list.y + (list.contentY - list.originY) / Math.max(1, list.contentHeight - list.height)
+                        * (list.height - height)
+            color: overlay.theme.outline
+            opacity: scrollFade.running || list.moving || scrollAnim.running ? 0.6 : 0.18
+            Behavior on opacity { NumberAnimation { duration: 300 } }
+            Timer { id: scrollFade; interval: 800 }
+            Connections { target: list; function onContentYChanged() { scrollFade.restart() } }
+        }
+
+        // "Back to bottom" pill when scrolled up.
+        Rectangle {
+            visible: !overlay.showHistory && !list.stick && list.contentHeight > list.height
+            anchors { horizontalCenter: parent.horizontalCenter; bottom: inputBox.top; bottomMargin: 10 }
+            width: 34; height: 34; radius: 17
+            color: overlay.cardHover
+            border.color: overlay.cardStroke; border.width: 1
+            Text {
+                anchors.centerIn: parent
+                text: ""
+                color: overlay.theme.fg
+                font.family: overlay.theme.ff; font.pixelSize: 13
+            }
+            HoverHandler { cursorShape: Qt.PointingHandCursor }
+            TapHandler { onTapped: { list.stick = true; list.positionViewAtEnd() } }
+        }
+
+        // ── Input ──────────────────────────────────────────────────────
+        Rectangle {
+            id: inputBox
+            anchors { left: parent.left; right: parent.right; bottom: usageRow.top
+                      leftMargin: 14; rightMargin: 14; bottomMargin: 8 }
+            height: 50
+            radius: 25
+            color: overlay.wellFill
+            border.color: input.activeFocus ? overlay.alpha(overlay.theme.primary, 0.6) : overlay.cardStroke
+            border.width: 1
+            Behavior on border.color { ColorAnimation { duration: 160 } }
+
+            TextInput {
+                id: input
+                anchors {
+                    left: parent.left; leftMargin: 20
+                    right: sendBtn.left; rightMargin: 10
+                    verticalCenter: parent.verticalCenter
+                }
+                color: overlay.theme.fg
+                selectionColor: overlay.alpha(overlay.theme.primary, 0.45)
+                selectedTextColor: overlay.theme.fg
+                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs
+                clip: true
+                Keys.onReturnPressed: overlay.send()
+                Keys.onEnterPressed:  overlay.send()
+
+                Text {
+                    visible: input.text === ""
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: overlay.busy ? "Iris répond…" : "Demande-moi quelque chose…"
+                    color: overlay.theme.outline
+                    font: input.font
+                }
+            }
+
+            // Send / stop
+            Rectangle {
+                id: sendBtn
+                readonly property bool ready: input.text.trim() !== ""
+                anchors { right: parent.right; rightMargin: 7; verticalCenter: parent.verticalCenter }
+                width: 36; height: 36; radius: 18
+                color: overlay.busy ? overlay.theme.error
+                     : ready ? overlay.theme.primary
+                     : overlay.cardFill
+                border.color: overlay.busy || ready ? "transparent" : overlay.cardStroke
+                border.width: 1
+                scale: sendHover.hovered && (overlay.busy || ready) ? 1.06 : 1
+                Behavior on color { ColorAnimation { duration: 160 } }
+                Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                Text {
+                    anchors.centerIn: parent
+                    text: overlay.busy ? "" : ""
+                    color: overlay.busy || sendBtn.ready ? overlay.theme.bg : overlay.theme.outline
+                    font.family: overlay.theme.ff; font.pixelSize: 14
+                }
+                HoverHandler { id: sendHover; cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: overlay.busy ? overlay.stop() : overlay.send() }
+            }
+        }
+
+        // ── Pro usage: two slim gauges + reset time ────────────────────
+        Item {
+            id: usageRow
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom
+                      leftMargin: 22; rightMargin: 22; bottomMargin: 12 }
+            height: 16
+
+            Row {
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 14
+                Repeater {
+                    model: [
+                        { label: "5 h",     v: overlay.usage5h },
+                        { label: "Semaine", v: overlay.usageWeek }
+                    ]
+                    delegate: Row {
+                        required property var modelData
+                        spacing: 6
+                        readonly property color tone: modelData.v > 0.85 ? overlay.theme.error
+                                                    : modelData.v > 0.6  ? overlay.theme.warn
+                                                    : overlay.theme.primary
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData.label
+                            color: overlay.theme.outline
+                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 4
+                        }
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 54; height: 4; radius: 2
+                            color: overlay.wellFill
+                            Rectangle {
+                                width: parent.width * Math.max(0, Math.min(1, modelData.v))
+                                height: parent.height; radius: 2
+                                color: parent.parent.tone
+                                Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+                            }
+                        }
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData.v < 0 ? "—" : Math.round(modelData.v * 100) + " %"
+                            color: modelData.v > 0.6 ? parent.tone : overlay.theme.txt2
+                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 4
+                        }
+                    }
+                }
+            }
+            Text {
+                anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                text: overlay._resetLabel() !== "" ? "󰑓 " + overlay._resetLabel()
+                                                   : Qt.formatTime(overlay.now, "HH:mm")
+                color: overlay.theme.outline
+                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 4
+            }
+        }
+    }
+}

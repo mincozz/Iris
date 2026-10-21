@@ -1,0 +1,36 @@
+            }
+
+            // ── Assistant "Iris" — mini avatar mirrors its mood ──
+            Rectangle {
+                height: bar.theme.ph; width: bar.theme.ph + 8
+                radius: bar.theme.pr
+                color: pixelHover.hovered ? bar.theme.hi(1.3) : bar.theme.barBg
+                border.color: bar.theme.barBorder; border.width: bar.theme.barBorderW
+
+                AssistantAvatar {
+                    anchors.centerIn: parent
+                    theme: bar.theme
+                    mood: bar.shellRoot.assistantMood
+                    size: 26
+                }
+                // Unread alert badge (Iris spoke on her own).
+                Rectangle {
+                    visible: bar.shellRoot.assistantUnread > 0
+                    anchors { right: parent.right; top: parent.top; margins: 3 }
+                    width: 8; height: 8; radius: 4
+                    color: bar.theme.error
+                    border.color: bar.theme.barBg; border.width: 1.5
+                    SequentialAnimation on scale {
+                        running: bar.shellRoot.assistantUnread > 0; loops: Animation.Infinite
+                        NumberAnimation { to: 1.25; duration: 700; easing.type: Easing.InOutSine }
+                        NumberAnimation { to: 1.0;  duration: 700; easing.type: Easing.InOutSine }
+                    }
+                }
+                HoverHandler { id: pixelHover }
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: bar.shellRoot.toggleAssistant()
+                }
+            }
+        }

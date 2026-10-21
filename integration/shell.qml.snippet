@@ -1,0 +1,19 @@
+    // ── Assistant "Iris" (claude -p, see overlays/AssistantOverlay.qml) ──
+    property bool   assistantOpen: false
+    property string assistantMood: "idle"   // idle | thinking | talking
+    property int    assistantUnread: 0      // alerts Iris sent while closed
+    function openAssistant()   { captureThenOpen("assistant") }
+    function closeAssistant()  { assistantOpen = false }
+    function toggleAssistant() { if (assistantOpen) closeAssistant(); else openAssistant() }
+    onAssistantOpenChanged: if (!assistantOpen) refocusLastWindow()
+
+    // External control: `qs ipc call assistant toggle|open|close`
+    IpcHandler {
+        target: "assistant"
+        function toggle() { root.toggleAssistant() }
+        function open()   { root.openAssistant()   }
+        function close()  { root.closeAssistant()  }
+        // Open the panel and send a message: `qs ipc call assistant ask "…"`
+        function ask(text: string) { root.openAssistant(); assistantOverlay.ask(text) }
+        // Show a file/folder in the file manager: `qs ipc call assistant reveal ~/x.pdf`
+        function reveal(path: string) { assistantOverlay.openLink("iris-file:" + encodeURIComponent(path)) }
