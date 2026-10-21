@@ -42,6 +42,7 @@ Si le thème de l'utilisateur utilise d'autres noms, **ne modifie pas l'overlay*
 ## Mémoire et données
 - Le prompt est dans `scripts/assistant-prompt.md` (français, tutoiement). Propose de l'adapter (langue, ton, prénom).
 - La mémoire d'Iris est `~/.local/share/qs-assistant/memory.md` ; le modèle est `integration/memory.example.md`. Aide l'utilisateur à la remplir seulement s'il le demande.
+- Réglages (nom, modèles, dossiers interdits en lecture, commandes) : `~/.local/share/qs-assistant/config.json`, modèle `integration/config.example.json`, documenté dans le README. Propose-le à l'utilisateur ; n'ajoute à `extra_readonly_commands` que des commandes sans effet de bord.
 - Alertes : `watch.json` (modèle `integration/watch.example.json`). `ics_url` est facultatif.
 
 ## Règles de sécurité à préserver

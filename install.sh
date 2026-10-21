@@ -81,6 +81,7 @@ say "Données dans $DATA"
 run mkdir -p "$DATA"; run chmod 700 "$DATA"
 [ -e "$DATA/memory.md" ]  || run cp "$SRC/integration/memory.example.md" "$DATA/memory.md"
 [ -e "$DATA/watch.json" ] || run cp "$SRC/integration/watch.example.json" "$DATA/watch.json"
+[ -e "$DATA/config.json" ] || run cp "$SRC/integration/config.example.json" "$DATA/config.json"
 
 # ── Câblage de shell.qml ──────────────────────────────────────────────────
 SHELLQML="$PREFIX/shell.qml"

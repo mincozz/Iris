@@ -31,6 +31,22 @@ L'installateur vérifie les prérequis (Quickshell, Python 3, CLI `claude` conne
 Restent à faire à la main, car ils dépendent de ton shell : le bouton dans la barre (`integration/Bar.qml.snippet`) et le clic sur une alerte (`integration/NotificationToast.qml.snippet`). L'overlay attend un objet `theme` (`ff`, `fs`, `hi()`, `barBg`…).
 Contrôle : `qs ipc call assistant toggle|open|close|ask "…"`.
 
+## Configuration
+
+`~/.local/share/qs-assistant/config.json` (créé par l'installateur, modèle : `integration/config.example.json`). Toutes les clés sont facultatives ; une valeur invalide est ignorée (message sur stderr) et le défaut reste.
+
+| Clé | Rôle |
+|---|---|
+| `user_name` | Comment Iris t'appelle |
+| `models` | `fast` et `power` : les modèles utilisés (défaut Haiku / Sonnet) |
+| `session_idle_minutes` | Inactivité avant une nouvelle conversation (défaut 30) |
+| `prompt_file` | Chemin d'un prompt à toi, à la place de `assistant-prompt.md` |
+| `deny_read_paths` | Dossiers que `Read`/`Grep`/`Glob` et `cat`/`head`/`tail`/`less`/`grep` ne peuvent pas lire, ex. `["~/.ssh"]`. Meilleur effort, ce n'est pas un bac à sable |
+| `extra_readonly_commands` | Commandes exécutées sans demander. À toi d'être sûr qu'elles n'ont aucun effet de bord |
+| `extra_denied_commands` | Commandes refusées même avec un clic |
+
+Redémarre Iris (ou Quickshell) après une modification.
+
 ## Installation assistée par IA
 
 `AGENTS.md` (lu aussi via `CLAUDE.md` par Claude Code) décrit la procédure, le contrat avec le shell hôte et les règles de sécurité : lance ton assistant de code dans le repo et demande-lui « installe Iris ».

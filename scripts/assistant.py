@@ -51,6 +51,7 @@ HIST_DIR = os.path.join(DATA_DIR, "history")
 CURRENT_FILE = os.path.join(DATA_DIR, "current")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROMPT_FILE = os.path.join(SCRIPT_DIR, "assistant-prompt.md")
+CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
 # What Iris knows about the user; kept outside the config dir (personal).
 MEMORY_FILE = os.path.join(DATA_DIR, "memory.md")
 ORGANIZE = os.path.join(SCRIPT_DIR, "organize.py")
@@ -61,8 +62,62 @@ BILLING_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"
                "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX",
                "CLAUDE_CODE_USE_FOUNDRY", "AWS_BEARER_TOKEN_BEDROCK")
 
-MODELS = {"fast": "claude-haiku-5-5", "power": "claude-sonnet-5-5"}
-SESSION_IDLE = 30 * 60
+# ── User config (~/.local/share/qs-assistant/config.json) ────────────────
+# Every key is optional; a missing or invalid one keeps its default.
+DEFAULT_CONFIG = {
+    "user_name": "",                 # how Iris calls you (joins her prompt)
+    "models": {"fast": "claude-haiku-5-5", "power": "claude-sonnet-5-5"},
+    "session_idle_minutes": 30,      # idle time before a fresh conversation
+    "prompt_file": "",               # replaces assistant-prompt.md if set
+    "deny_read_paths": [],           # e.g. ["~/.ssh", "~/.gnupg"] (see below)
+    "extra_readonly_commands": [],   # run without asking: your responsibility
+    "extra_denied_commands": [],     # refused even with a click
+}
+
+
+def load_config():
+    """Defaults overlaid with config.json; bad values are ignored (stderr)."""
+    cfg = json.loads(json.dumps(DEFAULT_CONFIG))
+    try:
+        with open(CONFIG_FILE) as f:
+            user = json.load(f)
+        if not isinstance(user, dict):
+            raise ValueError("the top level must be an object")
+    except FileNotFoundError:
+        return cfg
+    except (OSError, ValueError) as e:
+        print(f"[iris] config.json ignored: {e}", file=sys.stderr)
+        return cfg
+    for key, default in DEFAULT_CONFIG.items():
+        if key not in user:
+            continue
+        v = user[key]
+        if key == "models":
+            ok = isinstance(v, dict) and all(isinstance(v.get(k, default[k]), str) for k in default)
+            if ok:
+                cfg[key] = {k: v.get(k, default[k]) for k in default}
+        elif key == "session_idle_minutes":
+            ok = isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0
+            if ok:
+                cfg[key] = v
+        elif isinstance(default, list):
+            ok = isinstance(v, list) and all(isinstance(x, str) and x.strip() for x in v)
+            if ok:
+                cfg[key] = [x.strip() for x in v]
+        else:
+            ok = isinstance(v, str)
+            if ok:
+                cfg[key] = v.strip()
+        if not ok:
+            print(f"[iris] config.json: invalid '{key}' ignored", file=sys.stderr)
+    return cfg
+
+
+CONFIG = load_config()
+if CONFIG["prompt_file"]:
+    PROMPT_FILE = os.path.expanduser(CONFIG["prompt_file"])
+MODELS = CONFIG["models"]
+SESSION_IDLE = CONFIG["session_idle_minutes"] * 60
 
 # Messages that deserve the strong model in "auto" mode: code and real dev
 # work only (Sonnet costs several times Haiku's quota). Everything else,
@@ -126,6 +181,7 @@ READONLY_BASH = [
     "fc-list", "pwd", "grep", "wpctl status",
     "wpctl get-volume", "bluetoothctl devices", "bluetoothctl info",
 ]
+READONLY_BASH += CONFIG["extra_readonly_commands"]
 ALLOWED_TOOLS = ["Read", "Glob", "Grep", "WebSearch",
                  f"Bash(python3 {ORGANIZE} scan:*)",
                  ] + [f"Bash({c}:*)" for c in READONLY_BASH] + [
@@ -153,6 +209,14 @@ DENIED_TOOLS = ["Bash(sudo:*)", "Bash(su:*)", "Bash(doas:*)",
                 # read-only git commands that can still write a file
                 "Bash(git diff --output:*)", "Bash(git log --output:*)",
                 "Bash(git show --output:*)", "Bash(git diff --ext-diff:*)"]
+DENIED_TOOLS += [f"Bash({c}:*)" for c in CONFIG["extra_denied_commands"]]
+# deny_read_paths: Claude Code's Read rules also cover Grep/Glob, plus the
+# usual shell readers. Best effort, not a sandbox: a determined command can
+# still read a file another way, but it would then need a click.
+for _p in CONFIG["deny_read_paths"]:
+    _p = _p.rstrip("/")
+    DENIED_TOOLS += [f"Read({_p}/**)", f"Read({_p})"]
+    DENIED_TOOLS += [f"Bash({c} {_p}:*)" for c in ("cat", "head", "tail", "less", "grep")]
 
 
 def mcp_deny_rules(connectors=True):
@@ -289,6 +353,8 @@ def system_prompt(connectors=True):
                  "Drive ne sont pas chargés dans ce message. Si tu en as besoin pour répondre, "
                  f"réponds uniquement {TOOLS_MARKER} (rien d'autre) : ils seront chargés et la "
                  "question te sera reposée.")
+    if CONFIG["user_name"]:
+        text += f"\n\nL'utilisateur s'appelle {CONFIG['user_name']}."
     for title, path in [("Ta mémoire", MEMORY_FILE)]:
         try:
             with open(path) as f:
@@ -477,7 +543,7 @@ class Daemon:
         """Last exchanges, to seed a fresh session when the context got big."""
         lines = []
         for m in self.conv.messages[-6:]:
-            who = {"user": "Utilisateur", "nudge": "Iris (alerte)"}.get(m["role"], "Iris")
+            who = {"user": CONFIG["user_name"] or "Utilisateur", "nudge": "Iris (alerte)"}.get(m["role"], "Iris")
             t = m["text"].strip()
             lines.append(f"{who} : {t[:500]}{'…' if len(t) > 500 else ''}")
         return ("(Conversation trop longue, reprise à neuf. Derniers échanges pour "

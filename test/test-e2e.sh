@@ -60,6 +60,7 @@ check "shell.qml câblé (bloc balisé)"  grep -q ">>> iris (install.sh)" "$T/qs
 check "import \"./overlays\" ajouté"    grep -q 'import "./overlays"' "$T/qs/shell.qml"
 check "configDir et homeDir définis"   bash -c "grep -q 'configDir' '$T/qs/shell.qml' && grep -q 'homeDir' '$T/qs/shell.qml'"
 check "mémoire vierge créée"           test -f "$DATA/memory.md"
+check "config.json créé et valide"     python3 -I -c "import json,sys; json.load(open(sys.argv[1]))" "$DATA/config.json"
 check "dossier de données en 700"      test "$(stat -c %a "$DATA")" = 700
 sum1="$(cat "$T/qs/shell.qml" "$DATA/memory.md" | md5sum)"
 "${INST[@]}" >/dev/null 2>&1
