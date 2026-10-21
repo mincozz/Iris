@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, tests, installateur
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ShellCheck
+        run: shellcheck --severity=warning install.sh test/test-e2e.sh scripts/iris-ask
+
+      - name: Python (compilation)
+        run: python3 -I -m py_compile scripts/assistant.py scripts/iris-watch.py scripts/organize.py
+
+      - name: Test de bout en bout (sans fenêtre, sans compte Claude)
+        run: test/test-e2e.sh --no-gui
+
+  secrets:
+    name: Scan de secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # tout l'historique, pas seulement le dernier commit
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

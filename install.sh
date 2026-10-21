@@ -102,6 +102,7 @@ else
     say "Configuration (Entrée = garder la valeur par défaut)"
     read -r -p "  Comment dois-je t'appeler ? " CFG_NAME
     read -r -p "  Interdire à Iris de lire ~/.ssh et ~/.gnupg (clés, secrets) ? [O/n] " a
+    # shellcheck disable=SC2088  # le ~ est voulu : Iris le développe elle-même
     [[ "$a" =~ ^[nN]$ ]] || CFG_DENY="~/.ssh,~/.gnupg"
     read -r -p "  Choisir les modèles (sinon Haiku pour le courant, Sonnet pour le code) ? [o/N] " a
     if [[ "$a" =~ ^[oOyY]$ ]]; then

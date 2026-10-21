@@ -45,6 +45,7 @@ if [ "$CLAUDE" = 1 ]; then
 fi
 export HOME="$T/home" XDG_CONFIG_HOME="$T/home/.config"
 DATA="$HOME/.local/share/qs-assistant"
+# shellcheck disable=SC2088  # le ~ littéral est voulu (chemins écrits dans config.json)
 INST=("$SRC/install.sh" --prefix "$T/qs" --no-hypr -y --name "Testeur" --deny-read "~/.ssh,~/.gnupg")
 
 # ── 1. Installation ───────────────────────────────────────────────────────
