@@ -34,6 +34,11 @@ jobs:
     name: Scan de secrets
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Sur une pull request, Gitleaks liste ses commits via l'API : il lui faut
+    # pull-requests: read (sans ça, 403 « Resource not accessible »).
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
