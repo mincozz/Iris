@@ -54,7 +54,7 @@ check "dry-run sans erreur"           "${INST[0]}" "${INST[@]:1}" --dry-run
 check "dry-run n'écrit rien"          test ! -e "$T/qs/overlays"
 check "installation sans erreur"      "${INST[@]}"
 for f in overlays/AssistantOverlay.qml overlays/AssistantAvatar.qml scripts/assistant.py \
-         scripts/assistant-prompt.md scripts/iris-watch.py scripts/organize.py scripts/iris-ask; do
+         scripts/assistant-prompt.md scripts/iris-watch.py scripts/organize.py scripts/iris-ask scripts/iris-doctor; do
   check "fichier copié : $f" test -f "$T/qs/$f"
 done
 check "iris-ask exécutable"           test -x "$T/qs/scripts/iris-ask"
@@ -66,6 +66,16 @@ check "iris-ask envoie la sélection (dry)" bash -c "IRIS_ASK_DRY=1 PATH='$T/bin
 check "raccourci Hyprland ajouté (1 fois)" bash -c "[ \$(grep -c 'iris-ask' '$T/home/.config/hypr/hyprland.lua') = 1 ]"
 "$SRC/install.sh" --prefix "$T/qs" -y >/dev/null 2>&1
 check "raccourci non dupliqué à la relance" bash -c "[ \$(grep -c 'iris-ask' '$T/home/.config/hypr/hyprland.lua') = 1 ]"
+DOC="$T/qs/scripts/iris-doctor"
+check "doctor : câblage reconnu"       bash -c "python3 -I '$DOC' --prefix '$T/qs' | grep -q '✓ l.overlay est instancié'"
+cp "$T/qs/shell.qml" "$T/shell.qml.ok"
+python3 -I - "$T/qs/shell.qml" <<'PY'
+import re, sys
+p = sys.argv[1]; s = open(p).read()
+open(p, "w").write(re.sub(r"AssistantOverlay\s*\{[^}]*\}", "", s))
+PY
+check "doctor : détecte un câblage cassé" bash -c "python3 -I '$DOC' --prefix '$T/qs' | grep -q '✗ l.overlay est instancié'"
+cp "$T/shell.qml.ok" "$T/qs/shell.qml"
 check "shell.qml câblé (bloc balisé)"  grep -q ">>> iris (install.sh)" "$T/qs/shell.qml"
 check "import \"./overlays\" ajouté"    grep -q 'import "./overlays"' "$T/qs/shell.qml"
 check "configDir et homeDir définis"   bash -c "grep -q 'configDir' '$T/qs/shell.qml' && grep -q 'homeDir' '$T/qs/shell.qml'"

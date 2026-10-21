@@ -42,7 +42,7 @@ run()  { if [ "$DRY" = 1 ]; then echo "  [dry-run] $*"; else "$@"; fi; }
 FILES=(
   "overlays/AssistantOverlay.qml" "overlays/AssistantAvatar.qml"
   "scripts/assistant.py" "scripts/assistant-prompt.md"
-  "scripts/iris-watch.py" "scripts/organize.py" "scripts/iris-ask"
+  "scripts/iris-watch.py" "scripts/organize.py" "scripts/iris-ask" "scripts/iris-doctor"
 )
 
 backup() { [ -e "$1" ] && [ ! -e "$1.iris-bak" ] && run cp -p "$1" "$1.iris-bak" || true; }
@@ -83,7 +83,7 @@ say "Copie vers $PREFIX"
 for f in "${FILES[@]}"; do
   run mkdir -p "$PREFIX/$(dirname "$f")"
   if [ -e "$PREFIX/$f" ] && ! cmp -s "$SRC/$f" "$PREFIX/$f"; then backup "$PREFIX/$f"; fi
-  run install -m "$([[ $f == scripts/*.py || $f == scripts/iris-ask ]] && echo 755 || echo 644)" "$SRC/$f" "$PREFIX/$f"
+  run install -m "$([[ $f == scripts/*.py || $f == scripts/iris-ask || $f == scripts/iris-doctor ]] && echo 755 || echo 644)" "$SRC/$f" "$PREFIX/$f"
 done
 
 # ── État utilisateur (jamais écrasé) ──────────────────────────────────────
@@ -236,3 +236,8 @@ say "Terminé. Il reste 2 étapes à la main (spécifiques à ton shell) :"
 echo "  1. Bouton dans la barre : integration/Bar.qml.snippet  (optionnel : le panneau marche sans)"
 echo "  2. Clic sur une alerte « Iris » ouvre le panneau : integration/NotificationToast.qml.snippet (optionnel)"
 echo "Puis relance Quickshell et teste :  qs ipc call assistant toggle"
+if [ "$DRY" = 0 ]; then
+  echo
+  say "Diagnostic (relance-le quand tu veux : $PREFIX/scripts/iris-doctor)"
+  python3 -I "$PREFIX/scripts/iris-doctor" --prefix "$PREFIX" || true
+fi

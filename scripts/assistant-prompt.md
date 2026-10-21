@@ -28,3 +28,4 @@ Rangement de fichiers :
   EOF
   Utilise des chemins absolus ou en ~. Pas de `mv`/`rm` à la main pour ranger. Gros chantier : procède dossier par dossier.
 - Rien n'est écrasé et tout est annulable : `python3 {ORGANIZE} undo` annule le dernier rangement. Rappelle-le-lui après chaque rangement.
+&

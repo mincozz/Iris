@@ -1,0 +1,280 @@
+#!/usr/bin/env python3
+"""iris-doctor — vérifie qu'Iris est correctement installée et dit quoi réparer.
+
+    iris-doctor [--prefix DIR]
+
+DIR est le dossier de ton shell Quickshell (défaut : celui qui contient ce
+script, sinon ~/.config/quickshell). Ne modifie rien et n'envoie aucun
+message à Claude. Code de sortie 1 s'il y a au moins une erreur (✗).
+"""
+import contextlib
+import importlib.util
+import io
+import json
+import os
+import re
+import shutil
+import stat
+import subprocess
+import sys
+
+HOME = os.path.expanduser("~")
+DATA = os.path.join(HOME, ".local/share/qs-assistant")
+XDG = os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config")
+
+FILES = ["overlays/AssistantOverlay.qml", "overlays/AssistantAvatar.qml",
+         "scripts/assistant.py", "scripts/assistant-prompt.md",
+         "scripts/iris-watch.py", "scripts/organize.py", "scripts/iris-ask"]
+THEME_TOKENS = ["bg", "fg", "ff", "fs", "primary", "secondary", "tertiary",
+                "lavender", "light", "outline", "txt2", "error", "warn"]
+
+counts = {"ok": 0, "warn": 0, "fail": 0}
+tty = sys.stdout.isatty()
+
+
+def color(code, s):
+    return f"\033[{code}m{s}\033[0m" if tty else s
+
+
+def report(level, msg, hint=""):
+    counts[level] += 1
+    mark = {"ok": color(32, "✓"), "warn": color(33, "!"), "fail": color(31, "✗")}[level]
+    print(f"  {mark} {msg}")
+    if hint and level != "ok":
+        print(f"      → {hint}")
+
+
+def section(title):
+    print("\n" + color("1;35", f"▸ {title}"))
+
+
+def read(path):
+    try:
+        with open(path, errors="replace") as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+def run(cmd, timeout=8):
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return r.returncode, (r.stdout + r.stderr).strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return 1, ""
+
+
+def default_prefix():
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if os.path.isdir(os.path.join(here, "overlays")) and os.path.isfile(os.path.join(here, "shell.qml")):
+        return here
+    return os.path.join(XDG, "quickshell")
+
+
+def check_requirements():
+    section("Prérequis")
+    v = sys.version_info
+    if v >= (3, 9):
+        report("ok", f"python {v.major}.{v.minor}")
+    else:
+        report("fail", f"python {v.major}.{v.minor} trop ancien", "Iris demande Python 3.9 ou plus")
+    for cmd, why, level in [("claude", "CLI Claude Code : https://claude.com/claude-code", "fail"),
+                            ("qs", "Quickshell : https://quickshell.org", "fail"),
+                            ("git", "nécessaire aux alertes git", "warn"),
+                            ("wl-paste", "paquet wl-clipboard (raccourci iris-ask)", "warn"),
+                            ("notify-send", "paquet libnotify (notifications d'alerte)", "warn"),
+                            ("gio", "paquet glib2 (corbeille du rangement)", "warn"),
+                            ("nautilus", "ouverture des fichiers cités par Iris", "warn")]:
+        if shutil.which(cmd):
+            extra = ""
+            if cmd == "claude":
+                code, out = run(["claude", "--version"])
+                extra = f" ({out.splitlines()[0]})" if code == 0 and out else ""
+            report("ok", cmd + extra)
+        else:
+            report(level, f"{cmd} introuvable", why)
+    if shutil.which("claude"):
+        creds = os.path.join(HOME, ".claude/.credentials.json")
+        cfg = read(os.path.join(HOME, ".claude.json")) or ""
+        if os.path.exists(creds) or '"oauthAccount"' in cfg:
+            report("ok", "claude semble connecté à un compte")
+        else:
+            report("warn", "claude ne semble pas connecté", "lance `claude` une fois dans un terminal pour te connecter")
+
+
+def check_files(prefix):
+    section(f"Fichiers dans {prefix}")
+    if not os.path.isdir(prefix):
+        report("fail", "dossier Quickshell introuvable", "relance ./install.sh (ou --prefix DIR)")
+        return False
+    missing = [f for f in FILES if not os.path.isfile(os.path.join(prefix, f))]
+    if missing:
+        for f in missing:
+            report("fail", f"manquant : {f}", "relance ./install.sh")
+    else:
+        report("ok", f"{len(FILES)} fichiers présents")
+    for f in ("scripts/assistant.py", "scripts/iris-watch.py", "scripts/iris-ask"):
+        p = os.path.join(prefix, f)
+        if os.path.isfile(p) and not os.access(p, os.X_OK):
+            report("warn", f"{f} n'est pas exécutable", f"chmod +x {p}")
+    for f in ("scripts/assistant.py", "scripts/iris-watch.py", "scripts/organize.py"):
+        p = os.path.join(prefix, f)
+        if os.path.isfile(p):
+            code, out = run([sys.executable, "-I", "-m", "py_compile", p])
+            if code:
+                report("fail", f"{f} ne compile pas", out.splitlines()[-1] if out else "")
+    return not missing
+
+
+def check_wiring(prefix):
+    section("Câblage de shell.qml")
+    path = os.path.join(prefix, "shell.qml")
+    s = read(path)
+    if s is None:
+        report("fail", "shell.qml introuvable", "voir integration/shell.qml.snippet")
+        return
+    checks = [
+        (r"\bAssistantOverlay\s*\{", "l'overlay est instancié", "ajoute  AssistantOverlay { id: assistantOverlay; shellRoot: root; theme: theme }"),
+        (r'^\s*import\s+"\./?overlays/?"', 'import "./overlays"', 'ajoute  import "./overlays"  en haut de shell.qml'),
+        (r"^\s*import\s+Quickshell\.Io\b", "import Quickshell.Io", "ajoute  import Quickshell.Io  (IpcHandler)"),
+        (r'target:\s*"assistant"', "cible IPC « assistant »", "voir integration/shell.qml.snippet"),
+        (r"\bassistantOpen\b", "propriété assistantOpen", "voir integration/shell.qml.snippet"),
+        (r"\bassistantMood\b", "propriété assistantMood", "voir integration/shell.qml.snippet"),
+        (r"\bassistantUnread\b", "propriété assistantUnread", "voir integration/shell.qml.snippet"),
+        (r"\bconfigDir\b", "propriété configDir", "property string configDir: Quickshell.shellDir"),
+        (r"\bhomeDir\b", "propriété homeDir", 'property string homeDir: Quickshell.env("HOME")'),
+        (r"\bid:\s*theme\b", "objet theme", "l'overlay a besoin d'un objet  id: theme  (voir AGENTS.md)"),
+    ]
+    for rx, label, hint in checks:
+        if re.search(rx, s, re.M):
+            report("ok", label)
+        else:
+            report("fail", f"{label} : absent", hint)
+    # Theme tokens: look for their definition anywhere in the shell's QML.
+    qml = s
+    for root, _, files in os.walk(prefix):
+        for f in files:
+            if f.endswith(".qml") and not f.startswith("Assistant"):
+                qml += read(os.path.join(root, f)) or ""
+    absent = [t for t in THEME_TOKENS
+              if not re.search(r"\b(property\s+\w+\s+|readonly property\s+\w+\s+)?%s\s*:" % re.escape(t), qml)]
+    if absent:
+        report("warn", "champs de thème introuvables : " + ", ".join(absent),
+               "vérification approximative ; si l'overlay s'affiche mal, voir « Contrat avec le shell hôte » dans AGENTS.md")
+    else:
+        report("ok", "champs de thème trouvés")
+
+
+def load_module(prefix):
+    path = os.path.join(prefix, "scripts/assistant.py")
+    if not os.path.isfile(path):
+        return None, ""
+    spec = importlib.util.spec_from_file_location("iris_assistant_check", path)
+    mod = importlib.util.module_from_spec(spec)
+    err = io.StringIO()
+    old_home = os.environ.get("HOME")
+    try:
+        with contextlib.redirect_stderr(err):
+            spec.loader.exec_module(mod)
+    except Exception as e:      # noqa: BLE001 — report, don't crash
+        return None, f"{type(e).__name__}: {e}"
+    finally:
+        if old_home is not None:
+            os.environ["HOME"] = old_home
+    return mod, err.getvalue()
+
+
+def check_data(prefix):
+    section(f"Données dans {DATA}")
+    if not os.path.isdir(DATA):
+        report("warn", "dossier absent", "il sera créé au premier lancement d'Iris, ou relance ./install.sh")
+        return
+    mode = stat.S_IMODE(os.stat(DATA).st_mode)
+    if mode & 0o077:
+        report("warn", f"dossier en {mode:o} : lisible par d'autres comptes", f"chmod 700 {DATA}")
+    else:
+        report("ok", "dossier en 700")
+    mem = os.path.join(DATA, "memory.md")
+    report("ok", "memory.md présent") if os.path.isfile(mem) else report(
+        "warn", "memory.md absent", "copie integration/memory.example.md (ou relance ./install.sh)")
+    for name in ("watch.json", "config.json"):
+        p = os.path.join(DATA, name)
+        if not os.path.isfile(p):
+            report("warn", f"{name} absent", "relance ./install.sh (valeurs par défaut sinon)")
+            continue
+        try:
+            json.load(open(p))
+            report("ok", f"{name} valide")
+        except ValueError as e:
+            report("fail", f"{name} : JSON invalide", str(e))
+    mod, err = load_module(prefix)
+    if mod is None:
+        if err:
+            report("fail", "assistant.py ne se charge pas", err)
+        return
+    problems = [ln for ln in err.splitlines() if ln.startswith("[iris]")]
+    if problems:
+        for ln in problems:
+            report("warn", ln.replace("[iris] ", ""), "corrige config.json (la valeur par défaut est utilisée)")
+    else:
+        report("ok", "config.json : toutes les valeurs sont acceptées")
+    cfg = getattr(mod, "CONFIG", {})
+    pf = getattr(mod, "PROMPT_FILE", "")
+    if not os.path.isfile(pf):
+        report("fail", f"fichier de prompt introuvable : {pf}", "vérifie `prompt_file` dans config.json")
+    for p in cfg.get("deny_read_paths", []):
+        if not os.path.exists(os.path.expanduser(p)):
+            report("warn", f"deny_read_paths : {p} n'existe pas", "sans gravité, mais vérifie l'orthographe")
+
+
+def check_hyprland():
+    section("Hyprland (facultatif)")
+    hypr = os.path.join(XDG, "hypr")
+    if not os.path.isdir(hypr):
+        print("  · pas de config Hyprland trouvée : étape ignorée")
+        return
+    blob = ""
+    for root, _, files in os.walk(hypr):
+        for f in files:
+            if f.endswith((".lua", ".conf")):
+                blob += read(os.path.join(root, f)) or ""
+    report("ok", "règle de flou du panneau") if "quickshell-assistant" in blob else report(
+        "warn", "pas de règle de flou pour le panneau", "voir integration/hyprland-layer-rule.lua (cosmétique)")
+    report("ok", "raccourci iris-ask") if "iris-ask" in blob else report(
+        "warn", "pas de raccourci iris-ask", "relance ./install.sh ou ajoute un bind vers scripts/iris-ask")
+
+
+def check_runtime():
+    section("Quickshell en cours d'exécution")
+    if not shutil.which("qs"):
+        return
+    code, out = run(["qs", "ipc", "show"])
+    if code == 0 and "assistant" in out:
+        report("ok", "la cible IPC « assistant » répond (Iris est chargée)")
+    elif code == 0:
+        report("warn", "Quickshell tourne mais Iris n'est pas chargée", "recharge Quickshell après l'installation")
+    else:
+        report("warn", "aucune instance Quickshell détectée", "lance ton shell, puis relance le diagnostic")
+
+
+def main():
+    args = sys.argv[1:]
+    if args[:1] in (["-h"], ["--help"]):
+        print(__doc__)
+        return 0
+    prefix = default_prefix()
+    if args[:1] == ["--prefix"] and len(args) > 1:
+        prefix = os.path.expanduser(args[1])
+    print(color("1", "Diagnostic d'Iris"))
+    check_requirements()
+    if check_files(prefix):
+        check_wiring(prefix)
+    check_data(prefix)
+    check_hyprland()
+    check_runtime()
+    print(f"\n{color('1', 'Bilan')} : {counts['ok']} ok, {counts['warn']} avertissement(s), {counts['fail']} erreur(s)")
+    return 1 if counts["fail"] else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

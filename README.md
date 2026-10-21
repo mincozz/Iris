@@ -14,6 +14,7 @@ Elle s'appuie sur la CLI `claude -p` : chat, fichiers, agenda/mails via les conn
 | `scripts/iris-watch.py` | Alertes locales sans quota : `git pull` à faire, commits non poussés, agenda, disque/batterie/units en échec |
 | `scripts/organize.py` | `scan` / `apply` / `undo` pour ranger des dossiers |
 | `scripts/iris-ask` | Raccourci : envoie la sélection (ou le presse-papiers) à Iris |
+| `scripts/iris-doctor` | Diagnostic : vérifie l'installation et dit quoi réparer |
 | `integration/` | Extraits à greffer dans `shell.qml`, `Bar.qml`, `NotificationToast.qml`, règle de blur Hyprland, `watch.json` d'exemple |
 
 ## Installation
@@ -32,6 +33,10 @@ L'installateur vérifie les prérequis (Quickshell, Python 3, CLI `claude` conne
 
 Restent à faire à la main, car ils dépendent de ton shell : le bouton dans la barre (`integration/Bar.qml.snippet`) et le clic sur une alerte (`integration/NotificationToast.qml.snippet`). L'overlay attend un objet `theme` (`ff`, `fs`, `hi()`, `barBg`…).
 Contrôle : `qs ipc call assistant toggle|open|close|ask "…"`.
+
+## Diagnostic
+
+`~/.config/quickshell/scripts/iris-doctor` (lancé aussi à la fin de l'installation) vérifie les prérequis, les fichiers, le câblage de `shell.qml`, la config, les droits du dossier de données, Hyprland et l'instance Quickshell en cours. Chaque problème s'accompagne de l'action à faire. Il ne modifie rien et n'envoie rien à Claude.
 
 ## Raccourci « demande à Iris »
 
