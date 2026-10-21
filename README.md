@@ -36,6 +36,20 @@ L'installateur vérifie les prérequis (Quickshell, Python 3, CLI `claude` conne
 Restent à faire à la main, car ils dépendent de ton shell : le bouton dans la barre (`integration/Bar.qml.snippet`) et le clic sur une alerte (`integration/NotificationToast.qml.snippet`). L'overlay attend un objet `theme` (`ff`, `fs`, `hi()`, `barBg`…).
 Contrôle : `qs ipc call assistant toggle|open|close|ask "…"`.
 
+## Skills (recettes perso)
+
+Des recettes en Markdown, une par tâche récurrente, dans `~/.local/share/qs-assistant/skills/nom.md` :
+
+```markdown
+---
+description: Prépare mon rapport hebdo (« rapport de la semaine »)
+---
+1. Liste mes commits des 7 derniers jours : `git -C <dépôt> log --since="7 days ago" --oneline`.
+2. Réponds par 2 à 4 puces par projet, puis une phrase de synthèse.
+```
+
+Iris reçoit la liste (nom, description) et lit la recette quand ta demande y correspond, ou quand tu écris `/nom`. La ligne `description:` sert à décider quand l'utiliser (sinon, la première ligne du fichier). Noms de fichier simples (lettres, chiffres, `-`, `_`, `.`), 30 recettes maximum. Les recettes d'exemple (rapport hebdo, rangement des téléchargements) sont copiées à l'installation, dans ta langue, sans jamais écraser les tiennes. La liste est lue au démarrage d'une conversation : lance « nouvelle conversation » après avoir ajouté une recette. Les recettes sont tes instructions : elles s'exécutent avec les mêmes autorisations que le reste (les actions qui modifient demandent ton clic).
+
 ## Mise à jour
 
 ```bash

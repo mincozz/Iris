@@ -152,6 +152,16 @@ PY
   fi
 fi
 
+# ── Skills (recettes perso) : exemples copiés une fois, jamais écrasés ────
+if [ ! -d "$DATA/skills" ]; then
+  SK_LANG="${CFG_LANG:-}"
+  [ -n "$SK_LANG" ] || SK_LANG="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("language","fr"))' "$DATA/config.json" 2>/dev/null || echo fr)"
+  case "$SK_LANG" in en) ;; fr) ;; *) case "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}" in en*) SK_LANG=en ;; *) SK_LANG=fr ;; esac ;; esac
+  say "Skills d'exemple dans $DATA/skills ($SK_LANG)"
+  run mkdir -p "$DATA/skills"
+  for f in "$SRC/integration/skills/$SK_LANG/"*.md; do run cp "$f" "$DATA/skills/"; done
+fi
+
 # ── Câblage de shell.qml ──────────────────────────────────────────────────
 SHELLQML="$PREFIX/shell.qml"
 if [ ! -f "$SHELLQML" ]; then

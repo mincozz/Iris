@@ -80,6 +80,8 @@ cp "$T/shell.qml.ok" "$T/qs/shell.qml"
 check "langue : le daemon suit config.json (en)" bash -c "python3 '$T/qs/scripts/assistant.py' </dev/null 2>/dev/null | head -1 | grep -q '\"lang\": \"en\"'"
 check "langue : IRIS_LANG=fr l'emporte"  bash -c "IRIS_LANG=fr python3 '$T/qs/scripts/assistant.py' </dev/null 2>/dev/null | head -1 | grep -q '\"lang\": \"fr\"'"
 check "langue : prompt anglais chargé"   bash -c "cd '$T/qs/scripts' && python3 -c \"import assistant; assert 'You are Iris' in assistant.system_prompt(True)\""
+check "skills : exemples copiés (langue en)"  test -f "$DATA/skills/weekly-report.md"
+check "skills : listés dans le prompt"       bash -c "cd '$T/qs/scripts' && python3 -c \"import assistant; p = assistant.system_prompt(True); assert '/weekly-report' in p and 'weekly-report.md' in p\""
 check "langue : prompt français chargé"  bash -c "cd '$T/qs/scripts' && IRIS_LANG=fr python3 -c \"import assistant; assert 'Tu es Iris' in assistant.system_prompt(True)\""
 mkdir -p "$T/proj" && ( cd "$T/proj" && git init -q && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m init && echo x > f.txt )
 printf '{"morning_hour": %s, "calendar_via_claude": false, "repo_roots": ["%s"], "exclude": []}' "$((10#$(date +%H)))" "$T/proj/.." > "$DATA/watch.json"

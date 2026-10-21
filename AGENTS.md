@@ -60,6 +60,9 @@ Ne les assouplis pas sans demande explicite de l'utilisateur :
 - Les clés API sont retirées de l'environnement de `claude` (`BILLING_ENV`) : ne les réinjecte pas.
 - Aucun secret, historique ou agenda dans le repo (voir `.gitignore`).
 
+## Skills
+Recettes perso de l'utilisateur : `~/.local/share/qs-assistant/skills/*.md` (en-tête `description:` facultatif), listées dans le prompt par `load_skills()` (`assistant.py`) et lues par Iris à la demande. L'installateur copie des exemples (`integration/skills/<langue>/`) sans écraser. Aide l'utilisateur à écrire les siennes s'il le demande ; elles n'ont aucun droit de plus que le reste.
+
 ## Actions des alertes
 Une alerte de `iris-watch.py` peut porter `action = {"id", "label", "arg"}` (bouton dans le panneau). Les ids exécutables sont fixés dans `Daemon._run_action` (`assistant.py`) : `update` et `git_pull`. Pour en ajouter un, valide les arguments côté daemon (le clic est un accord, pas un chèque en blanc) et ajoute un test dans `test/test-actions.py`.
 

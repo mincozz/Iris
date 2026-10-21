@@ -229,6 +229,20 @@ def check_data(prefix):
             report("warn", f"deny_read_paths : {p} n'existe pas", "sans gravité, mais vérifie l'orthographe")
 
 
+def check_skills():
+    section("Skills (recettes perso)")
+    d = os.path.join(DATA, "skills")
+    if not os.path.isdir(d):
+        print("  · aucun dossier de skills (facultatif) : crée-en dans " + d)
+        return
+    files = sorted(f for f in os.listdir(d) if f.endswith(".md"))
+    bad = [f for f in files if not re.fullmatch(r"[\w.-]+", f[:-3]) or f.startswith(".")]
+    report("ok", f"{len(files) - len(bad)} recette(s) : " + ", ".join(f[:-3] for f in files if f not in bad)) if files else report(
+        "warn", "dossier vide", "ajoute un fichier nom.md (description: dans l'en-tête) ; voir README")
+    for f in bad:
+        report("warn", f"{f} ignoré", "nom sans espace ni caractère spécial, extension .md")
+
+
 def check_updates():
     section("Mises à jour")
     src = (read(os.path.join(DATA, "source")) or "").strip()
@@ -294,6 +308,7 @@ def main():
     if check_files(prefix):
         check_wiring(prefix)
     check_data(prefix)
+    check_skills()
     check_updates()
     check_hyprland()
     check_runtime()

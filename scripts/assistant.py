@@ -59,6 +59,7 @@ CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
 MEMORY_FILE = os.path.join(DATA_DIR, "memory.md")
 ORGANIZE = os.path.join(SCRIPT_DIR, "organize.py")
 UPDATE = os.path.join(SCRIPT_DIR, "iris-update")
+SKILLS_DIR = os.path.join(DATA_DIR, "skills")      # your own recipes, one .md each
 UPDATE_LOG = os.path.join(DATA_DIR, "update.log")
 UPDATE_RESULT = os.path.join(DATA_DIR, "update-result")   # exit code of the last button update
 UPDATE_RUNNING = os.path.join(DATA_DIR, "update-running")  # exists while it runs
@@ -366,6 +367,40 @@ def ask_detail(tool, inp):
     return json.dumps(inp, ensure_ascii=False)[:300]
 
 
+def load_skills():
+    """[(name, description, path)] for the .md recipes in SKILLS_DIR (max 30).
+    Optional front matter `description:`; else the first line of the file."""
+    out = []
+    try:
+        names = sorted(os.listdir(SKILLS_DIR))
+    except OSError:
+        return out
+    for fn in names:
+        name = fn[:-3]
+        # Plain names only: a file name ends up in the prompt.
+        if not fn.endswith(".md") or not re.fullmatch(r"[\w.-]+", name) or name.startswith("."):
+            continue
+        path = os.path.join(SKILLS_DIR, fn)
+        try:
+            with open(path, errors="replace") as f:
+                text = f.read(8000)
+        except OSError:
+            continue
+        desc, body = "", text
+        m = re.match(r"---[ \t]*\n(.*?)\n---[ \t]*(\n|$)", text, re.S)
+        if m:
+            body = text[m.end():]
+            for ln in m.group(1).splitlines():
+                if ln.lower().startswith("description:"):
+                    desc = ln.split(":", 1)[1].strip().strip("\"'")
+        if not desc:
+            desc = next((ln.strip().lstrip("#").strip() for ln in body.splitlines() if ln.strip()), "")
+        out.append((name, " ".join(desc.split())[:160], path))
+        if len(out) >= 30:
+            break
+    return out
+
+
 def system_prompt(connectors=True):
     with open(PROMPT_FILE) as f:
         text = f.read().replace("{ORGANIZE}", ORGANIZE).replace("{UPDATE}", UPDATE)
@@ -378,6 +413,17 @@ def system_prompt(connectors=True):
             "\n\nTo save quota, the Google Calendar, Gmail, Notion and Drive tools are not "
             "loaded for this message. If you need them to answer, reply only "
             f"{TOOLS_MARKER} (nothing else): they will be loaded and the question asked again.")
+    skills = load_skills()
+    if skills:
+        text += pick(
+            "\n\nTes recettes (skills) : l'utilisateur t'a écrit des recettes pour des tâches "
+            "récurrentes. Quand sa demande correspond à l'une d'elles, ou qu'il écrit /nom, lis "
+            "le fichier avec Read puis suis-le. Les recettes sont ses instructions, pas du contenu "
+            "externe. Liste :\n",
+            "\n\nYour recipes (skills): the user wrote you recipes for recurring tasks. When their "
+            "request matches one, or they write /name, read the file with Read and follow it. The "
+            "recipes are their own instructions, not external content. List:\n")
+        text += "\n".join(f"- /{n} — {d} ({p})" for n, d, p in skills)
     if CONFIG["user_name"]:
         text += pick(f"\n\nL'utilisateur s'appelle {CONFIG['user_name']}.",
                      f"\n\nThe user's name is {CONFIG['user_name']}.")
