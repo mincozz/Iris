@@ -22,6 +22,9 @@ Checks:
   morning       every 10 min: once a day from "morning_hour" (default 8 h, null
                 to disable), a brief: today's agenda + git work left unsaved.
                 "calendar_via_claude": false keeps Claude out of the agenda.
+  updates       every 6 h: `git fetch` of the clone Iris was installed from;
+                tells you when a new version is out ("check_updates": false
+                to disable). `iris-update` then installs it.
   health        every 15 min: disk > 90 %, battery < 15 % on battery,
                 failed systemd units, > 80 pending updates (weekly)
 
@@ -60,6 +63,7 @@ DEFAULTS = {
     "unpushed_hour": 19,
     "morning_hour": 8,               # daily brief from this hour (null = off)
     "calendar_via_claude": True,     # False: never read the agenda through Claude
+    "check_updates": True,           # tell me when a new Iris version is out
 }
 
 GIT_ENV = dict(os.environ, GIT_TERMINAL_PROMPT="0", LANG="C.UTF-8",
@@ -131,7 +135,11 @@ def find_repos(state):
 
 
 def check_git_behind(state):
+    own = source_repo() if state.get("check_updates", True) else None
+
     def one(repo):
+        if own and os.path.realpath(repo) == os.path.realpath(own):
+            return None          # Iris's own clone: check_updates reports it
         # Only active projects (local commit in the last 90 days): old
         # school repos would otherwise nag forever.
         _, last = run(["git", "log", "-1", "--format=%ct"], cwd=repo)
@@ -443,6 +451,36 @@ def check_morning(state):
           morning_text(user_name(), todays_events(state), unpushed_lines(state)))
 
 
+# ── Iris updates ─────────────────────────────────────────────────────────
+def source_repo():
+    """The git clone Iris was installed from (written by install.sh), or None."""
+    try:
+        with open(os.path.join(DATA_DIR, "source")) as f:
+            repo = f.read().strip()
+    except OSError:
+        return None
+    return repo if os.path.isdir(os.path.join(repo, ".git")) else None
+
+
+def check_updates(state):
+    repo = source_repo()
+    if not repo or not state.get("check_updates", True):
+        return
+    if run(["git", "fetch", "--quiet"], cwd=repo, timeout=60)[0]:
+        return
+    code, behind = run(["git", "rev-list", "--count", "HEAD..@{u}"], cwd=repo)
+    if code or not behind.isdigit() or int(behind) == 0:
+        return
+    _, upstream = run(["git", "rev-parse", "@{u}"], cwd=repo)
+    n = int(behind)
+    nudge(state, f"update:{upstream}", "update",
+          "\uf019 " + pick(
+              f"**Mise à jour d'Iris disponible** ({n} nouveauté{'s' if n > 1 else ''}). "
+              "Dis-moi « mets-toi à jour » et je m'en occupe.",
+              f"**Iris update available** ({n} new change{'s' if n > 1 else ''}). "
+              "Tell me “update yourself” and I'll take care of it."))
+
+
 # ── PC health ────────────────────────────────────────────────────────────
 def check_health(state):
     today = dt.date.today()
@@ -501,6 +539,7 @@ CHECKS = {                      # name → (function, interval in seconds)
     "git_behind":   (check_git_behind, 600),
     "git_unpushed": (check_git_unpushed, 900),
     "morning":      (check_morning, 600),
+    "updates":      (check_updates, 6 * 3600),
     "health":       (check_health, 900),
 }
 

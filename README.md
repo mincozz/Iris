@@ -16,6 +16,7 @@ Elle s'appuie sur la CLI `claude -p` : chat, fichiers, agenda/mails via les conn
 | `scripts/organize.py` | `scan` / `apply` / `undo` pour ranger des dossiers |
 | `scripts/iris-ask` | Raccourci : envoie la sélection (ou le presse-papiers) à Iris |
 | `scripts/iris-doctor` | Diagnostic : vérifie l'installation et dit quoi réparer |
+| `scripts/iris-update` | Mise à jour en une commande (`git pull` + réinstallation) |
 | `integration/` | Extraits à greffer dans `shell.qml`, `Bar.qml`, `NotificationToast.qml`, règle de blur Hyprland, `watch.json` d'exemple |
 
 ## Installation
@@ -34,6 +35,15 @@ L'installateur vérifie les prérequis (Quickshell, Python 3, CLI `claude` conne
 
 Restent à faire à la main, car ils dépendent de ton shell : le bouton dans la barre (`integration/Bar.qml.snippet`) et le clic sur une alerte (`integration/NotificationToast.qml.snippet`). L'overlay attend un objet `theme` (`ff`, `fs`, `hi()`, `barBg`…).
 Contrôle : `qs ipc call assistant toggle|open|close|ask "…"`.
+
+## Mise à jour
+
+```bash
+~/.config/quickshell/scripts/iris-update          # ou dis « mets-toi à jour » à Iris
+~/.config/quickshell/scripts/iris-update --check  # voir s'il y a du nouveau, sans rien changer
+```
+
+L'installateur retient où est ton clone ; `iris-update` fait `git pull --ff-only` dedans puis relance l'installation avec ta config actuelle (conservée). Iris le vérifie aussi toute seule toutes les 6 h et te prévient quand une version est sortie (`"check_updates": false` dans `watch.json` pour couper). Le clone doit rester en place et sans modification locale. Les fichiers installés sont remplacés : pour personnaliser, passe par `config.json` (ou `prompt_file`).
 
 ## Alertes et résumé du matin
 

@@ -25,7 +25,7 @@ XDG = os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config")
 FILES = ["overlays/AssistantOverlay.qml", "overlays/AssistantAvatar.qml",
          "scripts/assistant.py", "scripts/assistant-prompt.md",
          "scripts/iris-watch.py", "scripts/organize.py", "scripts/iris-ask",
-         "scripts/i18n.py", "scripts/assistant-prompt.en.md"]
+         "scripts/i18n.py", "scripts/assistant-prompt.en.md", "scripts/iris-update"]
 THEME_TOKENS = ["bg", "fg", "ff", "fs", "primary", "secondary", "tertiary",
                 "lavender", "light", "outline", "txt2", "error", "warn"]
 
@@ -114,7 +114,7 @@ def check_files(prefix):
             report("fail", f"manquant : {f}", "relance ./install.sh")
     else:
         report("ok", f"{len(FILES)} fichiers présents")
-    for f in ("scripts/assistant.py", "scripts/iris-watch.py", "scripts/iris-ask"):
+    for f in ("scripts/assistant.py", "scripts/iris-watch.py", "scripts/iris-ask", "scripts/iris-update"):
         p = os.path.join(prefix, f)
         if os.path.isfile(p) and not os.access(p, os.X_OK):
             report("warn", f"{f} n'est pas exécutable", f"chmod +x {p}")
@@ -228,6 +228,26 @@ def check_data(prefix):
             report("warn", f"deny_read_paths : {p} n'existe pas", "sans gravité, mais vérifie l'orthographe")
 
 
+def check_updates():
+    section("Mises à jour")
+    src = (read(os.path.join(DATA, "source")) or "").strip()
+    if not src:
+        report("warn", "emplacement du clone inconnu", "relance ./install.sh depuis ton clone : iris-update en a besoin")
+        return
+    if not os.path.isdir(os.path.join(src, ".git")):
+        report("fail", f"{src} n'est plus un clone git", "re-clone le repo, puis relance ./install.sh dedans")
+        return
+    report("ok", f"clone : {src}")
+    code, rev = run(["git", "-C", src, "rev-parse", "--short", "HEAD"])
+    inst = (read(os.path.join(DATA, "installed-rev")) or "").strip()[:7]
+    if code == 0 and inst and rev and not rev.startswith(inst):
+        report("warn", f"installée : {inst}, clone : {rev}", "lance iris-update (ou ./install.sh) pour installer la version du clone")
+    elif code == 0:
+        report("ok", f"version installée : {rev}")
+    if os.path.isfile(os.path.join(os.path.dirname(os.path.abspath(__file__)), "iris-update")):
+        report("ok", "iris-update disponible")
+
+
 def check_hyprland():
     section("Hyprland (facultatif)")
     hypr = os.path.join(XDG, "hypr")
@@ -271,6 +291,7 @@ def main():
     if check_files(prefix):
         check_wiring(prefix)
     check_data(prefix)
+    check_updates()
     check_hyprland()
     check_runtime()
     print(f"\n{color('1', 'Bilan')} : {counts['ok']} ok, {counts['warn']} avertissement(s), {counts['fail']} erreur(s)")

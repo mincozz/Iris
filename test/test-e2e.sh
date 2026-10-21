@@ -54,7 +54,7 @@ check "dry-run sans erreur"           "${INST[0]}" "${INST[@]:1}" --dry-run
 check "dry-run n'écrit rien"          test ! -e "$T/qs/overlays"
 check "installation sans erreur"      "${INST[@]}"
 for f in overlays/AssistantOverlay.qml overlays/AssistantAvatar.qml scripts/assistant.py \
-         scripts/assistant-prompt.md scripts/iris-watch.py scripts/organize.py scripts/iris-ask scripts/iris-doctor scripts/i18n.py scripts/assistant-prompt.en.md; do
+         scripts/assistant-prompt.md scripts/iris-watch.py scripts/organize.py scripts/iris-ask scripts/iris-doctor scripts/i18n.py scripts/assistant-prompt.en.md scripts/iris-update; do
   check "fichier copié : $f" test -f "$T/qs/$f"
 done
 check "iris-ask exécutable"           test -x "$T/qs/scripts/iris-ask"
@@ -145,6 +145,30 @@ TXT
   [ ! -e /tmp/iris-e2e-note.txt ] && ok "le fichier refusé n'a pas été créé" || { ko "/tmp/iris-e2e-note.txt existe"; rm -f /tmp/iris-e2e-note.txt; }
   kill "$QSPID" 2>/dev/null; wait "$QSPID" 2>/dev/null; QSPID=""
 fi
+
+# ── 2b. Mise à jour (repo factice : origin + clone) ───────────────────────
+step "Mise à jour (iris-update)"
+mkdir -p "$T/upd/src" && ( cd "$SRC" && tar --exclude=.git -cf - . ) | tar -xf - -C "$T/upd/src"
+(
+  cd "$T/upd/src" && git init -q -b main && git add -A && git -c user.name=t -c user.email=t@t commit -q -m "v1"
+  git clone -q --bare . "$T/upd/origin.git" && cd "$T/upd" && git clone -q origin.git clone
+) >/dev/null 2>&1
+rm -rf "$T/qs2" && mkdir -p "$T/qs2" && cp "$T/shell.qml.ok" "$T/qs2/shell.qml"
+"$T/upd/clone/install.sh" --prefix "$T/qs2" --no-hypr -y >/dev/null 2>&1
+check "install depuis le clone : source mémorisée" bash -c "[ \"\$(cat '$DATA/source')\" = '$T/upd/clone' ]"
+check "iris-update --check : à jour (code 0)"      "$T/qs2/scripts/iris-update" --check
+( cd "$T/upd/src" && echo "# iris-update-marker" >> scripts/i18n.py && git -c user.name=t -c user.email=t@t commit -qam "v2: marker" && git push -q "$T/upd/origin.git" main ) >/dev/null 2>&1
+"$T/qs2/scripts/iris-update" --check >/dev/null 2>&1; rc=$?
+[ "$rc" = 10 ] && ok "iris-update --check : nouveauté détectée (code 10)" || ko "iris-update --check a renvoyé $rc au lieu de 10"
+python3 "$T/qs2/scripts/iris-watch.py" --once updates > "$T/alert.json" 2>/dev/null
+check "alerte « mise à jour disponible » (iris-watch)" grep -q '"kind": "update"' "$T/alert.json"
+check "iris-update installe la nouveauté"          bash -c "'$T/qs2/scripts/iris-update' -y >/dev/null 2>&1 && grep -q iris-update-marker '$T/qs2/scripts/i18n.py'"
+check "config conservée après mise à jour"         python3 -I -c "import json,sys; assert json.load(open(sys.argv[1]))['user_name']=='Testeur'" "$DATA/config.json"
+check "iris-update : à jour ensuite (code 0)"      "$T/qs2/scripts/iris-update" --check
+( cd "$T/upd/clone" && echo dirty >> README.md )
+check "iris-update refuse un clone modifié"        bash -c "! '$T/qs2/scripts/iris-update' --check >/dev/null 2>&1"
+( cd "$T/upd/clone" && git checkout -q README.md )
+"$SRC/install.sh" --prefix "$T/qs" --no-hypr -y >/dev/null 2>&1
 
 # ── 3. Désinstallation ────────────────────────────────────────────────────
 step "Désinstallation"

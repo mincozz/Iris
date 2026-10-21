@@ -58,6 +58,7 @@ CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
 # What Iris knows about the user; kept outside the config dir (personal).
 MEMORY_FILE = os.path.join(DATA_DIR, "memory.md")
 ORGANIZE = os.path.join(SCRIPT_DIR, "organize.py")
+UPDATE = os.path.join(SCRIPT_DIR, "iris-update")
 
 # Iris must only ever use the claude.ai Pro subscription: strip anything
 # that would switch Claude Code to pay-as-you-go API billing.
@@ -198,6 +199,7 @@ READONLY_BASH = [
 READONLY_BASH += CONFIG["extra_readonly_commands"]
 ALLOWED_TOOLS = ["Read", "Glob", "Grep", "WebSearch",
                  f"Bash(python3 {ORGANIZE} scan:*)",
+                 f"Bash(bash {UPDATE} --check:*)",     # only looks, never installs
                  ] + [f"Bash({c}:*)" for c in READONLY_BASH] + [
     "mcp__claude_ai_Google_Calendar__list_calendars",
     "mcp__claude_ai_Google_Calendar__list_events",
@@ -362,7 +364,7 @@ def ask_detail(tool, inp):
 
 def system_prompt(connectors=True):
     with open(PROMPT_FILE) as f:
-        text = f.read().replace("{ORGANIZE}", ORGANIZE)
+        text = f.read().replace("{ORGANIZE}", ORGANIZE).replace("{UPDATE}", UPDATE)
     if not connectors:
         text += pick(
             "\n\nPour économiser le quota, les outils Google Calendar, Gmail, Notion et "

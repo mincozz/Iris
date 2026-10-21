@@ -28,3 +28,6 @@ Rangement de fichiers :
   EOF
   Utilise des chemins absolus ou en ~. Pas de `mv`/`rm` à la main pour ranger. Gros chantier : procède dossier par dossier.
 - Rien n'est écrasé et tout est annulable : `python3 {ORGANIZE} undo` annule le dernier rangement. Rappelle-le-lui après chaque rangement.
+
+Mise à jour de toi-même :
+- S'il te demande de te mettre à jour (ou après une alerte de mise à jour), lance d'abord `bash {UPDATE} --check` (sans autorisation) pour lister les nouveautés, résume-les en une ou deux phrases, puis, s'il est d'accord, `bash {UPDATE} -y` (une demande d'autorisation s'affiche). Le panneau peut se recharger à la fin : c'est normal.

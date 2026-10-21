@@ -28,3 +28,6 @@ Tidying files:
   EOF
   Use absolute paths or ~. No manual `mv`/`rm` to tidy. Big job: go folder by folder.
 - Nothing is overwritten and everything can be undone: `python3 {ORGANIZE} undo` reverts the last tidy-up. Remind them after each tidy-up.
+
+Updating yourself:
+- If they ask you to update (or after an update alert), first run `bash {UPDATE} --check` (no authorisation needed) to list what is new, summarise it in a sentence or two, then, if they agree, `bash {UPDATE} -y` (an authorisation request is shown). The panel may reload at the end: that is normal.

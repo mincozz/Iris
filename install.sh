@@ -45,7 +45,7 @@ FILES=(
   "overlays/AssistantOverlay.qml" "overlays/AssistantAvatar.qml"
   "scripts/assistant.py" "scripts/assistant-prompt.md"
   "scripts/iris-watch.py" "scripts/organize.py" "scripts/iris-ask" "scripts/iris-doctor"
-  "scripts/i18n.py" "scripts/assistant-prompt.en.md"
+  "scripts/i18n.py" "scripts/assistant-prompt.en.md" "scripts/iris-update"
 )
 
 backup() { [ -e "$1" ] && [ ! -e "$1.iris-bak" ] && run cp -p "$1" "$1.iris-bak" || true; }
@@ -86,12 +86,18 @@ say "Copie vers $PREFIX"
 for f in "${FILES[@]}"; do
   run mkdir -p "$PREFIX/$(dirname "$f")"
   if [ -e "$PREFIX/$f" ] && ! cmp -s "$SRC/$f" "$PREFIX/$f"; then backup "$PREFIX/$f"; fi
-  run install -m "$([[ $f == scripts/*.py || $f == scripts/iris-ask || $f == scripts/iris-doctor ]] && echo 755 || echo 644)" "$SRC/$f" "$PREFIX/$f"
+  run install -m "$([[ $f == scripts/*.py || $f == scripts/iris-ask || $f == scripts/iris-doctor || $f == scripts/iris-update ]] && echo 755 || echo 644)" "$SRC/$f" "$PREFIX/$f"
 done
 
 # ── État utilisateur (jamais écrasé) ──────────────────────────────────────
 say "Données dans $DATA"
 run mkdir -p "$DATA"; run chmod 700 "$DATA"
+# Où est le clone et où Iris est installée : iris-update s'en sert pour se mettre à jour.
+if [ "$DRY" = 0 ]; then
+  printf '%s\n' "$SRC" > "$DATA/source"
+  printf '%s\n' "$PREFIX" > "$DATA/prefix"
+  git -C "$SRC" rev-parse HEAD > "$DATA/installed-rev" 2>/dev/null || rm -f "$DATA/installed-rev"
+fi
 [ -e "$DATA/memory.md" ]  || run cp "$SRC/integration/memory.example.md" "$DATA/memory.md"
 [ -e "$DATA/watch.json" ] || run cp "$SRC/integration/watch.example.json" "$DATA/watch.json"
 
@@ -249,6 +255,7 @@ echo "  2. Clic sur une alerte « Iris » ouvre le panneau : integration/Notific
 echo "Puis relance Quickshell et teste :  qs ipc call assistant toggle"
 if [ "$DRY" = 0 ]; then
   echo
+  say "Mises à jour : $PREFIX/scripts/iris-update  (ou dis « mets-toi à jour » à Iris)"
   say "Diagnostic (relance-le quand tu veux : $PREFIX/scripts/iris-doctor)"
   python3 -I "$PREFIX/scripts/iris-doctor" --prefix "$PREFIX" || true
 fi
