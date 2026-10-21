@@ -168,6 +168,8 @@ check "iris-update : à jour ensuite (code 0)"      "$T/qs2/scripts/iris-update"
 ( cd "$T/upd/clone" && echo dirty >> README.md )
 check "iris-update refuse un clone modifié"        bash -c "! '$T/qs2/scripts/iris-update' --check >/dev/null 2>&1"
 ( cd "$T/upd/clone" && git checkout -q README.md )
+( cd "$T/upd/src" && echo "# button-marker" >> scripts/i18n.py && git -c user.name=t -c user.email=t@t commit -qam "v3: button" && git push -q "$T/upd/origin.git" main ) >/dev/null 2>&1
+check "bouton « Mettre à jour » (daemon)"          python3 "$SRC/test/test-update-button.py" "$T/qs2" scripts/i18n.py button-marker
 "$SRC/install.sh" --prefix "$T/qs" --no-hypr -y >/dev/null 2>&1
 
 # ── 3. Désinstallation ────────────────────────────────────────────────────

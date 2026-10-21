@@ -84,8 +84,15 @@ PanelWindow {
     function close()  { shellRoot.closeAssistant() }
     function cmd(o)   { daemon.write(JSON.stringify(o) + "\n") }
 
-    function _push(role, text) {
-        messages.append({ role: role, text: text, askId: "", askTool: "", askState: "" })
+    function _push(role, text, action) {
+        messages.append({ role: role, text: text, askId: "", askTool: "", askState: "",
+                          action: action || "", actionState: "" })
+    }
+
+    // "Update now" button on an update alert: the daemon runs iris-update.
+    function runUpdate(i) {
+        messages.setProperty(i, "actionState", "running")
+        cmd({ cmd: "update" })
     }
 
     function send() {
@@ -201,7 +208,7 @@ PanelWindow {
             onRead: line => {
                 let d
                 try { d = JSON.parse(line) } catch (e) { return }
-                if (d.t === "nudge") overlay.cmd({ cmd: "nudge", text: d.text })
+                if (d.t === "nudge") overlay.cmd({ cmd: "nudge", text: d.text, kind: d.kind || "" })
             }
         }
         onExited: watcherRestart.restart()
@@ -217,7 +224,10 @@ PanelWindow {
         switch (d.t) {
         case "conversation":
             messages.clear()
-            for (const m of d.messages) _push(m.role, m.text)
+            // Only the latest update alert keeps its button (older ones are stale).
+            let lastUpdate = -1
+            d.messages.forEach((m, k) => { if (m.kind === "update") lastUpdate = k })
+            d.messages.forEach((m, k) => _push(m.role, m.text, k === lastUpdate ? "update" : ""))
             busy = false; streaming = false
             list.stick = true; Qt.callLater(() => list.positionViewAtEnd())
             break
@@ -244,7 +254,7 @@ PanelWindow {
             streaming  = false
             replying   = false
             messages.append({ role: "ask", text: d.detail, askId: d.id,
-                              askTool: d.tool, askState: "pending" })
+                              askTool: d.tool, askState: "pending", action: "", actionState: "" })
             list.stick = true; list.positionViewAtEnd()
             break
         case "error":
@@ -261,8 +271,17 @@ PanelWindow {
             if (d.week !== null && d.week !== undefined) usageWeek = d.week
             if (d.resets) usageResets = d.resets > 1e12 ? d.resets : d.resets * 1000
             break
+        case "update_done":
+            for (let k = 0; k < messages.count; k++)
+                if (messages.get(k).actionState === "running")
+                    messages.setProperty(k, "actionState", d.ok ? "done" : "failed")
+            _push(d.ok ? "nudge" : "error", d.v)
+            if (!_open && d.ok)
+                Quickshell.execDetached(["notify-send", "-a", "Iris", "Iris", _plain(d.v)])
+            if (list.stick) Qt.callLater(() => list.positionViewAtEnd())
+            break
         case "nudge":
-            _push("nudge", d.v)
+            _push("nudge", d.v, d.kind === "update" ? "update" : "")
             if (!_open) {
                 shellRoot.assistantUnread++
                 Quickshell.execDetached(["notify-send", "-a", "Iris", "Iris", _plain(d.v)])
@@ -713,11 +732,14 @@ PanelWindow {
                 required property string text
                 required property string askTool
                 required property string askState
+                required property string action
+                required property string actionState
                 required property int    index
                 readonly property bool mine: role === "user"
                 readonly property bool live: overlay.streaming && index === messages.count - 1
                 width: list.width
-                height: role === "ask" ? askCard.height : bubble.height
+                readonly property bool hasAction: action !== ""
+                height: role === "ask" ? askCard.height : bubble.height + (hasAction ? 42 : 0)
 
                 HoverHandler { id: msgHover }
 
@@ -784,6 +806,30 @@ PanelWindow {
                             cursorShape: body.hoveredLink !== "" ? Qt.PointingHandCursor : Qt.IBeamCursor
                         }
                     }
+                }
+
+                // Action button under an alert (e.g. "Update now").
+                Rectangle {
+                    visible: msg.hasAction
+                    anchors { left: bubble.left; top: bubble.bottom; topMargin: 8 }
+                    readonly property bool idle: msg.actionState === "" || msg.actionState === "failed"
+                    width: actionText.implicitWidth + 32; height: 32; radius: 16
+                    color: !idle ? overlay.cardFill
+                         : actHover.hovered ? Qt.lighter(overlay.theme.primary, 1.1) : overlay.theme.primary
+                    border.color: idle ? "transparent" : overlay.cardStroke
+                    border.width: 1
+                    Text {
+                        id: actionText
+                        anchors.centerIn: parent
+                        text: msg.actionState === "running" ? overlay.tr("updating", "Mise à jour…")
+                            : msg.actionState === "done"    ? "\uf00c  " + overlay.tr("updated_state", "À jour")
+                            : overlay.tr("update_btn", "Mettre à jour")
+                        color: parent.idle ? overlay.theme.bg : overlay.theme.txt2
+                        font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                        font.weight: Font.DemiBold
+                    }
+                    HoverHandler { id: actHover; enabled: parent.idle; cursorShape: Qt.PointingHandCursor }
+                    TapHandler { enabled: parent.idle; onTapped: overlay.runUpdate(msg.index) }
                 }
 
                 // Copy button, beside the bubble on hover.

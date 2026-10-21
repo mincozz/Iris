@@ -59,6 +59,9 @@ CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
 MEMORY_FILE = os.path.join(DATA_DIR, "memory.md")
 ORGANIZE = os.path.join(SCRIPT_DIR, "organize.py")
 UPDATE = os.path.join(SCRIPT_DIR, "iris-update")
+UPDATE_LOG = os.path.join(DATA_DIR, "update.log")
+UPDATE_RESULT = os.path.join(DATA_DIR, "update-result")   # exit code of the last button update
+UPDATE_RUNNING = os.path.join(DATA_DIR, "update-running")  # exists while it runs
 
 # Iris must only ever use the claude.ai Pro subscription: strip anything
 # that would switch Claude Code to pay-as-you-go API billing.
@@ -308,8 +311,8 @@ TOOL_LABELS = [
 _out_lock = threading.Lock()
 
 
-def emit(kind, **fields):
-    obj = {"t": kind, **fields}
+def emit(event, /, **fields):
+    obj = {"t": event, **fields}
     with _out_lock:
         sys.stdout.write(json.dumps(obj, ensure_ascii=False) + "\n")
         sys.stdout.flush()
@@ -531,6 +534,7 @@ class Daemon:
         self.last_ctx = 0         # context size of the last API call (tokens)
         self.nudges = []          # alerts shown since the last message (told to Claude)
         self.queued = []          # alerts that arrived mid-reply
+        self.updating = False     # the "Update" button is running iris-update
         self.pending = {}         # request_id → tool input (awaiting a click)
         # Set if Claude Code ever reports paid "extra usage": Iris then
         # refuses to send anything until restarted.
@@ -548,7 +552,8 @@ class Daemon:
 
     def _show_conversation(self):
         emit("conversation", id=self.conv.id,
-             messages=[{"role": m["role"], "text": m["text"]} for m in self.conv.messages])
+             messages=[{"role": m["role"], "text": m["text"], "kind": m.get("kind", "")}
+                       for m in self.conv.messages])
 
     def _ensure_claude(self, model, connectors=False):
         c = self.claude
@@ -622,13 +627,15 @@ class Daemon:
                 emit("history", v=list_history())
             elif c == "nudge":
                 if self.busy:
-                    self.queued.append(cmd.get("text", ""))
+                    self.queued.append((cmd.get("text", ""), cmd.get("kind", "")))
                 else:
-                    self._nudge(cmd.get("text", ""))
+                    self._nudge(cmd.get("text", ""), cmd.get("kind", ""))
+            elif c == "update":
+                self._start_update()
             elif c == "hello":
                 self._show_conversation()
 
-    def _nudge(self, text):
+    def _nudge(self, text, kind=""):
         """Iris speaks first: an alert from the watcher joins the chat."""
         if not text:
             return
@@ -636,10 +643,49 @@ class Daemon:
             self._new()
         if not self.conv.title:
             self.conv.title = pick("Alertes d'Iris", "Iris alerts")
-        self.conv.messages.append({"role": "nudge", "text": text})
+        self.conv.messages.append({"role": "nudge", "text": text, "kind": kind})
         self.conv.save()
         self.nudges.append(text)
-        emit("nudge", v=text)
+        emit("nudge", v=text, kind=kind)
+
+    # ── "Update" button ──────────────────────────────────────────────
+    # The installer replaces the overlay's own files, which makes Quickshell
+    # reload and kill this daemon. So the update runs in its own session,
+    # writes its exit code to UPDATE_RESULT, and whoever is alive at the end
+    # (this process, or the next daemon at startup) reports it once.
+    def _start_update(self):
+        if self.updating:
+            return
+        if not os.path.isfile(UPDATE):
+            emit("update_done", ok=False, v=pick("iris-update est introuvable.", "iris-update not found."))
+            return
+        self.updating = True
+        try:
+            os.remove(UPDATE_RESULT)
+        except OSError:
+            pass
+        with open(UPDATE_RUNNING, "w") as f:
+            f.write(str(time.time()))
+        script = 'bash "$1" -y > "$2" 2>&1; echo $? > "$3"; rm -f "$4"'
+        try:
+            proc = subprocess.Popen(["bash", "-c", script, "iris-update", UPDATE, UPDATE_LOG,
+                                     UPDATE_RESULT, UPDATE_RUNNING],
+                                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL, start_new_session=True)
+        except OSError as e:
+            self.updating = False
+            emit("update_done", ok=False, v=str(e))
+            return
+        threading.Thread(target=self._wait_update, args=(proc,), daemon=True).start()
+
+    def _wait_update(self, proc):
+        try:
+            proc.wait(timeout=600)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        with self.lock:
+            self.updating = False
+            report_update_result()
 
     def _new(self):
         self._drop_claude()
@@ -723,8 +769,8 @@ class Daemon:
         self.busy = False
         self.pending.clear()
         emit("done")
-        for text in self.queued:
-            self._nudge(text)
+        for text, kind in self.queued:
+            self._nudge(text, kind)
         self.queued = []
 
     # Events from Claude (reader thread)
@@ -803,6 +849,42 @@ class Daemon:
                 self._finish(stderr or pick("Claude s'est arrêté.", "Claude stopped."))
 
 
+def report_update_result():
+    """Tell the overlay how an "Update" button run ended, then forget it."""
+    try:
+        with open(UPDATE_RESULT) as f:
+            code = f.read().strip()
+        os.remove(UPDATE_RESULT)
+    except OSError:
+        return
+    try:
+        with open(UPDATE_LOG, errors="replace") as f:
+            log = re.sub(r"\x1b\[[0-9;]*m", "", f.read()).strip().splitlines()
+    except OSError:
+        log = []
+    if code == "0":
+        try:
+            with open(os.path.join(DATA_DIR, "installed-rev")) as f:
+                rev = f.read().strip()[:7]
+        except OSError:
+            rev = ""
+        emit("update_done", ok=True, v=pick("Iris est à jour", "Iris is up to date") + (f" ({rev})" if rev else "") + ".")
+    else:
+        emit("update_done", ok=False, v=pick("La mise à jour a échoué :\n", "The update failed:\n")
+             + "\n".join(log[-6:]))
+
+
+def watch_running_update():
+    """A previous daemon started an update that is still running (Quickshell
+    reloaded mid-way): report its result when it lands."""
+    deadline = time.time() + 600
+    while time.time() < deadline:
+        if os.path.exists(UPDATE_RESULT):
+            report_update_result()
+            return
+        time.sleep(1)
+
+
 def ui_strings():
     """Texts shown by the QML overlay, sent once at startup (it falls back to
     French when it receives nothing, e.g. with an older daemon)."""
@@ -822,6 +904,9 @@ def ui_strings():
         "wants": pick("Iris veut utiliser", "Iris wants to use"),
         "allow": pick("Autoriser", "Allow"),
         "deny": pick("Refuser", "Deny"),
+        "update_btn": pick("Mettre à jour", "Update now"),
+        "updating": pick("Mise à jour…", "Updating…"),
+        "updated_state": pick("À jour", "Up to date"),
         "allowed": pick("Autorisé", "Allowed"),
         "denied": pick("Refusé", "Denied"),
         "replying": pick("Iris répond…", "Iris is replying…"),
@@ -840,6 +925,14 @@ def main():
     daemon = Daemon()
     emit("ui", lang=LANG, s=ui_strings())
     daemon.handle({"cmd": "hello"})
+    # An update from the "Update" button may have finished (or still run)
+    # while the overlay was reloading.
+    report_update_result()
+    try:
+        if time.time() - os.path.getmtime(UPDATE_RUNNING) < 900:
+            threading.Thread(target=watch_running_update, daemon=True).start()
+    except OSError:
+        pass
     for line in sys.stdin:
         try:
             cmd = json.loads(line)
