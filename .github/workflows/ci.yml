@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: ShellCheck
         run: shellcheck --severity=warning install.sh test/test-e2e.sh scripts/iris-ask scripts/iris-update
@@ -40,7 +40,7 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # tout l'historique, pas seulement le dernier commit
       - uses: gitleaks/gitleaks-action@v2
