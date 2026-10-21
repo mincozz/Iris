@@ -23,15 +23,16 @@ Tu es une IA qui aide un utilisateur à installer **Iris**, un assistant en pixe
 ## Procédure d'installation
 1. **Prérequis** : `qs` (Quickshell), `python3`, `claude` connecté (`claude` doit déjà fonctionner), `git`. Optionnels : `gio` (corbeille), `wl-copy`, `nautilus` (ouverture des fichiers), `notify-send`. Si `claude` n'est pas connecté, dis-le à l'utilisateur : il doit lancer `claude` lui-même (connexion interactive).
 2. **Trouver le dossier du shell** : en général `~/.config/quickshell`, avec un `shell.qml`. Sinon demande-lui, ou utilise `--prefix`.
-3. **Lancer** `./install.sh --dry-run`, relire la sortie, puis `./install.sh`.
-4. **Vérifier le câblage de `shell.qml`** : l'installateur ajoute un bloc balisé `>>> iris (install.sh) >>>` après `id: root`. Contrôle que :
+3. **Configurer** : demande à l'utilisateur son prénom, s'il veut interdire à Iris la lecture de `~/.ssh` et `~/.gnupg` (recommandé) et s'il veut changer de modèles. Ne lance pas l'installateur interactif à sa place : passe ses réponses en options (`--name`, `--deny-read`, `--fast-model`, `--power-model`, avec `-y`).
+4. **Lancer** `./install.sh --dry-run` avec ces options, relire la sortie, puis `./install.sh`.
+5. **Vérifier le câblage de `shell.qml`** : l'installateur ajoute un bloc balisé `>>> iris (install.sh) >>>` après `id: root`. Contrôle que :
    - `import Quickshell.Io` est présent (pour `IpcHandler`) ;
    - un objet `theme` existe (voir plus bas) ;
    - l'overlay est bien instancié : `AssistantOverlay { id: assistantOverlay; shellRoot: root; theme: theme }`.
    Si la racine n'est pas `id: root`, le patch échoue proprement : câble à la main avec `integration/shell.qml.snippet`.
-5. **Hyprland** : l'installateur ajoute la règle de flou dans `hyprland.lua` s'il existe. Pour un `hyprland.conf`, ajoute les `layerrule` pour le namespace `quickshell-assistant` selon la version de Hyprland de l'utilisateur (la syntaxe a changé entre versions : vérifie-la sur sa version).
-6. **Optionnel, à proposer** : bouton d'avatar dans la barre (`integration/Bar.qml.snippet`) ; un clic sur une alerte « Iris » ouvre le panneau (`integration/NotificationToast.qml.snippet`).
-7. **Recharger** Quickshell, puis tester : `qs ipc call assistant toggle`. En cas d'erreur, regarde les logs de Quickshell (`qs log`).
+6. **Hyprland** : l'installateur ajoute la règle de flou dans `hyprland.lua` s'il existe. Pour un `hyprland.conf`, ajoute les `layerrule` pour le namespace `quickshell-assistant` selon la version de Hyprland de l'utilisateur (la syntaxe a changé entre versions : vérifie-la sur sa version).
+7. **Optionnel, à proposer** : bouton d'avatar dans la barre (`integration/Bar.qml.snippet`) ; un clic sur une alerte « Iris » ouvre le panneau (`integration/NotificationToast.qml.snippet`).
+8. **Recharger** Quickshell, puis tester : `qs ipc call assistant toggle`. En cas d'erreur, regarde les logs de Quickshell (`qs log`).
 
 ## Contrat avec le shell hôte
 L'overlay ne fonctionne que si le shell fournit :

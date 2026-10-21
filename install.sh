@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Installateur d'Iris pour un shell Quickshell.
 #   ./install.sh [--prefix DIR] [--dry-run] [--no-hypr] [--uninstall] [-y]
+#                [--name NOM] [--deny-read "~/.ssh,~/.gnupg"] [--reconfigure]
+#                [--fast-model ID] [--power-model ID]
+# Sans option de config et dans un terminal, l'installateur pose quelques
+# questions ; avec -y ou sans terminal, il garde les défauts.
 # Idempotent : on peut le relancer sans risque. Chaque fichier existant
 # modifié est sauvegardé en <fichier>.iris-bak (une seule fois).
 set -euo pipefail
@@ -10,6 +14,7 @@ PREFIX="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell"
 HYPR="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
 DATA="$HOME/.local/share/qs-assistant"
 DRY=0; HYPR_ON=1; UNINSTALL=0; YES=0
+CFG_NAME=""; CFG_DENY=""; CFG_FAST=""; CFG_POWER=""; RECONF=0; CFG_SET=0
 BEGIN="// >>> iris (install.sh) >>>"; END="// <<< iris (install.sh) <<<"
 
 while [ $# -gt 0 ]; do
@@ -19,6 +24,11 @@ while [ $# -gt 0 ]; do
     --no-hypr)   HYPR_ON=0 ;;
     --uninstall) UNINSTALL=1 ;;
     -y|--yes)    YES=1 ;;
+    --name)        CFG_NAME="$2"; CFG_SET=1; shift ;;
+    --deny-read)   CFG_DENY="$2"; CFG_SET=1; shift ;;
+    --fast-model)  CFG_FAST="$2"; CFG_SET=1; shift ;;
+    --power-model) CFG_POWER="$2"; CFG_SET=1; shift ;;
+    --reconfigure) RECONF=1 ;;
     -h|--help)   sed -n '2,5p' "$0"; exit 0 ;;
     *) echo "option inconnue : $1" >&2; exit 2 ;;
   esac; shift
@@ -32,7 +42,6 @@ FILES=(
   "overlays/AssistantOverlay.qml" "overlays/AssistantAvatar.qml"
   "scripts/assistant.py" "scripts/assistant-prompt.md"
   "scripts/iris-watch.py" "scripts/organize.py"
-  "assets/iris.png" "assets/iris-alpha.png"
 )
 
 backup() { [ -e "$1" ] && [ ! -e "$1.iris-bak" ] && run cp -p "$1" "$1.iris-bak" || true; }
@@ -81,7 +90,47 @@ say "Données dans $DATA"
 run mkdir -p "$DATA"; run chmod 700 "$DATA"
 [ -e "$DATA/memory.md" ]  || run cp "$SRC/integration/memory.example.md" "$DATA/memory.md"
 [ -e "$DATA/watch.json" ] || run cp "$SRC/integration/watch.example.json" "$DATA/watch.json"
-[ -e "$DATA/config.json" ] || run cp "$SRC/integration/config.example.json" "$DATA/config.json"
+
+# ── Configuration (config.json) ───────────────────────────────────────────
+# Créée à la première installation, ou refaite avec --reconfigure. Un fichier
+# existant n'est jamais écrasé sans --reconfigure.
+if [ -e "$DATA/config.json" ] && [ "$RECONF" = 0 ]; then
+  say "config.json existe déjà : conservé (--reconfigure pour le refaire)"
+else
+  if [ "$CFG_SET" = 0 ] && [ "$YES" = 0 ] && [ -t 0 ]; then
+    say "Configuration (Entrée = garder la valeur par défaut)"
+    read -r -p "  Comment dois-je t'appeler ? " CFG_NAME
+    read -r -p "  Interdire à Iris de lire ~/.ssh et ~/.gnupg (clés, secrets) ? [O/n] " a
+    [[ "$a" =~ ^[nN]$ ]] || CFG_DENY="~/.ssh,~/.gnupg"
+    read -r -p "  Choisir les modèles (sinon Haiku pour le courant, Sonnet pour le code) ? [o/N] " a
+    if [[ "$a" =~ ^[oOyY]$ ]]; then
+      read -r -p "    Modèle rapide [claude-haiku-5-5] : " CFG_FAST
+      read -r -p "    Modèle puissant [claude-sonnet-5-5] : " CFG_POWER
+    fi
+  fi
+  if [ "$DRY" = 1 ]; then
+    echo "  [dry-run] écriture de $DATA/config.json (nom='${CFG_NAME}', deny-read='${CFG_DENY}')"
+  else
+    base="$SRC/integration/config.example.json"
+    [ -e "$DATA/config.json" ] && base="$DATA/config.json"
+    python3 -I - "$base" "$DATA/config.json" "$CFG_NAME" "$CFG_DENY" "$CFG_FAST" "$CFG_POWER" <<'PY'
+import json, sys
+base, out, name, deny, fast, power = sys.argv[1:]
+try:
+    cfg = json.load(open(base))
+except ValueError:
+    cfg = json.load(open(base.rsplit("/", 1)[0] + "/../integration/config.example.json"))
+if name:  cfg["user_name"] = name.strip()
+if deny:  cfg["deny_read_paths"] = [p.strip() for p in deny.split(",") if p.strip()]
+if fast:  cfg.setdefault("models", {})["fast"] = fast.strip()
+if power: cfg.setdefault("models", {})["power"] = power.strip()
+with open(out, "w") as f:
+    json.dump(cfg, f, ensure_ascii=False, indent=2)
+    f.write("\n")
+PY
+    chmod 600 "$DATA/config.json"
+  fi
+fi
 
 # ── Câblage de shell.qml ──────────────────────────────────────────────────
 SHELLQML="$PREFIX/shell.qml"

@@ -45,7 +45,7 @@ if [ "$CLAUDE" = 1 ]; then
 fi
 export HOME="$T/home" XDG_CONFIG_HOME="$T/home/.config"
 DATA="$HOME/.local/share/qs-assistant"
-INST=("$SRC/install.sh" --prefix "$T/qs" --no-hypr -y)
+INST=("$SRC/install.sh" --prefix "$T/qs" --no-hypr -y --name "Testeur" --deny-read "~/.ssh,~/.gnupg")
 
 # ── 1. Installation ───────────────────────────────────────────────────────
 step "Installation"
@@ -53,7 +53,7 @@ check "dry-run sans erreur"           "${INST[0]}" "${INST[@]:1}" --dry-run
 check "dry-run n'écrit rien"          test ! -e "$T/qs/overlays"
 check "installation sans erreur"      "${INST[@]}"
 for f in overlays/AssistantOverlay.qml overlays/AssistantAvatar.qml scripts/assistant.py \
-         scripts/assistant-prompt.md scripts/iris-watch.py scripts/organize.py assets/iris.png; do
+         scripts/assistant-prompt.md scripts/iris-watch.py scripts/organize.py; do
   check "fichier copié : $f" test -f "$T/qs/$f"
 done
 check "shell.qml câblé (bloc balisé)"  grep -q ">>> iris (install.sh)" "$T/qs/shell.qml"
@@ -61,6 +61,7 @@ check "import \"./overlays\" ajouté"    grep -q 'import "./overlays"' "$T/qs/sh
 check "configDir et homeDir définis"   bash -c "grep -q 'configDir' '$T/qs/shell.qml' && grep -q 'homeDir' '$T/qs/shell.qml'"
 check "mémoire vierge créée"           test -f "$DATA/memory.md"
 check "config.json créé et valide"     python3 -I -c "import json,sys; json.load(open(sys.argv[1]))" "$DATA/config.json"
+check "config : nom et dossiers interdits" python3 -I -c "import json,sys; c=json.load(open(sys.argv[1])); assert c['user_name']=='Testeur' and c['deny_read_paths']==['~/.ssh','~/.gnupg']" "$DATA/config.json"
 check "dossier de données en 700"      test "$(stat -c %a "$DATA")" = 700
 sum1="$(cat "$T/qs/shell.qml" "$DATA/memory.md" | md5sum)"
 "${INST[@]}" >/dev/null 2>&1

@@ -13,7 +13,6 @@ Elle s'appuie sur la CLI `claude -p` : chat, fichiers, agenda/mails via les conn
 | `scripts/assistant-prompt.md` | Prompt système d'Iris |
 | `scripts/iris-watch.py` | Alertes locales sans quota : `git pull` à faire, commits non poussés, agenda, disque/batterie/units en échec |
 | `scripts/organize.py` | `scan` / `apply` / `undo` pour ranger des dossiers |
-| `assets/iris*.png` | Sprites |
 | `integration/` | Extraits à greffer dans `shell.qml`, `Bar.qml`, `NotificationToast.qml`, règle de blur Hyprland, `watch.json` d'exemple |
 
 ## Installation
@@ -25,6 +24,8 @@ git clone git@github.com:mincozz/IRIS.git && cd IRIS
 ```
 
 Options : `--prefix DIR` (autre dossier Quickshell), `--no-hypr`, `-y` (sans question), `--uninstall`.
+
+Dans un terminal, l'installateur pose trois questions : ton prénom, l'interdiction de lire `~/.ssh` et `~/.gnupg` (oui par défaut) et le choix des modèles. Pour scripter ou déléguer à une IA : `--name NOM`, `--deny-read "~/.ssh,~/.gnupg"`, `--fast-model ID`, `--power-model ID`. Un `config.json` existant est conservé, `--reconfigure` le refait.
 
 L'installateur vérifie les prérequis (Quickshell, Python 3, CLI `claude` connectée, git, `gio`), copie les fichiers, crée `~/.local/share/qs-assistant/` (mémoire et `watch.json` vierges, jamais écrasés), câble `shell.qml` (bloc balisé, sauvegarde `.iris-bak`) et ajoute la règle de flou dans `hyprland.lua`. Il est relançable sans risque.
 
