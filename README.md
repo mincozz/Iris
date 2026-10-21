@@ -1,23 +1,28 @@
 # Iris
 
-Assistante personnelle en pixel art qui vit dans la barre d'un shell [Quickshell](https://quickshell.org) (Arch Linux + Hyprland).
-Elle s'appuie sur la CLI `claude -p` : chat, fichiers, agenda/mails via les connecteurs Claude, rangement de dossiers, et alertes spontanées (git, agenda, santé du système).
+[![CI](https://github.com/mincozz/IRIS/actions/workflows/ci.yml/badge.svg)](https://github.com/mincozz/IRIS/actions/workflows/ci.yml)
 
-## Contenu
+Français · [English](README.en.md)
 
-| Chemin | Rôle |
-|---|---|
-| `overlays/AssistantOverlay.qml` | Panneau de chat « liquid glass » |
-| `overlays/AssistantAvatar.qml` | Avatar animé (humeur : idle / thinking / talking), aussi utilisé dans la barre |
-| `scripts/assistant.py` | Daemon : pont overlay ↔ `claude -p`, choix Haiku/Sonnet, permissions (Autoriser/Refuser), historique |
-| `scripts/assistant-prompt.md`, `assistant-prompt.en.md` | Prompt système d'Iris (français, anglais) |
-| `scripts/i18n.py` | Choix de la langue partagé par les scripts |
-| `scripts/iris-watch.py` | Alertes locales sans quota : `git pull` à faire, commits non poussés, agenda, disque/batterie/units en échec |
-| `scripts/organize.py` | `scan` / `apply` / `undo` pour ranger des dossiers |
-| `scripts/iris-ask` | Raccourci : envoie la sélection (ou le presse-papiers) à Iris |
-| `scripts/iris-doctor` | Diagnostic : vérifie l'installation et dit quoi réparer |
-| `scripts/iris-update` | Mise à jour en une commande (`git pull` + réinstallation) |
-| `integration/` | Extraits à greffer dans `shell.qml`, `Bar.qml`, `NotificationToast.qml`, règle de blur Hyprland, `watch.json` d'exemple |
+Assistante personnelle en pixel art qui vit dans la barre d'un shell [Quickshell](https://quickshell.org) (Wayland). Elle pilote la CLI [Claude Code](https://claude.com/claude-code) de **ton** compte Claude : chaque utilisateur utilise son propre abonnement, rien ne passe par un serveur du projet.
+
+> Projet indépendant, non affilié à Anthropic. « Claude » est une marque d'Anthropic.
+
+## Ce qu'elle fait
+
+- **Chat** dans un panneau de la barre, avec accès à ton PC (fichiers, commandes en lecture seule, infos système) et, si tu as activé les connecteurs Claude, à ton agenda, tes mails, Notion et Drive.
+- **Autorisations claires** : lire est libre, tout ce qui modifie quelque chose demande un clic sur Autoriser / Refuser.
+- **Alertes spontanées**, sans quota : `git pull` à faire (avec bouton), travail non poussé, rappels d'agenda, disque, batterie, services en échec, mises à jour, plus un **résumé du matin**.
+- **Raccourcis** : `SUPER + I` envoie la sélection à Iris, `SUPER + SHIFT + I` la joint pour que tu tapes une consigne.
+- **Rangement de dossiers** annulable, **skills** (tes recettes en Markdown), **mémoire** locale, **français et anglais**.
+- **Mise à jour en un clic** (bouton ⬇) et **diagnostic** (`iris-doctor`).
+
+## Prérequis
+
+- Linux avec un compositeur Wayland et [Quickshell](https://quickshell.org) ; Hyprland est conseillé (flou, raccourcis) mais facultatif.
+- Python 3.9+, `git`, et la CLI `claude` **connectée** à un compte Claude (lance `claude` une fois pour te connecter).
+- Facultatifs : `wl-clipboard` (raccourci), `libnotify` (notifications), `glib2`/`gio` (corbeille du rangement), un gestionnaire de fichiers (Nautilus, sinon `xdg-open`).
+- Ton shell Quickshell doit fournir un objet `theme` (voir « Contrat avec le shell hôte » dans [AGENTS.md](AGENTS.md)) ; `test/shell.qml` en donne un minimal.
 
 ## Installation
 
@@ -33,7 +38,7 @@ Dans un terminal, l'installateur pose quatre questions : la langue (français ou
 
 L'installateur vérifie les prérequis (Quickshell, Python 3, CLI `claude` connectée, git, `gio`), copie les fichiers, crée `~/.local/share/qs-assistant/` (mémoire et `watch.json` vierges, jamais écrasés), câble `shell.qml` (bloc balisé, sauvegarde `.iris-bak`) et ajoute la règle de flou dans `hyprland.lua`. Il est relançable sans risque.
 
-Restent à faire à la main, car ils dépendent de ton shell : le bouton dans la barre (`integration/Bar.qml.snippet`) et le clic sur une alerte (`integration/NotificationToast.qml.snippet`). L'overlay attend un objet `theme` (`ff`, `fs`, `hi()`, `barBg`…).
+Restent à faire à la main, car ils dépendent de ton shell : le bouton dans la barre (`integration/Bar.qml.snippet`) et le clic sur une alerte (`integration/NotificationToast.qml.snippet`). L'overlay attend un objet `theme` avec `bg, fg, ff, fs, primary, secondary, tertiary, lavender, light, outline, txt2, error, warn`.
 Contrôle : `qs ipc call assistant toggle|open|close|ask "…"`.
 
 ## Skills (recettes perso)
@@ -114,3 +119,34 @@ Les prompts `assistant-prompt.md` (français, tutoiement) et `assistant-prompt.e
 
 Mémoire : Iris lit `~/.local/share/qs-assistant/memory.md` et le met à jour quand tu lui demandes de retenir quelque chose. Un modèle vide est fourni dans `integration/memory.example.md`.
 L'état (historique, mémoire, agenda) reste dans `~/.local/share/qs-assistant/` et n'est pas versionné.
+
+## Sécurité en bref
+
+Iris lance `claude` avec tes droits. Lire des fichiers et lancer des commandes en lecture seule se fait sans demander ; tout le reste passe par Autoriser / Refuser, avec le contenu qui serait écrit. `sudo`, `su`, `dd`, `mkfs` et leurs proches sont refusés. Le contenu des mails, pages et fichiers est traité comme des données, pas des ordres. `deny_read_paths` ajoute un garde-fou sur certains dossiers, sans être un bac à sable. Historique, mémoire et agenda restent dans `~/.local/share/qs-assistant/` (droits 700). Détails et signalement d'une faille : [SECURITY.md](SECURITY.md).
+
+## Limites connues
+
+- Conçu et testé sur Arch Linux + Hyprland + Quickshell ; ailleurs, l'installateur et `iris-doctor` te disent ce qui manque, mais le bouton de barre, le flou et les raccourcis sont à adapter.
+- Chaque message consomme le quota de ton abonnement Claude ; le modèle rapide est utilisé par défaut, le puissant pour le code.
+- Agenda, mails, Notion et Drive passent par les connecteurs de ton compte Claude ; sans eux, Iris ne les voit pas (l'agenda peut aussi venir d'une adresse iCal, `ics_url`).
+- Comme pour tout assistant qui lit du contenu externe, une injection de prompt reste possible : garde un œil sur les cartes d'autorisation.
+
+## Contribuer
+
+Voir [CONTRIBUTING.md](CONTRIBUTING.md). Lance `test/test-e2e.sh --no-gui` avant une pull request.
+
+## Contenu du dépôt
+
+| Chemin | Rôle |
+|---|---|
+| `overlays/AssistantOverlay.qml` | Panneau de chat « liquid glass » |
+| `overlays/AssistantAvatar.qml` | Avatar animé (humeur : idle / thinking / talking), aussi utilisé dans la barre |
+| `scripts/assistant.py` | Daemon : pont overlay ↔ `claude -p`, choix Haiku/Sonnet, permissions (Autoriser/Refuser), historique |
+| `scripts/assistant-prompt.md`, `assistant-prompt.en.md` | Prompt système d'Iris (français, anglais) |
+| `scripts/i18n.py` | Choix de la langue partagé par les scripts |
+| `scripts/iris-watch.py` | Alertes locales sans quota : `git pull` à faire, commits non poussés, agenda, disque/batterie/units en échec |
+| `scripts/organize.py` | `scan` / `apply` / `undo` pour ranger des dossiers |
+| `scripts/iris-ask` | Raccourci : envoie la sélection (ou le presse-papiers) à Iris |
+| `scripts/iris-doctor` | Diagnostic : vérifie l'installation et dit quoi réparer |
+| `scripts/iris-update` | Mise à jour en une commande (`git pull` + réinstallation) |
+| `integration/` | Extraits à greffer dans `shell.qml`, `Bar.qml`, `NotificationToast.qml`, règle de blur Hyprland, `watch.json` d'exemple |
