@@ -125,6 +125,13 @@ props = f"""
 {ind}{e}
 """
 s = s[:m.end()] + "\n" + props.rstrip("\n") + s[m.end():]
+if not re.search(r'^import\s+"\./?overlays/?"', s, re.M):
+    imps = list(re.finditer(r"^import .*$", s, re.M))
+    if imps:
+        i = imps[-1].end()
+        s = s[:i] + '\nimport "./overlays"' + s[i:]
+    else:
+        s = 'import "./overlays"\n' + s
 open(p, "w").write(s)
 PY
   grep -q "import Quickshell.Io" "$SHELLQML" || warn "shell.qml n'importe pas Quickshell.Io (IpcHandler) : ajoute 'import Quickshell.Io'."
