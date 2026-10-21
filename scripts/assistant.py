@@ -46,6 +46,9 @@ import time
 import uuid
 import re
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from i18n import LANG, pick   # noqa: E402
+
 DATA_DIR = os.path.expanduser("~/.local/share/qs-assistant")
 HIST_DIR = os.path.join(DATA_DIR, "history")
 CURRENT_FILE = os.path.join(DATA_DIR, "current")
@@ -65,6 +68,7 @@ BILLING_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"
 # ── User config (~/.local/share/qs-assistant/config.json) ────────────────
 # Every key is optional; a missing or invalid one keeps its default.
 DEFAULT_CONFIG = {
+    "language": "fr",                # "fr", "en" or "auto" (follows $LANG)
     "user_name": "",                 # how Iris calls you (joins her prompt)
     "models": {"fast": "claude-haiku-5-5", "power": "claude-sonnet-5-5"},
     "session_idle_minutes": 30,      # idle time before a fresh conversation
@@ -100,6 +104,10 @@ def load_config():
             ok = isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0
             if ok:
                 cfg[key] = v
+        elif key == "language":
+            ok = isinstance(v, str) and v.strip().lower() in ("fr", "en", "auto")
+            if ok:
+                cfg[key] = v.strip().lower()
         elif isinstance(default, list):
             ok = isinstance(v, list) and all(isinstance(x, str) and x.strip() for x in v)
             if ok:
@@ -116,6 +124,8 @@ def load_config():
 CONFIG = load_config()
 if CONFIG["prompt_file"]:
     PROMPT_FILE = os.path.expanduser(CONFIG["prompt_file"])
+elif LANG == "en":
+    PROMPT_FILE = os.path.join(SCRIPT_DIR, "assistant-prompt.en.md")
 MODELS = CONFIG["models"]
 SESSION_IDLE = CONFIG["session_idle_minutes"] * 60
 
@@ -126,7 +136,7 @@ POWER_RE = re.compile(
     r"\b(code|coder|script|bug|debug|d[ée]bug\w*|stack ?trace|compil\w*|"
     r"python|qml|lua|bash|zsh|rust|javascript|typescript|java|sql|regex|"
     r"refactor\w*|fonction|function|classe|programme|algo\w*|git|commit|"
-    r"impl[ée]ment\w*)\b"
+    r"impl[ée]ment\w*|implement\w*)\b"
     r"|\.(py|js|ts|qml|lua|sh|rs|cpp|java|json|toml|conf)\b",
     re.IGNORECASE)
 
@@ -140,7 +150,11 @@ CONNECT_RE = re.compile(
     r"lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|ce soir|ce matin|"
     r"\bmails?\b|e-?mails?|gmail|courriel|bo[iî]te de r[ée]ception|brouillon|"
     r"r[ée]pond|m'a (écrit|envoy)|notion|\bdrive\b|google doc|"
-    r"qu'est-ce que j'ai|j'ai quoi|mon programme|ma journ[ée]e|dispo",
+    r"qu'est-ce que j'ai|j'ai quoi|mon programme|ma journ[ée]e|dispo|"
+    # English
+    r"meeting|appointment|schedule|today|tomorrow|yesterday|this week|next week|"
+    r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|tonight|this morning|"
+    r"inbox|e-?mail|draft|reply to|wrote me|sent me|what do i have|my day|free time|available",
     re.IGNORECASE)
 # Iris answers just this when she needs a connector that isn't loaded; the
 # daemon then loads them and asks again (the marker is never shown).
@@ -275,18 +289,18 @@ MCP_TOOL_NAMES = {
 }
 
 TOOL_LABELS = [
-    ("Bash", "Je lance une commande…"),
-    ("Read", "Je regarde tes fichiers…"),
-    ("Glob", "Je regarde tes fichiers…"),
-    ("Grep", "Je fouille tes fichiers…"),
-    ("Edit", "J'écris dans un fichier…"),
-    ("Write", "J'écris dans un fichier…"),
-    ("WebSearch", "Je cherche sur le web…"),
-    ("WebFetch", "Je lis une page web…"),
-    ("Google_Calendar", "Je regarde ton agenda…"),
-    ("Gmail", "Je fouille tes mails…"),
-    ("Notion", "Je cherche dans Notion…"),
-    ("Google_Drive", "Je cherche dans ton Drive…"),
+    ("Bash", pick("Je lance une commande…", "Running a command…")),
+    ("Read", pick("Je regarde tes fichiers…", "Looking at your files…")),
+    ("Glob", pick("Je regarde tes fichiers…", "Looking at your files…")),
+    ("Grep", pick("Je fouille tes fichiers…", "Searching your files…")),
+    ("Edit", pick("J'écris dans un fichier…", "Writing to a file…")),
+    ("Write", pick("J'écris dans un fichier…", "Writing to a file…")),
+    ("WebSearch", pick("Je cherche sur le web…", "Searching the web…")),
+    ("WebFetch", pick("Je lis une page web…", "Reading a web page…")),
+    ("Google_Calendar", pick("Je regarde ton agenda…", "Checking your calendar…")),
+    ("Gmail", pick("Je fouille tes mails…", "Searching your mail…")),
+    ("Notion", pick("Je cherche dans Notion…", "Searching Notion…")),
+    ("Google_Drive", pick("Je cherche dans ton Drive…", "Searching your Drive…")),
 ]
 
 _out_lock = threading.Lock()
@@ -303,7 +317,7 @@ def tool_label(name):
     for key, label in TOOL_LABELS:
         if name == key or (name.startswith("mcp__") and key in name):
             return label
-    return "Je réfléchis…"
+    return pick("Je réfléchis…", "Thinking…")
 
 
 def organize_detail(command):
@@ -318,9 +332,10 @@ def organize_detail(command):
     home = os.path.expanduser("~")
     short = lambda p: p.replace(home, "~")
     moves, trash = plan.get("moves", []), plan.get("trash", [])
-    lines = [f"Rangement : {len(moves)} déplacement(s), {len(trash)} à la corbeille"]
+    lines = [pick(f"Rangement : {len(moves)} déplacement(s), {len(trash)} à la corbeille",
+                  f"Tidy-up: {len(moves)} move(s), {len(trash)} to the trash")]
     lines += [f"{short(mv['from'])}  →  {short(mv['to'])}" for mv in moves]
-    lines += [f"corbeille : {short(t)}" for t in trash]
+    lines += [pick(f"corbeille : {short(t)}", f"trash: {short(t)}") for t in trash]
     return "\n".join(lines)
 
 
@@ -349,13 +364,18 @@ def system_prompt(connectors=True):
     with open(PROMPT_FILE) as f:
         text = f.read().replace("{ORGANIZE}", ORGANIZE)
     if not connectors:
-        text += ("\n\nPour économiser le quota, les outils Google Calendar, Gmail, Notion et "
-                 "Drive ne sont pas chargés dans ce message. Si tu en as besoin pour répondre, "
-                 f"réponds uniquement {TOOLS_MARKER} (rien d'autre) : ils seront chargés et la "
-                 "question te sera reposée.")
+        text += pick(
+            "\n\nPour économiser le quota, les outils Google Calendar, Gmail, Notion et "
+            "Drive ne sont pas chargés dans ce message. Si tu en as besoin pour répondre, "
+            f"réponds uniquement {TOOLS_MARKER} (rien d'autre) : ils seront chargés et la "
+            "question te sera reposée.",
+            "\n\nTo save quota, the Google Calendar, Gmail, Notion and Drive tools are not "
+            "loaded for this message. If you need them to answer, reply only "
+            f"{TOOLS_MARKER} (nothing else): they will be loaded and the question asked again.")
     if CONFIG["user_name"]:
-        text += f"\n\nL'utilisateur s'appelle {CONFIG['user_name']}."
-    for title, path in [("Ta mémoire", MEMORY_FILE)]:
+        text += pick(f"\n\nL'utilisateur s'appelle {CONFIG['user_name']}.",
+                     f"\n\nThe user's name is {CONFIG['user_name']}.")
+    for title, path in [(pick("Ta mémoire", "Your memory"), MEMORY_FILE)]:
         try:
             with open(path) as f:
                 text += f"\n\n# {title} ({path})\n\n" + f.read()
@@ -475,7 +495,7 @@ class Claude:
 
     def answer(self, request_id, allow, tool_input):
         resp = ({"behavior": "allow", "updatedInput": tool_input} if allow else
-                {"behavior": "deny", "message": "L'utilisateur a refusé cette action."})
+                {"behavior": "deny", "message": pick("L'utilisateur a refusé cette action.", "The user denied this action.")})
         self.send({"type": "control_response", "response": {
             "subtype": "success", "request_id": request_id, "response": resp}})
 
@@ -543,11 +563,13 @@ class Daemon:
         """Last exchanges, to seed a fresh session when the context got big."""
         lines = []
         for m in self.conv.messages[-6:]:
-            who = {"user": CONFIG["user_name"] or "Utilisateur", "nudge": "Iris (alerte)"}.get(m["role"], "Iris")
+            who = {"user": CONFIG["user_name"] or pick("Utilisateur", "User"),
+                   "nudge": pick("Iris (alerte)", "Iris (alert)")}.get(m["role"], "Iris")
             t = m["text"].strip()
             lines.append(f"{who} : {t[:500]}{'…' if len(t) > 500 else ''}")
-        return ("(Conversation trop longue, reprise à neuf. Derniers échanges pour "
-                "contexte :\n" + "\n".join(lines) + ")\n\n")
+        return (pick("(Conversation trop longue, reprise à neuf. Derniers échanges pour contexte :\n",
+                     "(Conversation too long, starting afresh. Latest exchanges for context:\n")
+                + "\n".join(lines) + ")\n\n")
 
     def _drop_claude(self):
         if self.claude:
@@ -611,7 +633,7 @@ class Daemon:
         if self.conv.messages and time.time() - self.conv.updated > SESSION_IDLE:
             self._new()
         if not self.conv.title:
-            self.conv.title = "Alertes d'Iris"
+            self.conv.title = pick("Alertes d'Iris", "Iris alerts")
         self.conv.messages.append({"role": "nudge", "text": text})
         self.conv.save()
         self.nudges.append(text)
@@ -632,8 +654,11 @@ class Daemon:
         if not text or self.busy:
             return
         if self.overage:
-            emit("error", v="Bloqué : ton compte passerait en usage payant (au-delà de "
-                            "l'abonnement Pro). Attends la remise à zéro de ta limite.")
+            emit("error", v=pick(
+                "Bloqué : ton compte passerait en usage payant (au-delà de "
+                "l'abonnement Pro). Attends la remise à zéro de ta limite.",
+                "Blocked: your account would switch to paid usage (beyond your "
+                "subscription). Wait for your limit to reset."))
             emit("done")
             return
         if self.conv.messages and time.time() - self.conv.updated > SESSION_IDLE:
@@ -663,21 +688,25 @@ class Daemon:
         self.hold = not self.claude.connectors
         if self.nudges:
             # Claude didn't see the alerts: tell it what the user is replying to.
-            prefix += ("(Alertes que tu as envoyées d'elle-même à l'utilisateur juste avant, "
-                       "sans qu'il te demande rien :\n" + "\n".join(f"- {n}" for n in self.nudges)
-                       + ")\n\n")
+            prefix += (pick("(Alertes que tu as envoyées d'elle-même à l'utilisateur juste avant, "
+                            "sans qu'il te demande rien :\n",
+                            "(Alerts you sent on your own to the user just before, "
+                            "without being asked:\n")
+                       + "\n".join(f"- {n}" for n in self.nudges) + ")\n\n")
             self.nudges = []
         self.claude.user(prefix + text)
 
     def _retry_with_connectors(self):
         """Iris asked for the connectors: load them and ask again."""
-        emit("tool", v="Je charge tes outils (agenda, mails, Notion, Drive)…")
+        emit("tool", v=pick("Je charge tes outils (agenda, mails, Notion, Drive)…",
+                            "Loading your tools (calendar, mail, Notion, Drive)…"))
         model = self.claude.model
         self._ensure_claude(model, connectors=True)
         self.reply = ""
         self.hold = False
-        self.claude.user("(Les outils Calendar, Gmail, Notion et Drive sont maintenant "
-                         "chargés.) " + self.last_text)
+        self.claude.user(pick("(Les outils Calendar, Gmail, Notion et Drive sont maintenant "
+                              "chargés.) ", "(The Calendar, Gmail, Notion and Drive tools are "
+                              "now loaded.) ") + self.last_text)
 
     def _finish(self, error=None):
         if self.hold and self.reply:      # held back but not the marker
@@ -743,8 +772,11 @@ class Daemon:
                     # Never bill beyond the subscription: stop right here.
                     self.overage = True
                     self.claude.interrupt()
-                    emit("error", v="Arrêt : cette réponse aurait été facturée en usage "
-                                    "payant, hors abonnement Pro. Rien d'autre ne sera envoyé.")
+                    emit("error", v=pick(
+                        "Arrêt : cette réponse aurait été facturée en usage "
+                        "payant, hors abonnement Pro. Rien d'autre ne sera envoyé.",
+                        "Stopped: this reply would have been billed as paid usage, "
+                        "outside your subscription. Nothing else will be sent."))
             elif typ == "result" and self.busy:
                 iters = (d.get("usage") or {}).get("iterations") or []
                 if iters:
@@ -766,13 +798,45 @@ class Daemon:
                 # Resuming a vanished session fails at start: forget it so
                 # the next message opens a fresh one.
                 self.conv.session = None
-                self._finish(stderr or "Claude s'est arrêté.")
+                self._finish(stderr or pick("Claude s'est arrêté.", "Claude stopped."))
+
+
+def ui_strings():
+    """Texts shown by the QML overlay, sent once at startup (it falls back to
+    French when it receives nothing, e.g. with an older daemon)."""
+    return {
+        "reset": pick("réinit. ", "resets in "),
+        "greet_night": pick("Encore debout ?", "Still up?"),
+        "greet_day": pick("Bonjour", "Good morning"),
+        "greet_evening": pick("Bonsoir", "Good evening"),
+        "thinking": pick("Je réfléchis…", "Thinking…"),
+        "writing": pick("J'écris…", "Writing…"),
+        "online": pick("En ligne", "Online"),
+        "no_history": pick("Aucune conversation pour l'instant", "No conversations yet"),
+        "chip1": pick("Qu'est-ce que j'ai aujourd'hui ?", "What's on my agenda today?"),
+        "chip2": pick("Aide-moi à planifier ma semaine", "Help me plan my week"),
+        "chip3": pick("Où est mon dernier PDF téléchargé ?", "Where is my last downloaded PDF?"),
+        "chip4": pick("Qu'est-ce qui ralentit mon PC ?", "What is slowing down my PC?"),
+        "wants": pick("Iris veut utiliser", "Iris wants to use"),
+        "allow": pick("Autoriser", "Allow"),
+        "deny": pick("Refuser", "Deny"),
+        "allowed": pick("Autorisé", "Allowed"),
+        "denied": pick("Refusé", "Denied"),
+        "replying": pick("Iris répond…", "Iris is replying…"),
+        "placeholder": pick("Demande-moi quelque chose…", "Ask me anything…"),
+        "mode_fast": pick("Rapide", "Fast"),
+        "mode_power": pick("Puissant", "Powerful"),
+        "day_abbr": pick("j", "d"),
+        "locale": pick("fr_FR", "en_US"),
+        "date_fmt": pick("dddd d MMMM · HH:mm", "dddd, MMMM d · HH:mm"),
+    }
 
 
 def main():
     os.makedirs(HIST_DIR, exist_ok=True)
     os.chmod(DATA_DIR, 0o700)   # history holds mail/file contents
     daemon = Daemon()
+    emit("ui", lang=LANG, s=ui_strings())
     daemon.handle({"cmd": "hello"})
     for line in sys.stdin:
         try:

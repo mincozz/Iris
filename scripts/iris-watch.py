@@ -39,6 +39,9 @@ import time
 import urllib.request
 from zoneinfo import ZoneInfo
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from i18n import pick   # noqa: E402
+
 DATA_DIR = os.path.expanduser("~/.local/share/qs-assistant")
 CONFIG = os.path.join(DATA_DIR, "watch.json")
 HOME = os.path.expanduser("~")
@@ -148,12 +151,18 @@ def check_git_behind(state):
                 continue
             repo, n, upstream, authors, branch, last, dirty = res
             who = ", ".join(dict.fromkeys(a for a in authors.splitlines() if a))
-            text = (f" **Nouveau push sur {os.path.basename(repo)}** : "
-                    f"{n} commit{'s' if n > 1 else ''} de {who} sur `{branch}` "
-                    f"(dernier : « {last[:70]} »).\n\nTu devrais faire un `git pull` "
-                    f"dans `{short(repo)}/`.")
+            text = (f" " + pick(
+                f"**Nouveau push sur {os.path.basename(repo)}** : "
+                f"{n} commit{'s' if n > 1 else ''} de {who} sur `{branch}` "
+                f"(dernier : « {last[:70]} »).\n\nTu devrais faire un `git pull` "
+                f"dans `{short(repo)}/`.",
+                f"**New push on {os.path.basename(repo)}**: "
+                f"{n} commit{'s' if n > 1 else ''} by {who} on `{branch}` "
+                f"(latest: “{last[:70]}”).\n\nYou should run `git pull` "
+                f"in `{short(repo)}/`."))
             if dirty:
-                text += " Attention, tu as des modifs locales non commitées."
+                text += pick(" Attention, tu as des modifs locales non commitées.",
+                         " Careful: you have uncommitted local changes.")
             nudge(state, f"behind:{repo}:{upstream}", "git", text)
 
 
@@ -187,15 +196,18 @@ def check_git_unpushed(state):
         bits = []
         changed = len(status.splitlines()) if status else 0
         if changed:
-            bits.append(f"{changed} fichier{'s' if changed > 1 else ''} modifié{'s' if changed > 1 else ''} non commité{'s' if changed > 1 else ''}")
+            bits.append(pick(f"{changed} fichier{'s' if changed > 1 else ''} modifié{'s' if changed > 1 else ''} non commité{'s' if changed > 1 else ''}",
+                             f"{changed} uncommitted file{'s' if changed > 1 else ''}"))
         if ahead.isdigit() and int(ahead):
-            bits.append(f"{ahead} commit{'s' if int(ahead) > 1 else ''} pas encore push")
+            bits.append(pick(f"{ahead} commit{'s' if int(ahead) > 1 else ''} pas encore push",
+                             f"{ahead} commit{'s' if int(ahead) > 1 else ''} not pushed yet"))
         if bits:
             lines.append(f"- `{short(repo)}/` : " + ", ".join(bits))
     state["seen"][key] = time.time()
     if lines:
         nudge(state, key + ":sent", "git",
-              " **Avant de finir ta journée**, du travail n'est pas sauvegardé sur git :\n\n"
+              " " + pick("**Avant de finir ta journée**, du travail n'est pas sauvegardé sur git :\n\n",
+                          "**Before you wrap up**, some work is not saved on git:\n\n")
               + "\n".join(lines))
 
 
@@ -264,7 +276,7 @@ def upcoming_events(ics, start, end):
             starts = [x for x in starts if (e.get("uid"), x) not in moved]
         for x in starts:
             if start <= x <= end and x not in e["exdate"]:
-                out.append((e.get("uid", ""), x, e.get("summary", "Événement"), e.get("location", "")))
+                out.append((e.get("uid", ""), x, e.get("summary", pick("Événement", "Event")), e.get("location", "")))
     return out
 
 
@@ -308,7 +320,7 @@ def fetch_calendar_via_claude():
             start = dt.datetime.fromisoformat(it["start"]).replace(tzinfo=ZoneInfo("Europe/Paris"))
         except (KeyError, ValueError, TypeError):
             continue
-        out.append((start.isoformat(), it.get("summary") or "Événement", it.get("location") or ""))
+        out.append((start.isoformat(), it.get("summary") or pick("Événement", "Event"), it.get("location") or ""))
     return out
 
 
@@ -341,7 +353,8 @@ def check_calendar(state):
         for uid, start, summary, location in calendar_events_via_claude(state):
             if now <= start <= now + lead:
                 mins = max(1, round((start - now).total_seconds() / 60))
-                text = f"\uf073 **{summary}** dans {mins} min ({start.strftime('%H:%M')})"
+                text = "\uf073 " + pick(f"**{summary}** dans {mins} min ({start.strftime('%H:%M')})",
+                                         f"**{summary}** in {mins} min ({start.strftime('%H:%M')})")
                 if location:
                     text += f", {location}"
                 nudge(state, f"cal:{uid}", "calendar", text + ".")
@@ -356,7 +369,8 @@ def check_calendar(state):
     for uid, start, summary, location in upcoming_events(ics, now, now + lead):
         mins = max(1, round((start - now).total_seconds() / 60))
         local = start.astimezone(ZoneInfo("Europe/Paris")).strftime("%H:%M")
-        text = f" **{summary}** dans {mins} min ({local})"
+        text = " " + pick(f"**{summary}** dans {mins} min ({local})",
+                                  f"**{summary}** in {mins} min ({local})")
         if location:
             text += f", {location}"
         nudge(state, f"cal:{uid}:{start.isoformat()}", "calendar", text + ".")
@@ -373,8 +387,11 @@ def check_health(state):
         pct = u.used / u.total * 100
         if pct > 90:
             nudge(state, f"disk:{mount}:{today}", "health",
-                  f" **Disque presque plein** : `{short(mount) or '/'}` est à "
-                  f"{pct:.0f} % ({u.free / 1e9:.1f} Go libres). Demande-moi de trouver ce qui prend de la place.")
+                  f" " + pick(
+                      f"**Disque presque plein** : `{short(mount) or '/'}` est à "
+                      f"{pct:.0f} % ({u.free / 1e9:.1f} Go libres). Demande-moi de trouver ce qui prend de la place.",
+                      f"**Disk almost full**: `{short(mount) or '/'}` is at "
+                      f"{pct:.0f}% ({u.free / 1e9:.1f} GB free). Ask me to find what takes the space."))
 
     bat = "/sys/class/power_supply/BAT0"
     try:
@@ -384,7 +401,8 @@ def check_health(state):
             # One alert per discharge (reset once it charges again).
             if "battery:low" not in state["seen"]:
                 nudge(state, "battery:low", "health",
-                      f" **Batterie à {cap} %**, branche ton chargeur.")
+                      f" " + pick(f"**Batterie à {cap} %**, branche ton chargeur.",
+                                  f"**Battery at {cap}%**, plug in your charger."))
         elif status != "Discharging":
             state["seen"].pop("battery:low", None)
     except (OSError, ValueError):
@@ -396,7 +414,8 @@ def check_health(state):
             unit = line.split()[0] if line.split() else ""
             if unit:
                 nudge(state, f"failed:{unit}:{today}", "health",
-                      f" **Service en échec** : `{unit}`. Demande-moi de regarder ce qui cloche.")
+                      f" " + pick(f"**Service en échec** : `{unit}`. Demande-moi de regarder ce qui cloche.",
+                                  f"**Service failed**: `{unit}`. Ask me to look into it."))
 
     week = today.isocalendar()[:2]
     key = f"updates:{week[0]}-{week[1]}"
@@ -405,8 +424,8 @@ def check_health(state):
         n = len(out.splitlines()) if out else 0
         if n >= 80:
             nudge(state, key, "health",
-                  f" **{n} mises à jour en attente**. Lance `sudo pacman -Syu` "
-                  "quand tu as 5 minutes.")
+                  f" " + pick(f"**{n} mises à jour en attente**. Lance `sudo pacman -Syu` quand tu as 5 minutes.",
+                                  f"**{n} updates pending**. Run `sudo pacman -Syu` when you have 5 minutes."))
 
 
 # ── Main loop ────────────────────────────────────────────────────────────

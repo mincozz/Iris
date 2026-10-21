@@ -24,7 +24,8 @@ XDG = os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config")
 
 FILES = ["overlays/AssistantOverlay.qml", "overlays/AssistantAvatar.qml",
          "scripts/assistant.py", "scripts/assistant-prompt.md",
-         "scripts/iris-watch.py", "scripts/organize.py", "scripts/iris-ask"]
+         "scripts/iris-watch.py", "scripts/organize.py", "scripts/iris-ask",
+         "scripts/i18n.py", "scripts/assistant-prompt.en.md"]
 THEME_TOKENS = ["bg", "fg", "ff", "fs", "primary", "secondary", "tertiary",
                 "lavender", "light", "outline", "txt2", "error", "warn"]
 
@@ -117,7 +118,7 @@ def check_files(prefix):
         p = os.path.join(prefix, f)
         if os.path.isfile(p) and not os.access(p, os.X_OK):
             report("warn", f"{f} n'est pas exécutable", f"chmod +x {p}")
-    for f in ("scripts/assistant.py", "scripts/iris-watch.py", "scripts/organize.py"):
+    for f in ("scripts/assistant.py", "scripts/iris-watch.py", "scripts/organize.py", "scripts/i18n.py"):
         p = os.path.join(prefix, f)
         if os.path.isfile(p):
             code, out = run([sys.executable, "-I", "-m", "py_compile", p])

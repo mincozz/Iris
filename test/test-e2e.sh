@@ -46,7 +46,7 @@ fi
 export HOME="$T/home" XDG_CONFIG_HOME="$T/home/.config"
 DATA="$HOME/.local/share/qs-assistant"
 # shellcheck disable=SC2088  # le ~ littéral est voulu (chemins écrits dans config.json)
-INST=("$SRC/install.sh" --prefix "$T/qs" --no-hypr -y --name "Testeur" --deny-read "~/.ssh,~/.gnupg")
+INST=("$SRC/install.sh" --prefix "$T/qs" --no-hypr -y --name "Testeur" --language en --deny-read "~/.ssh,~/.gnupg")
 
 # ── 1. Installation ───────────────────────────────────────────────────────
 step "Installation"
@@ -54,7 +54,7 @@ check "dry-run sans erreur"           "${INST[0]}" "${INST[@]:1}" --dry-run
 check "dry-run n'écrit rien"          test ! -e "$T/qs/overlays"
 check "installation sans erreur"      "${INST[@]}"
 for f in overlays/AssistantOverlay.qml overlays/AssistantAvatar.qml scripts/assistant.py \
-         scripts/assistant-prompt.md scripts/iris-watch.py scripts/organize.py scripts/iris-ask scripts/iris-doctor; do
+         scripts/assistant-prompt.md scripts/iris-watch.py scripts/organize.py scripts/iris-ask scripts/iris-doctor scripts/i18n.py scripts/assistant-prompt.en.md; do
   check "fichier copié : $f" test -f "$T/qs/$f"
 done
 check "iris-ask exécutable"           test -x "$T/qs/scripts/iris-ask"
@@ -76,12 +76,16 @@ open(p, "w").write(re.sub(r"AssistantOverlay\s*\{[^}]*\}", "", s))
 PY
 check "doctor : détecte un câblage cassé" bash -c "python3 -I '$DOC' --prefix '$T/qs' | grep -q '✗ l.overlay est instancié'"
 cp "$T/shell.qml.ok" "$T/qs/shell.qml"
+check "langue : le daemon suit config.json (en)" bash -c "python3 '$T/qs/scripts/assistant.py' </dev/null 2>/dev/null | head -1 | grep -q '\"lang\": \"en\"'"
+check "langue : IRIS_LANG=fr l'emporte"  bash -c "IRIS_LANG=fr python3 '$T/qs/scripts/assistant.py' </dev/null 2>/dev/null | head -1 | grep -q '\"lang\": \"fr\"'"
+check "langue : prompt anglais chargé"   bash -c "cd '$T/qs/scripts' && python3 -c \"import assistant; assert 'You are Iris' in assistant.system_prompt(True)\""
+check "langue : prompt français chargé"  bash -c "cd '$T/qs/scripts' && IRIS_LANG=fr python3 -c \"import assistant; assert 'Tu es Iris' in assistant.system_prompt(True)\""
 check "shell.qml câblé (bloc balisé)"  grep -q ">>> iris (install.sh)" "$T/qs/shell.qml"
 check "import \"./overlays\" ajouté"    grep -q 'import "./overlays"' "$T/qs/shell.qml"
 check "configDir et homeDir définis"   bash -c "grep -q 'configDir' '$T/qs/shell.qml' && grep -q 'homeDir' '$T/qs/shell.qml'"
 check "mémoire vierge créée"           test -f "$DATA/memory.md"
 check "config.json créé et valide"     python3 -I -c "import json,sys; json.load(open(sys.argv[1]))" "$DATA/config.json"
-check "config : nom et dossiers interdits" python3 -I -c "import json,sys; c=json.load(open(sys.argv[1])); assert c['user_name']=='Testeur' and c['deny_read_paths']==['~/.ssh','~/.gnupg']" "$DATA/config.json"
+check "config : langue, nom et dossiers interdits" python3 -I -c "import json,sys; c=json.load(open(sys.argv[1])); assert c['language']=='en' and c['user_name']=='Testeur' and c['deny_read_paths']==['~/.ssh','~/.gnupg']" "$DATA/config.json"
 check "dossier de données en 700"      test "$(stat -c %a "$DATA")" = 700
 sum1="$(cat "$T/qs/shell.qml" "$DATA/memory.md" | md5sum)"
 "${INST[@]}" >/dev/null 2>&1

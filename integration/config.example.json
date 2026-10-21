@@ -1,4 +1,5 @@
 {
+  "language": "fr",
   "user_name": "",
   "models": { "fast": "claude-haiku-5-5", "power": "claude-sonnet-5-5" },
   "session_idle_minutes": 30,

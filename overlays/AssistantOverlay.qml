@@ -61,10 +61,15 @@ PanelWindow {
     property real   usage5h:     -1
     property real   usageWeek:   -1
     property real   usageResets: 0       // epoch ms of the next reset, 0 = unknown
+    // Texts sent by the daemon at startup (see ui_strings() in assistant.py);
+    // tr() falls back to the French default when a key is missing.
+    property var ui: ({})
+    function tr(key, fallback) { return ui[key] !== undefined ? ui[key] : fallback }
+
     readonly property var modeList: [
-        { key: "auto",  label: "Auto",     icon: "󰁨" },
-        { key: "fast",  label: "Rapide",   icon: "󱐋" },
-        { key: "power", label: "Puissant", icon: "󰧑" }
+        { key: "auto",  label: "Auto",                       icon: "󰁨" },
+        { key: "fast",  label: overlay.tr("mode_fast", "Rapide"),    icon: "󱐋" },
+        { key: "power", label: overlay.tr("mode_power", "Puissant"), icon: "󰧑" }
     ]
 
     readonly property string mood:
@@ -154,7 +159,7 @@ PanelWindow {
         const s = Date.now() / 1000 - ts
         if (s < 3600)     return Math.max(1, Math.round(s / 60)) + " min"
         if (s < 86400)    return Math.round(s / 3600) + " h"
-        if (s < 7 * 86400) return Math.round(s / 86400) + " j"
+        if (s < 7 * 86400) return Math.round(s / 86400) + " " + overlay.tr("day_abbr", "j")
         return Qt.formatDate(new Date(ts * 1000), "dd/MM")
     }
     function _resetLabel() {
@@ -162,11 +167,11 @@ PanelWindow {
         const left = (usageResets - now.getTime()) / 60000
         if (left <= 0) return ""
         const h = Math.floor(left / 60), m = Math.round(left % 60)
-        return "réinit. " + (h > 0 ? h + " h " + String(m).padStart(2, "0") : m + " min")
+        return overlay.tr("reset", "réinit. ") + (h > 0 ? h + " h " + String(m).padStart(2, "0") : m + " min")
     }
     readonly property string greeting: {
         const h = now.getHours()
-        return h < 5 ? "Encore debout ?" : h < 18 ? "Bonjour" : "Bonsoir"
+        return h < 5 ? overlay.tr("greet_night", "Encore debout ?") : h < 18 ? overlay.tr("greet_day", "Bonjour") : overlay.tr("greet_evening", "Bonsoir")
     }
 
     // ── Daemon ────────────────────────────────────────────────────────
@@ -215,6 +220,9 @@ PanelWindow {
             for (const m of d.messages) _push(m.role, m.text)
             busy = false; streaming = false
             list.stick = true; Qt.callLater(() => list.positionViewAtEnd())
+            break
+        case "ui":
+            ui = d.s
             break
         case "model":
             modelName = d.v
@@ -422,9 +430,9 @@ PanelWindow {
                         width: parent.width - 13
                         elide: Text.ElideRight
                         text: overlay.toolStatus !== "" ? overlay.toolStatus
-                            : overlay.mood === "thinking" ? "Je réfléchis…"
-                            : overlay.mood === "talking"  ? "J'écris…"
-                            : "En ligne"
+                            : overlay.mood === "thinking" ? overlay.tr("thinking", "Je réfléchis…")
+                            : overlay.mood === "talking"  ? overlay.tr("writing", "J'écris…")
+                            : overlay.tr("online", "En ligne")
                         color: overlay.busy ? overlay.theme.primary : overlay.theme.txt2
                         opacity: overlay.busy ? 1 : 0.75
                         font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 2
@@ -545,7 +553,7 @@ PanelWindow {
             Text {
                 visible: history.count === 0
                 anchors.centerIn: parent
-                text: "Aucune conversation pour l'instant"
+                text: overlay.tr("no_history", "Aucune conversation pour l'instant")
                 color: overlay.theme.outline
                 font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs
             }
@@ -664,7 +672,7 @@ PanelWindow {
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: {
-                        const d = Qt.locale("fr_FR").toString(overlay.now, "dddd d MMMM · HH:mm")
+                        const d = Qt.locale(overlay.tr("locale", "fr_FR")).toString(overlay.now, overlay.tr("date_fmt", "dddd d MMMM · HH:mm"))
                         return d.charAt(0).toUpperCase() + d.slice(1)
                     }
                     color: overlay.theme.txt2; opacity: 0.7
@@ -673,10 +681,10 @@ PanelWindow {
                 Item { width: 1; height: 16 }
                 Repeater {
                     model: [
-                        { icon: "", text: "Qu'est-ce que j'ai aujourd'hui ?" },
-                        { icon: "󰃭", text: "Aide-moi à planifier ma semaine" },
-                        { icon: "", text: "Où est mon dernier PDF téléchargé ?" },
-                        { icon: "󰍛", text: "Qu'est-ce qui ralentit mon PC ?" }
+                        { icon: "", text: overlay.tr("chip1", "Qu'est-ce que j'ai aujourd'hui ?") },
+                        { icon: "󰃭", text: overlay.tr("chip2", "Aide-moi à planifier ma semaine") },
+                        { icon: "", text: overlay.tr("chip3", "Où est mon dernier PDF téléchargé ?") },
+                        { icon: "󰍛", text: overlay.tr("chip4", "Qu'est-ce qui ralentit mon PC ?") }
                     ]
                     delegate: Rectangle {
                         required property var modelData
@@ -846,7 +854,7 @@ PanelWindow {
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: parent.width - 32
-                                text: "Iris veut utiliser <b>" + msg.askTool.replace(/^mcp__claude_ai_/, "").replace(/__/g, " · ").replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</b>"
+                                text: overlay.tr("wants", "Iris veut utiliser") + " <b>" + msg.askTool.replace(/^mcp__claude_ai_/, "").replace(/__/g, " · ").replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</b>"
                                 textFormat: Text.StyledText
                                 color: overlay.theme.fg
                                 font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
@@ -875,8 +883,8 @@ PanelWindow {
                             spacing: 8
                             Repeater {
                                 model: [
-                                    { label: "Autoriser", allow: true  },
-                                    { label: "Refuser",   allow: false }
+                                    { label: overlay.tr("allow", "Autoriser"), allow: true  },
+                                    { label: overlay.tr("deny", "Refuser"),     allow: false }
                                 ]
                                 delegate: Rectangle {
                                     required property var modelData
@@ -902,7 +910,7 @@ PanelWindow {
                         }
                         Text {
                             visible: msg.askState !== "pending"
-                            text: msg.askState === "allowed" ? "  Autorisé" : "  Refusé"
+                            text: msg.askState === "allowed" ? "  " + overlay.tr("allowed", "Autorisé") : "  " + overlay.tr("denied", "Refusé")
                             color: msg.askState === "allowed" ? overlay.theme.tertiary : overlay.theme.outline
                             font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 2
                         }
@@ -973,7 +981,7 @@ PanelWindow {
                 Text {
                     visible: input.text === ""
                     anchors.verticalCenter: parent.verticalCenter
-                    text: overlay.busy ? "Iris répond…" : "Demande-moi quelque chose…"
+                    text: overlay.busy ? overlay.tr("replying", "Iris répond…") : overlay.tr("placeholder", "Demande-moi quelque chose…")
                     color: overlay.theme.outline
                     font: input.font
                 }

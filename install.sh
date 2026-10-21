@@ -3,6 +3,7 @@
 #   ./install.sh [--prefix DIR] [--dry-run] [--no-hypr] [--uninstall] [-y]
 #                [--name NOM] [--deny-read "~/.ssh,~/.gnupg"] [--reconfigure]
 #                [--fast-model ID] [--power-model ID] [--ask-key "SUPER + I"]
+#                [--language fr|en|auto]
 # Sans option de config et dans un terminal, l'installateur pose quelques
 # questions ; avec -y ou sans terminal, il garde les défauts.
 # Idempotent : on peut le relancer sans risque. Chaque fichier existant
@@ -14,7 +15,7 @@ PREFIX="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell"
 HYPR="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
 DATA="$HOME/.local/share/qs-assistant"
 DRY=0; HYPR_ON=1; UNINSTALL=0; YES=0
-ASK_KEY="SUPER + I"; CFG_NAME=""; CFG_DENY=""; CFG_FAST=""; CFG_POWER=""; RECONF=0; CFG_SET=0
+ASK_KEY="SUPER + I"; CFG_LANG=""; CFG_NAME=""; CFG_DENY=""; CFG_FAST=""; CFG_POWER=""; RECONF=0; CFG_SET=0
 BEGIN="// >>> iris (install.sh) >>>"; END="// <<< iris (install.sh) <<<"
 
 while [ $# -gt 0 ]; do
@@ -25,6 +26,7 @@ while [ $# -gt 0 ]; do
     --uninstall) UNINSTALL=1 ;;
     -y|--yes)    YES=1 ;;
     --name)        CFG_NAME="$2"; CFG_SET=1; shift ;;
+    --language)    CFG_LANG="$2"; CFG_SET=1; shift ;;
     --deny-read)   CFG_DENY="$2"; CFG_SET=1; shift ;;
     --fast-model)  CFG_FAST="$2"; CFG_SET=1; shift ;;
     --power-model) CFG_POWER="$2"; CFG_SET=1; shift ;;
@@ -43,6 +45,7 @@ FILES=(
   "overlays/AssistantOverlay.qml" "overlays/AssistantAvatar.qml"
   "scripts/assistant.py" "scripts/assistant-prompt.md"
   "scripts/iris-watch.py" "scripts/organize.py" "scripts/iris-ask" "scripts/iris-doctor"
+  "scripts/i18n.py" "scripts/assistant-prompt.en.md"
 )
 
 backup() { [ -e "$1" ] && [ ! -e "$1.iris-bak" ] && run cp -p "$1" "$1.iris-bak" || true; }
@@ -100,6 +103,9 @@ if [ -e "$DATA/config.json" ] && [ "$RECONF" = 0 ]; then
 else
   if [ "$CFG_SET" = 0 ] && [ "$YES" = 0 ] && [ -t 0 ]; then
     say "Configuration (Entrée = garder la valeur par défaut)"
+    case "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}" in en*) dl=en ;; *) dl=fr ;; esac
+    read -r -p "  Langue d'Iris (fr / en) [$dl] : " CFG_LANG
+    CFG_LANG="${CFG_LANG:-$dl}"
     read -r -p "  Comment dois-je t'appeler ? " CFG_NAME
     read -r -p "  Interdire à Iris de lire ~/.ssh et ~/.gnupg (clés, secrets) ? [O/n] " a
     # shellcheck disable=SC2088  # le ~ est voulu : Iris le développe elle-même
@@ -110,18 +116,23 @@ else
       read -r -p "    Modèle puissant [claude-sonnet-5-5] : " CFG_POWER
     fi
   fi
+  if [ -z "$CFG_LANG" ] && [ ! -e "$DATA/config.json" ]; then
+    case "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}" in en*) CFG_LANG=en ;; *) CFG_LANG=fr ;; esac
+  fi
+  case "$CFG_LANG" in ""|fr|en|auto) ;; *) warn "langue '$CFG_LANG' inconnue : fr utilisé"; CFG_LANG=fr ;; esac
   if [ "$DRY" = 1 ]; then
     echo "  [dry-run] écriture de $DATA/config.json (nom='${CFG_NAME}', deny-read='${CFG_DENY}')"
   else
     base="$SRC/integration/config.example.json"
     [ -e "$DATA/config.json" ] && base="$DATA/config.json"
-    python3 -I - "$base" "$DATA/config.json" "$CFG_NAME" "$CFG_DENY" "$CFG_FAST" "$CFG_POWER" <<'PY'
+    python3 -I - "$base" "$DATA/config.json" "$CFG_NAME" "$CFG_DENY" "$CFG_FAST" "$CFG_POWER" "$CFG_LANG" <<'PY'
 import json, sys
-base, out, name, deny, fast, power = sys.argv[1:]
+base, out, name, deny, fast, power, lang = sys.argv[1:]
 try:
     cfg = json.load(open(base))
 except ValueError:
     cfg = json.load(open(base.rsplit("/", 1)[0] + "/../integration/config.example.json"))
+if lang:  cfg["language"] = lang
 if name:  cfg["user_name"] = name.strip()
 if deny:  cfg["deny_read_paths"] = [p.strip() for p in deny.split(",") if p.strip()]
 if fast:  cfg.setdefault("models", {})["fast"] = fast.strip()

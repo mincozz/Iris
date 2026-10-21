@@ -15,7 +15,8 @@ Tu es une IA qui aide un utilisateur à installer **Iris**, un assistant en pixe
 | `overlays/AssistantOverlay.qml` | Panneau de chat |
 | `overlays/AssistantAvatar.qml` | Avatar animé |
 | `scripts/assistant.py` | Daemon : pont QML ↔ `claude -p`, permissions, historique |
-| `scripts/assistant-prompt.md` | Prompt système |
+| `scripts/assistant-prompt.md`, `assistant-prompt.en.md` | Prompt système (français, anglais) |
+| `scripts/i18n.py` | Langue (`fr`/`en`) partagée par les scripts : `pick("texte fr", "text en")` |
 | `scripts/iris-watch.py` | Alertes locales (git, agenda, santé système) |
 | `scripts/organize.py` | Rangement de dossiers : `scan`, `apply`, `undo` |
 | `scripts/iris-ask` | Raccourci : envoie la sélection (ou le presse-papiers) à Iris |
@@ -25,7 +26,7 @@ Tu es une IA qui aide un utilisateur à installer **Iris**, un assistant en pixe
 ## Procédure d'installation
 1. **Prérequis** : `qs` (Quickshell), `python3`, `claude` connecté (`claude` doit déjà fonctionner), `git`. Optionnels : `gio` (corbeille), `wl-copy`, `nautilus` (ouverture des fichiers), `notify-send`. Si `claude` n'est pas connecté, dis-le à l'utilisateur : il doit lancer `claude` lui-même (connexion interactive).
 2. **Trouver le dossier du shell** : en général `~/.config/quickshell`, avec un `shell.qml`. Sinon demande-lui, ou utilise `--prefix`.
-3. **Configurer** : demande à l'utilisateur son prénom, s'il veut interdire à Iris la lecture de `~/.ssh` et `~/.gnupg` (recommandé) et s'il veut changer de modèles. Ne lance pas l'installateur interactif à sa place : passe ses réponses en options (`--name`, `--deny-read`, `--fast-model`, `--power-model`, avec `-y`).
+3. **Configurer** : demande à l'utilisateur sa langue (`fr` ou `en`), son prénom, s'il veut interdire à Iris la lecture de `~/.ssh` et `~/.gnupg` (recommandé) et s'il veut changer de modèles. Ne lance pas l'installateur interactif à sa place : passe ses réponses en options (`--language`, `--name`, `--deny-read`, `--fast-model`, `--power-model`, avec `-y`).
 4. **Lancer** `./install.sh --dry-run` avec ces options, relire la sortie, puis `./install.sh`.
 5. **Vérifier le câblage de `shell.qml`** : l'installateur ajoute un bloc balisé `>>> iris (install.sh) >>>` après `id: root`. Contrôle que :
    - `import Quickshell.Io` est présent (pour `IpcHandler`) ;
@@ -44,7 +45,7 @@ L'overlay ne fonctionne que si le shell fournit :
 Si le thème de l'utilisateur utilise d'autres noms, **ne modifie pas l'overlay** : crée un petit objet adaptateur dans `shell.qml` qui expose ces noms et passe-le en `theme:`.
 
 ## Mémoire et données
-- Le prompt est dans `scripts/assistant-prompt.md` (français, tutoiement). Propose de l'adapter (langue, ton, prénom).
+- Les prompts sont `scripts/assistant-prompt.md` (français, tutoiement) et `assistant-prompt.en.md`, choisis selon `language` dans `config.json`. Propose de les adapter (ton, prénom). Tout nouveau texte visible par l'utilisateur doit passer par `pick(fr, en)` (Python) ou `overlay.tr(clé, défaut)` (QML, clés dans `ui_strings()` de `assistant.py`).
 - La mémoire d'Iris est `~/.local/share/qs-assistant/memory.md` ; le modèle est `integration/memory.example.md`. Aide l'utilisateur à la remplir seulement s'il le demande.
 - Réglages (nom, modèles, dossiers interdits en lecture, commandes) : `~/.local/share/qs-assistant/config.json`, modèle `integration/config.example.json`, documenté dans le README. Propose-le à l'utilisateur ; n'ajoute à `extra_readonly_commands` que des commandes sans effet de bord.
 - Alertes : `watch.json` (modèle `integration/watch.example.json`). `ics_url` est facultatif.

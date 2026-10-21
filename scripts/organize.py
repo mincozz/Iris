@@ -29,6 +29,9 @@ import sys
 import time
 from collections import Counter, defaultdict
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from i18n import pick   # noqa: E402
+
 HOME = os.path.realpath(os.path.expanduser("~"))
 JOURNAL_DIR = os.path.join(HOME, ".local/share/qs-assistant/organize-journal")
 
@@ -40,10 +43,10 @@ def resolve(p):
 def check_path(p):
     """Return an error string if `p` must not be touched, else None."""
     if p == HOME or not p.startswith(HOME + os.sep):
-        return "hors du dossier personnel"
+        return pick("hors du dossier personnel", "outside the home folder")
     top = os.path.relpath(p, HOME).split(os.sep)[0]
     if top.startswith("."):
-        return "dossier caché/système protégé"
+        return pick("dossier caché/système protégé", "hidden/system folder, protected")
     return None
 
 
@@ -89,26 +92,27 @@ def scan(root, depth):
             if st.st_size > 0:
                 by_key[(f.lower(), st.st_size)].append(path)
 
-    out = [f"# Scan de {root}", "", "## Dossiers (fichiers · taille · extensions principales)"]
+    out = [pick(f"# Scan de {root}", f"# Scan of {root}"), "",
+           pick("## Dossiers (fichiers · taille · extensions principales)", "## Folders (files · size · main extensions)")]
     for name, b in sorted(folders.items(), key=lambda kv: -kv[1]["n"])[:60]:
         exts = ", ".join(f"{e}×{c}" for e, c in b["ext"].most_common(4))
         out.append(f"- {name}: {b['n']} · {human(b['size'])} · {exts}")
     loose = [f for f in os.listdir(root) if not f.startswith(".") and os.path.isfile(os.path.join(root, f))]
     if loose:
-        out += ["", f"## Fichiers en vrac à la racine ({len(loose)})"]
+        out += ["", pick(f"## Fichiers en vrac à la racine ({len(loose)})", f"## Loose files at the root ({len(loose)})")]
         out += [f"- {f}" for f in sorted(loose)[:80]]
         if len(loose) > 80:
-            out.append(f"- … et {len(loose) - 80} autres")
+            out.append(pick(f"- … et {len(loose) - 80} autres", f"- … and {len(loose) - 80} more"))
     if big:
-        out += ["", "## Gros fichiers (>100 Mo)"]
+        out += ["", pick("## Gros fichiers (>100 Mo)", "## Large files (>100 MB)")]
         out += [f"- {human(s)} {p}" for s, p in sorted(big, reverse=True)[:20]]
     dups = [paths for paths in by_key.values() if len(paths) > 1]
     if dups:
-        out += ["", f"## Doublons probables (même nom + même taille) : {len(dups)}"]
+        out += ["", pick(f"## Doublons probables (même nom + même taille) : {len(dups)}", f"## Likely duplicates (same name + same size): {len(dups)}")]
         for paths in dups[:20]:
             out.append("- " + " | ".join(paths))
     if old:
-        out += ["", "## Non modifiés depuis plus d'un an (racine + 1 niveau)"]
+        out += ["", pick("## Non modifiés depuis plus d'un an (racine + 1 niveau)", "## Not modified for over a year (root + 1 level)")]
         out += [f"- {time.strftime('%Y-%m-%d', time.localtime(m))} {p}" for m, p in sorted(old)[:30]]
     print("\n".join(out))
 
@@ -122,11 +126,11 @@ def apply(plan):
         if err:
             skipped.append(f"{mv['from']} → {mv['to']} ({err})")
         elif not os.path.lexists(src):
-            skipped.append(f"{mv['from']} (introuvable)")
+            skipped.append(f"{mv['from']} ({pick('introuvable', 'not found')})")
         elif os.path.lexists(dst):
-            skipped.append(f"{mv['from']} → {mv['to']} (la destination existe déjà)")
+            skipped.append(f"{mv['from']} → {mv['to']} ({pick('la destination existe déjà', 'destination already exists')})")
         elif (dst + os.sep).startswith(src + os.sep):
-            skipped.append(f"{mv['from']} → {mv['to']} (dossier déplacé dans lui-même)")
+            skipped.append(f"{mv['from']} → {mv['to']} ({pick('dossier déplacé dans lui-même', 'folder moved into itself')})")
         else:
             os.makedirs(os.path.dirname(dst), exist_ok=True)
             shutil.move(src, dst)
@@ -135,31 +139,32 @@ def apply(plan):
         p = resolve(t)
         err = check_path(p)
         if err or not os.path.lexists(p):
-            skipped.append(f"corbeille {t} ({err or 'introuvable'})")
+            skipped.append(pick("corbeille", "trash") + f" {t} ({err or pick('introuvable', 'not found')})")
             continue
         r = subprocess.run(["gio", "trash", p], capture_output=True, text=True)
         if r.returncode == 0:
             trashed.append(p)
         else:
-            skipped.append(f"corbeille {t} ({r.stderr.strip()[:80]})")
+            skipped.append(pick("corbeille", "trash") + f" {t} ({r.stderr.strip()[:80]})")
 
     if done or trashed:
         os.makedirs(JOURNAL_DIR, exist_ok=True)
         name = time.strftime("%Y%m%d-%H%M%S") + ".json"
         with open(os.path.join(JOURNAL_DIR, name), "w") as f:
             json.dump({"moves": done, "trash": trashed}, f, ensure_ascii=False, indent=1)
-    print(f"{len(done)} déplacé(s), {len(trashed)} mis à la corbeille, {len(skipped)} ignoré(s).")
+    print(pick(f"{len(done)} déplacé(s), {len(trashed)} mis à la corbeille, {len(skipped)} ignoré(s).",
+               f"{len(done)} moved, {len(trashed)} trashed, {len(skipped)} skipped."))
     for s in skipped:
-        print("  ignoré :", s)
+        print(pick("  ignoré :", "  skipped:"), s)
     if done or trashed:
-        print("Annulable avec : organize.py undo")
+        print(pick("Annulable avec : organize.py undo", "Can be undone with: organize.py undo"))
 
 
 def undo():
     try:
         last = sorted(f for f in os.listdir(JOURNAL_DIR) if f.endswith(".json"))[-1]
     except (OSError, IndexError):
-        print("Rien à annuler.")
+        print(pick("Rien à annuler.", "Nothing to undo."))
         return
     path = os.path.join(JOURNAL_DIR, last)
     with open(path) as f:
@@ -181,11 +186,12 @@ def undo():
         else:
             failed.append(mv["to"])
     os.rename(path, path + ".undone")
-    print(f"{back} déplacement(s) annulé(s).")
+    print(pick(f"{back} déplacement(s) annulé(s).", f"{back} move(s) undone."))
     for f in failed:
-        print("  impossible de remettre :", f)
+        print(pick("  impossible de remettre :", "  could not restore:"), f)
     if j.get("trash"):
-        print(f"{len(j['trash'])} élément(s) mis à la corbeille : à restaurer depuis la corbeille si besoin.")
+        print(pick(f"{len(j['trash'])} élément(s) mis à la corbeille : à restaurer depuis la corbeille si besoin.",
+                   f"{len(j['trash'])} item(s) were trashed: restore them from the trash if needed."))
 
 
 def main():

@@ -10,7 +10,8 @@ Elle s'appuie sur la CLI `claude -p` : chat, fichiers, agenda/mails via les conn
 | `overlays/AssistantOverlay.qml` | Panneau de chat « liquid glass » |
 | `overlays/AssistantAvatar.qml` | Avatar animé (humeur : idle / thinking / talking), aussi utilisé dans la barre |
 | `scripts/assistant.py` | Daemon : pont overlay ↔ `claude -p`, choix Haiku/Sonnet, permissions (Autoriser/Refuser), historique |
-| `scripts/assistant-prompt.md` | Prompt système d'Iris |
+| `scripts/assistant-prompt.md`, `assistant-prompt.en.md` | Prompt système d'Iris (français, anglais) |
+| `scripts/i18n.py` | Choix de la langue partagé par les scripts |
 | `scripts/iris-watch.py` | Alertes locales sans quota : `git pull` à faire, commits non poussés, agenda, disque/batterie/units en échec |
 | `scripts/organize.py` | `scan` / `apply` / `undo` pour ranger des dossiers |
 | `scripts/iris-ask` | Raccourci : envoie la sélection (ou le presse-papiers) à Iris |
@@ -27,7 +28,7 @@ git clone git@github.com:mincozz/IRIS.git && cd IRIS
 
 Options : `--prefix DIR` (autre dossier Quickshell), `--no-hypr`, `-y` (sans question), `--uninstall`.
 
-Dans un terminal, l'installateur pose trois questions : ton prénom, l'interdiction de lire `~/.ssh` et `~/.gnupg` (oui par défaut) et le choix des modèles. Pour scripter ou déléguer à une IA : `--name NOM`, `--deny-read "~/.ssh,~/.gnupg"`, `--fast-model ID`, `--power-model ID`. Un `config.json` existant est conservé, `--reconfigure` le refait.
+Dans un terminal, l'installateur pose quatre questions : la langue (français ou anglais, d'après `$LANG` par défaut), ton prénom, l'interdiction de lire `~/.ssh` et `~/.gnupg` (oui par défaut) et le choix des modèles. Pour scripter ou déléguer à une IA : `--language fr|en|auto`, `--name NOM`, `--deny-read "~/.ssh,~/.gnupg"`, `--fast-model ID`, `--power-model ID`. Un `config.json` existant est conservé, `--reconfigure` le refait.
 
 L'installateur vérifie les prérequis (Quickshell, Python 3, CLI `claude` connectée, git, `gio`), copie les fichiers, crée `~/.local/share/qs-assistant/` (mémoire et `watch.json` vierges, jamais écrasés), câble `shell.qml` (bloc balisé, sauvegarde `.iris-bak`) et ajoute la règle de flou dans `hyprland.lua`. Il est relançable sans risque.
 
@@ -50,6 +51,7 @@ Le texte sélectionné part tel quel à Claude : évite de le déclencher sur un
 
 | Clé | Rôle |
 |---|---|
+| `language` | `fr` (défaut), `en` ou `auto` (suit `$LANG`). Change le prompt, le panneau, les alertes et les messages du rangement. `IRIS_LANG=en` l'emporte sur le fichier |
 | `user_name` | Comment Iris t'appelle |
 | `models` | `fast` et `power` : les modèles utilisés (défaut Haiku / Sonnet) |
 | `session_idle_minutes` | Inactivité avant une nouvelle conversation (défaut 30) |
@@ -66,7 +68,7 @@ Redémarre Iris (ou Quickshell) après une modification.
 
 ## Personnalisation
 
-`assistant-prompt.md` est le prompt par défaut (français, tutoiement) : à adapter à ton goût.
+Les prompts `assistant-prompt.md` (français, tutoiement) et `assistant-prompt.en.md` sont à adapter à ton goût (ou `prompt_file` pour le tien). `iris-doctor` et l'installateur restent en français.
 
 Mémoire : Iris lit `~/.local/share/qs-assistant/memory.md` et le met à jour quand tu lui demandes de retenir quelque chose. Un modèle vide est fourni dans `integration/memory.example.md`.
 L'état (historique, mémoire, agenda) reste dans `~/.local/share/qs-assistant/` et n'est pas versionné.
