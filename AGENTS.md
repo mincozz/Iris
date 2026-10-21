@@ -60,6 +60,9 @@ Ne les assouplis pas sans demande explicite de l'utilisateur :
 - Les clés API sont retirées de l'environnement de `claude` (`BILLING_ENV`) : ne les réinjecte pas.
 - Aucun secret, historique ou agenda dans le repo (voir `.gitignore`).
 
+## Actions des alertes
+Une alerte de `iris-watch.py` peut porter `action = {"id", "label", "arg"}` (bouton dans le panneau). Les ids exécutables sont fixés dans `Daemon._run_action` (`assistant.py`) : `update` et `git_pull`. Pour en ajouter un, valide les arguments côté daemon (le clic est un accord, pas un chèque en blanc) et ajoute un test dans `test/test-actions.py`.
+
 ## Mise à jour
 - Le clone doit rester en place : `install.sh` mémorise son chemin (`~/.local/share/qs-assistant/source`). Dis-le à l'utilisateur.
 - Pour mettre à jour : `scripts/iris-update` (ou `--check` d'abord). Ne réinstalle pas à la main avec d'autres options, sauf demande.

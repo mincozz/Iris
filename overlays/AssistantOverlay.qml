@@ -84,9 +84,22 @@ PanelWindow {
     function close()  { shellRoot.closeAssistant() }
     function cmd(o)   { daemon.write(JSON.stringify(o) + "\n") }
 
-    function _push(role, text, action) {
+    // `act` = {id, label, arg} adds a button under an alert (see iris-watch.py).
+    function _push(role, text, act) {
         messages.append({ role: role, text: text, askId: "", askTool: "", askState: "",
-                          action: action || "", actionState: "" })
+                          action: act && act.id ? act.id : "",
+                          actionLabel: act && act.label ? act.label : "",
+                          actionArg: act && act.arg ? act.arg : "",
+                          actionState: "" })
+    }
+
+    // Button under an alert: "update" has its own flow, the rest goes to the
+    // daemon as a checked action (e.g. git_pull).
+    function runAction(i) {
+        const it = messages.get(i)
+        if (it.action === "update") { runUpdate(i); return }
+        messages.setProperty(i, "actionState", "running")
+        cmd({ cmd: "action", id: it.action, arg: it.actionArg })
     }
 
     // "Update now" button on an update alert: the daemon runs iris-update.
@@ -225,7 +238,7 @@ PanelWindow {
             onRead: line => {
                 let d
                 try { d = JSON.parse(line) } catch (e) { return }
-                if (d.t === "nudge") overlay.cmd({ cmd: "nudge", text: d.text, kind: d.kind || "" })
+                if (d.t === "nudge") overlay.cmd({ cmd: "nudge", text: d.text, kind: d.kind || "", action: d.action || null })
             }
         }
         onExited: watcherRestart.restart()
@@ -241,10 +254,12 @@ PanelWindow {
         switch (d.t) {
         case "conversation":
             messages.clear()
-            // Only the latest update alert keeps its button (older ones are stale).
-            let lastUpdate = -1
-            d.messages.forEach((m, k) => { if (m.kind === "update") lastUpdate = k })
-            d.messages.forEach((m, k) => _push(m.role, m.text, k === lastUpdate ? "update" : ""))
+            // Only the latest alert of each action keeps its button (older ones are stale).
+            const lastOf = {}
+            const keyOf = a => a.id + "|" + (a.arg || "")
+            d.messages.forEach((m, k) => { if (m.action && m.action.id) lastOf[keyOf(m.action)] = k })
+            d.messages.forEach((m, k) => _push(m.role, m.text,
+                m.action && m.action.id && lastOf[keyOf(m.action)] === k ? m.action : null))
             busy = false; streaming = false
             list.stick = true; Qt.callLater(() => list.positionViewAtEnd())
             break
@@ -271,7 +286,8 @@ PanelWindow {
             streaming  = false
             replying   = false
             messages.append({ role: "ask", text: d.detail, askId: d.id,
-                              askTool: d.tool, askState: "pending", action: "", actionState: "" })
+                              askTool: d.tool, askState: "pending", action: "", actionLabel: "",
+                              actionArg: "", actionState: "" })
             list.stick = true; list.positionViewAtEnd()
             break
         case "error":
@@ -292,11 +308,20 @@ PanelWindow {
             updateAvailable = d.available
             updating = d.running
             break
+        case "action_done":
+            for (let k = 0; k < messages.count; k++) {
+                const it = messages.get(k)
+                if (it.action === d.id && it.actionArg === d.arg && it.actionState === "running")
+                    messages.setProperty(k, "actionState", d.ok ? "done" : "failed")
+            }
+            _push(d.ok ? "nudge" : "error", d.v)
+            if (list.stick) Qt.callLater(() => list.positionViewAtEnd())
+            break
         case "update_done":
             updating = false
             if (d.ok) updateAvailable = false
             for (let k = 0; k < messages.count; k++)
-                if (messages.get(k).actionState === "running")
+                if (messages.get(k).action === "update" && messages.get(k).actionState === "running")
                     messages.setProperty(k, "actionState", d.ok ? "done" : "failed")
             _push(d.ok ? "nudge" : "error", d.v)
             if (!_open && d.ok)
@@ -305,7 +330,7 @@ PanelWindow {
             break
         case "nudge":
             if (d.kind === "update") updateAvailable = true
-            _push("nudge", d.v, d.kind === "update" ? "update" : "")
+            _push("nudge", d.v, d.action)
             if (!_open) {
                 shellRoot.assistantUnread++
                 Quickshell.execDetached(["notify-send", "-a", "Iris", "Iris", _plain(d.v)])
@@ -777,6 +802,8 @@ PanelWindow {
                 required property string askTool
                 required property string askState
                 required property string action
+                required property string actionLabel
+                required property string actionArg
                 required property string actionState
                 required property int    index
                 readonly property bool mine: role === "user"
@@ -856,7 +883,8 @@ PanelWindow {
                 Rectangle {
                     visible: msg.hasAction
                     anchors { left: bubble.left; top: bubble.bottom; topMargin: 8 }
-                    readonly property bool idle: (msg.actionState === "" || msg.actionState === "failed") && !overlay.updating
+                    readonly property bool idle: (msg.actionState === "" || msg.actionState === "failed")
+                                                 && !(msg.action === "update" && overlay.updating)
                     width: actionText.implicitWidth + 32; height: 32; radius: 16
                     color: !idle ? overlay.cardFill
                          : actHover.hovered ? Qt.lighter(overlay.theme.primary, 1.1) : overlay.theme.primary
@@ -865,15 +893,17 @@ PanelWindow {
                     Text {
                         id: actionText
                         anchors.centerIn: parent
-                        text: msg.actionState === "running" ? overlay.tr("updating", "Mise à jour…")
-                            : msg.actionState === "done"    ? "\uf00c  " + overlay.tr("updated_state", "À jour")
-                            : overlay.tr("update_btn", "Mettre à jour")
+                        text: msg.actionState === "running"
+                                ? (msg.action === "update" ? overlay.tr("updating", "Mise à jour…") : overlay.tr("working", "En cours…"))
+                            : msg.actionState === "done"
+                                ? "\uf00c  " + (msg.action === "update" ? overlay.tr("updated_state", "À jour") : overlay.tr("done_state", "Fait"))
+                            : msg.actionLabel !== "" ? msg.actionLabel : overlay.tr("update_btn", "Mettre à jour")
                         color: parent.idle ? overlay.theme.bg : overlay.theme.txt2
                         font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
                         font.weight: Font.DemiBold
                     }
                     HoverHandler { id: actHover; enabled: parent.idle; cursorShape: Qt.PointingHandCursor }
-                    TapHandler { enabled: parent.idle; onTapped: overlay.runUpdate(msg.index) }
+                    TapHandler { enabled: parent.idle; onTapped: overlay.runAction(msg.index) }
                 }
 
                 // Copy button, beside the bubble on hover.

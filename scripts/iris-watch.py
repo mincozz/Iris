@@ -93,13 +93,16 @@ def save(data):
     os.replace(tmp, CONFIG)
 
 
-def nudge(state, key, kind, text):
-    """Emit an alert once per key."""
+def nudge(state, key, kind, text, action=None):
+    """Emit an alert once per key. `action` = {"id", "label", "arg"} adds a
+    button to the alert (ids the daemon knows: "update", "git_pull")."""
     if key in state["seen"]:
         return
     state["seen"][key] = time.time()
-    sys.stdout.write(json.dumps({"t": "nudge", "kind": kind, "text": text},
-                                ensure_ascii=False) + "\n")
+    msg = {"t": "nudge", "kind": kind, "text": text}
+    if action:
+        msg["action"] = action
+    sys.stdout.write(json.dumps(msg, ensure_ascii=False) + "\n")
     sys.stdout.flush()
 
 
@@ -176,7 +179,8 @@ def check_git_behind(state):
             if dirty:
                 text += pick(" Attention, tu as des modifs locales non commitées.",
                          " Careful: you have uncommitted local changes.")
-            nudge(state, f"behind:{repo}:{upstream}", "git", text)
+            nudge(state, f"behind:{repo}:{upstream}", "git", text,
+                  {"id": "git_pull", "arg": repo, "label": pick("Faire le git pull", "Run git pull")})
 
 
 def unpushed_lines(state):
@@ -486,7 +490,8 @@ def check_updates(state):
               f"**Mise à jour d'Iris disponible** ({n} nouveauté{'s' if n > 1 else ''}). "
               "Dis-moi « mets-toi à jour » et je m'en occupe.",
               f"**Iris update available** ({n} new change{'s' if n > 1 else ''}). "
-              "Tell me “update yourself” and I'll take care of it."))
+              "Tell me “update yourself” and I'll take care of it."),
+          {"id": "update", "label": pick("Mettre à jour", "Update now")})
 
 
 # ── PC health ────────────────────────────────────────────────────────────

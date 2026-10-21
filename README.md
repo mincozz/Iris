@@ -56,6 +56,8 @@ L'installateur retient où est ton clone ; `iris-update` fait `git pull --ff-onl
 | `ics_url` | Adresse iCal secrète de ton agenda (aucun quota) |
 | `remind_minutes`, `unpushed_hour`, `repo_roots`, `exclude` | Rappels d'agenda, heure de l'alerte git du soir, dossiers scannés |
 
+Certaines alertes ont un **bouton** : « Mettre à jour » sur une nouvelle version d'Iris, « Faire le git pull » sur un dépôt en retard (`git pull --ff-only`, limité aux dépôts de ton dossier personnel). Ton clic vaut accord, sans passer par Claude ; le résultat s'affiche dans le panneau. Seule la dernière alerte de chaque action garde son bouton.
+
 Test : `python3 scripts/iris-watch.py --once morning`.
 
 ## Diagnostic

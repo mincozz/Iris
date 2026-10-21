@@ -553,7 +553,9 @@ class Daemon:
 
     def _show_conversation(self):
         emit("conversation", id=self.conv.id,
-             messages=[{"role": m["role"], "text": m["text"], "kind": m.get("kind", "")}
+             messages=[{"role": m["role"], "text": m["text"], "kind": m.get("kind", ""),
+                        # alerts saved before actions existed: "update" kind = update button
+                        "action": m.get("action") or ({"id": "update"} if m.get("kind") == "update" else None)}
                        for m in self.conv.messages])
 
     def _ensure_claude(self, model, connectors=False):
@@ -628,15 +630,17 @@ class Daemon:
                 emit("history", v=list_history())
             elif c == "nudge":
                 if self.busy:
-                    self.queued.append((cmd.get("text", ""), cmd.get("kind", "")))
+                    self.queued.append((cmd.get("text", ""), cmd.get("kind", ""), cmd.get("action")))
                 else:
-                    self._nudge(cmd.get("text", ""), cmd.get("kind", ""))
+                    self._nudge(cmd.get("text", ""), cmd.get("kind", ""), cmd.get("action"))
             elif c == "update":
                 self._start_update()
+            elif c == "action":
+                self._run_action(cmd.get("id"), cmd.get("arg"))
             elif c == "hello":
                 self._show_conversation()
 
-    def _nudge(self, text, kind=""):
+    def _nudge(self, text, kind="", action=None):
         """Iris speaks first: an alert from the watcher joins the chat."""
         if not text:
             return
@@ -644,10 +648,42 @@ class Daemon:
             self._new()
         if not self.conv.title:
             self.conv.title = pick("Alertes d'Iris", "Iris alerts")
-        self.conv.messages.append({"role": "nudge", "text": text, "kind": kind})
+        action = clean_action(action)
+        self.conv.messages.append({"role": "nudge", "text": text, "kind": kind, "action": action})
         self.conv.save()
         self.nudges.append(text)
-        emit("nudge", v=text, kind=kind)
+        emit("nudge", v=text, kind=kind, action=action)
+
+    # ── Alert action buttons ─────────────────────────────────────────
+    # Only these ids can be run, with arguments checked here: the click is
+    # the user's consent, but the overlay must not be able to ask for more.
+    def _run_action(self, action_id, arg):
+        if action_id == "update":
+            self._start_update()
+        elif action_id == "git_pull":
+            threading.Thread(target=self._git_pull, args=(arg,), daemon=True).start()
+
+    def _git_pull(self, arg):
+        def done(ok, text):
+            emit("action_done", id="git_pull", arg=arg, ok=ok, v=text)
+        home = os.path.realpath(os.path.expanduser("~"))
+        path = os.path.realpath(os.path.expanduser(arg)) if isinstance(arg, str) and arg else ""
+        if not (path.startswith(home + os.sep) and os.path.isdir(path)
+                and os.path.exists(os.path.join(path, ".git"))):
+            return done(False, pick("Dépôt refusé (hors du dossier personnel ou pas un dépôt git).",
+                                    "Repository refused (outside the home folder or not a git repo)."))
+        env = dict(os.environ, GIT_TERMINAL_PROMPT="0", LANG="C.UTF-8",
+                   GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=8")
+        try:
+            r = subprocess.run(["git", "-C", path, "pull", "--ff-only"], capture_output=True,
+                               text=True, timeout=120, env=env, stdin=subprocess.DEVNULL)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            return done(False, pick("git pull a échoué : ", "git pull failed: ") + str(e))
+        lines = [ln for ln in (r.stdout + r.stderr).strip().splitlines() if ln.strip()]
+        short = path.replace(home, "~", 1)
+        if r.returncode == 0:
+            return done(True, f"`git pull` — `{short}/`\n" + "\n".join(lines[-4:]))
+        done(False, pick("git pull a échoué dans ", "git pull failed in ") + f"`{short}/`\n" + "\n".join(lines[-4:]))
 
     # ── "Update" button ──────────────────────────────────────────────
     # The installer replaces the overlay's own files, which makes Quickshell
@@ -771,8 +807,8 @@ class Daemon:
         self.busy = False
         self.pending.clear()
         emit("done")
-        for text, kind in self.queued:
-            self._nudge(text, kind)
+        for text, kind, action in self.queued:
+            self._nudge(text, kind, action)
         self.queued = []
 
     # Events from Claude (reader thread)
@@ -876,6 +912,13 @@ def report_update_result():
              + "\n".join(log[-6:]))
 
 
+def clean_action(action):
+    """Keep only a well-formed {id, label, arg} (strings), or None."""
+    if not isinstance(action, dict) or not isinstance(action.get("id"), str):
+        return None
+    return {k: action[k] for k in ("id", "label", "arg") if isinstance(action.get(k), str)}
+
+
 def update_is_running():
     try:
         return time.time() - os.path.getmtime(UPDATE_RUNNING) < 900
@@ -922,6 +965,8 @@ def ui_strings():
         "updating": pick("Mise à jour…", "Updating…"),
         "updated_state": pick("À jour", "Up to date"),
         "update_tip": pick("Mettre Iris à jour", "Update Iris"),
+        "working": pick("En cours…", "Working…"),
+        "done_state": pick("Fait", "Done"),
         "attached": pick("Texte joint", "Attached text"),
         "chars": pick("car.", "chars"),
         "attached_default": pick("Voici le texte que j'ai sélectionné :", "Here is the text I selected:"),

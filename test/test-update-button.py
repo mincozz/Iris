@@ -60,12 +60,13 @@ def read_until(pred, timeout=90):
 
 d, _ = read_until(lambda d: d["t"] == "update_state", 15)
 check(bool(d) and d["available"] is True and d["running"] is False, "au démarrage : mise à jour disponible signalée au panneau")
-send({"cmd": "nudge", "text": "update please", "kind": "update"})
+send({"cmd": "nudge", "text": "update please", "kind": "update", "action": {"id": "update", "label": "Update now"}})
 d, _ = read_until(lambda d: d["t"] == "nudge")
-check(bool(d) and d.get("kind") == "update", "l'alerte garde son type « update »")
+check(bool(d) and d.get("kind") == "update" and d["action"]["id"] == "update", "l'alerte garde son type et son action")
 send({"cmd": "hello"})
 d, _ = read_until(lambda d: d["t"] == "conversation")
-check(bool(d) and [m.get("kind") for m in d["messages"]][-1:] == ["update"], "l'historique garde le type")
+check(bool(d) and [m.get("kind") for m in d["messages"]][-1:] == ["update"]
+      and d["messages"][-1]["action"]["id"] == "update", "l'historique garde le type et l'action")
 send({"cmd": "update"})
 send({"cmd": "update"})
 d, _ = read_until(lambda d: d["t"] == "update_done")

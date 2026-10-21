@@ -180,6 +180,16 @@ check "iris-update : à jour ensuite (code 0)"      "$T/qs2/scripts/iris-update"
 check "iris-update refuse un clone modifié"        bash -c "! '$T/qs2/scripts/iris-update' --check >/dev/null 2>&1"
 ( cd "$T/upd/clone" && git checkout -q README.md )
 ( cd "$T/upd/src" && echo "# button-marker" >> scripts/i18n.py && git -c user.name=t -c user.email=t@t commit -qam "v3: button" && git push -q "$T/upd/origin.git" main ) >/dev/null 2>&1
+# Boutons d'action d'une alerte (git pull) : dépôt en retard sous $HOME
+mkdir -p "$T/home/proj"
+(
+  cd "$T/home/proj" && git init -q -b main work && cd work && git config user.name t && git config user.email t@t \
+    && echo 1 > f && git add f && git commit -q -m c1 && cd .. \
+    && git clone -q --bare work origin.git && git clone -q origin.git behind \
+    && cd work && echo 2 >> f && git commit -qam c2 && git push -q ../origin.git main
+) >/dev/null 2>&1
+want="$(git -C "$T/home/proj/work" rev-parse HEAD 2>/dev/null)"
+check "boutons d'action : git pull et refus (daemon)" python3 "$SRC/test/test-actions.py" "$T/qs2" "$T/home/proj/behind" "$want"
 check "bouton « Mettre à jour » (daemon)"          python3 "$SRC/test/test-update-button.py" "$T/qs2" scripts/i18n.py button-marker
 "$SRC/install.sh" --prefix "$T/qs" --no-hypr -y >/dev/null 2>&1
 
