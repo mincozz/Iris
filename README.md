@@ -64,7 +64,9 @@ Test : `python3 scripts/iris-watch.py --once morning`.
 
 ## Raccourci « demande à Iris »
 
-`scripts/iris-ask` envoie à Iris le texte sélectionné (sinon le presse-papiers) et ouvre son panneau. L'installateur ajoute `SUPER + I` à `hyprland.lua` (changeable avec `--ask-key "SUPER + SHIFT + I"`, ignoré si le raccourci est déjà pris). Pour un `hyprland.conf` : `bind = SUPER, I, exec, ~/.config/quickshell/scripts/iris-ask`. Nécessite `wl-clipboard`. `IRIS_ASK_DRY=1 iris-ask` montre ce qui serait envoyé, sans rien envoyer.
+`scripts/iris-ask` envoie à Iris le texte sélectionné (sinon le presse-papiers) et ouvre son panneau. L'installateur ajoute `SUPER + I` (et `SUPER + SHIFT + I`, voir plus bas) à `hyprland.lua` (changeable avec `--ask-key "SUPER + SHIFT + I"`, ignoré si le raccourci est déjà pris). Pour un `hyprland.conf` : `bind = SUPER, I, exec, ~/.config/quickshell/scripts/iris-ask`. Nécessite `wl-clipboard`. `IRIS_ASK_DRY=1 iris-ask` montre ce qui serait envoyé, sans rien envoyer.
+
+Variante `iris-ask --edit` (`SUPER + SHIFT + I`, option `--ask-edit-key`) : le texte est **joint** au panneau sans être envoyé (pastille « Texte joint · N car. », retirable d'un clic), tu tapes ta consigne (« traduis », « explique »…) puis Entrée. Elle demande la fonction IPC `prefill` dans `shell.qml` ; l'installateur l'ajoute aux anciens câblages.
 
 Le texte sélectionné part tel quel à Claude : évite de le déclencher sur un mot de passe.
 

@@ -100,9 +100,21 @@ PanelWindow {
         cmd({ cmd: "update" })
     }
 
+    // Text attached to the next message (iris-ask --edit: the user's selection).
+    property string attached: ""
+    function prefill(text) {
+        attached = text
+        showHistory = false
+        Qt.callLater(() => input.forceActiveFocus())
+    }
+
     function send() {
-        const msg = input.text.trim()
-        if (!msg || busy) return
+        const typed = input.text.trim()
+        if ((!typed && attached === "") || busy) return
+        const msg = attached === "" ? typed
+            : (typed !== "" ? typed : tr("attached_default", "Voici le texte que j'ai sélectionné :"))
+              + "\n\n```\n" + attached + "\n```"
+        attached = ""
         input.text  = ""
         showHistory = false
         _push("user", msg)
@@ -1036,6 +1048,33 @@ PanelWindow {
             TapHandler { onTapped: { list.stick = true; list.positionViewAtEnd() } }
         }
 
+        // Attached-text pill (iris-ask --edit): type an instruction, send both.
+        Rectangle {
+            visible: overlay.attached !== ""
+            anchors { left: inputBox.left; bottom: inputBox.top; bottomMargin: 6 }
+            height: 26; radius: 13
+            width: Math.min(inputBox.width, attachedRow.implicitWidth + 20)
+            color: overlay.alpha(overlay.theme.primary, 0.14)
+            border.color: overlay.alpha(overlay.theme.primary, 0.45); border.width: 1
+            Row {
+                id: attachedRow
+                anchors.centerIn: parent
+                spacing: 8
+                Text {
+                    text: "\uf0c6  " + overlay.tr("attached", "Texte joint") + " · " + overlay.attached.length + " " + overlay.tr("chars", "car.")
+                    color: overlay.theme.fg
+                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                }
+                Text {
+                    text: "\uf00d"
+                    color: overlay.theme.txt2
+                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    TapHandler { onTapped: overlay.attached = "" }
+                }
+            }
+        }
+
         // ── Input ──────────────────────────────────────────────────────
         Rectangle {
             id: inputBox
@@ -1075,7 +1114,7 @@ PanelWindow {
             // Send / stop
             Rectangle {
                 id: sendBtn
-                readonly property bool ready: input.text.trim() !== ""
+                readonly property bool ready: input.text.trim() !== "" || overlay.attached !== ""
                 anchors { right: parent.right; rightMargin: 7; verticalCenter: parent.verticalCenter }
                 width: 36; height: 36; radius: 18
                 color: overlay.busy ? overlay.theme.error

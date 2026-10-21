@@ -139,6 +139,7 @@ def check_wiring(prefix):
         (r'^\s*import\s+"\./?overlays/?"', 'import "./overlays"', 'ajoute  import "./overlays"  en haut de shell.qml'),
         (r"^\s*import\s+Quickshell\.Io\b", "import Quickshell.Io", "ajoute  import Quickshell.Io  (IpcHandler)"),
         (r'target:\s*"assistant"', "cible IPC « assistant »", "voir integration/shell.qml.snippet"),
+        (r"function prefill\(", "fonction IPC prefill (raccourci « joindre la sélection »)", "relance ./install.sh : il l'ajoute"),
         (r"\bassistantOpen\b", "propriété assistantOpen", "voir integration/shell.qml.snippet"),
         (r"\bassistantMood\b", "propriété assistantMood", "voir integration/shell.qml.snippet"),
         (r"\bassistantUnread\b", "propriété assistantUnread", "voir integration/shell.qml.snippet"),
@@ -263,6 +264,8 @@ def check_hyprland():
         "warn", "pas de règle de flou pour le panneau", "voir integration/hyprland-layer-rule.lua (cosmétique)")
     report("ok", "raccourci iris-ask") if "iris-ask" in blob else report(
         "warn", "pas de raccourci iris-ask", "relance ./install.sh ou ajoute un bind vers scripts/iris-ask")
+    report("ok", "raccourci iris-ask --edit") if "iris-ask --edit" in blob else report(
+        "warn", "pas de raccourci « joindre la sélection »", "relance ./install.sh (ou ajoute un bind vers scripts/iris-ask --edit)")
 
 
 def check_runtime():

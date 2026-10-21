@@ -2,7 +2,7 @@
 # Installateur d'Iris pour un shell Quickshell.
 #   ./install.sh [--prefix DIR] [--dry-run] [--no-hypr] [--uninstall] [-y]
 #                [--name NOM] [--deny-read "~/.ssh,~/.gnupg"] [--reconfigure]
-#                [--fast-model ID] [--power-model ID] [--ask-key "SUPER + I"]
+#                [--fast-model ID] [--power-model ID] [--ask-key "SUPER + I"] [--ask-edit-key "SUPER + SHIFT + I"]
 #                [--language fr|en|auto]
 # Sans option de config et dans un terminal, l'installateur pose quelques
 # questions ; avec -y ou sans terminal, il garde les défauts.
@@ -15,7 +15,7 @@ PREFIX="${XDG_CONFIG_HOME:-$HOME/.config}/quickshell"
 HYPR="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
 DATA="$HOME/.local/share/qs-assistant"
 DRY=0; HYPR_ON=1; UNINSTALL=0; YES=0
-ASK_KEY="SUPER + I"; CFG_LANG=""; CFG_NAME=""; CFG_DENY=""; CFG_FAST=""; CFG_POWER=""; RECONF=0; CFG_SET=0
+ASK_KEY="SUPER + I"; ASK_EDIT_KEY="SUPER + SHIFT + I"; CFG_LANG=""; CFG_NAME=""; CFG_DENY=""; CFG_FAST=""; CFG_POWER=""; RECONF=0; CFG_SET=0
 BEGIN="// >>> iris (install.sh) >>>"; END="// <<< iris (install.sh) <<<"
 
 while [ $# -gt 0 ]; do
@@ -32,6 +32,7 @@ while [ $# -gt 0 ]; do
     --power-model) CFG_POWER="$2"; CFG_SET=1; shift ;;
     --reconfigure) RECONF=1 ;;
     --ask-key)     ASK_KEY="$2"; shift ;;
+    --ask-edit-key) ASK_EDIT_KEY="$2"; shift ;;
     -h|--help)   sed -n '2,5p' "$0"; exit 0 ;;
     *) echo "option inconnue : $1" >&2; exit 2 ;;
   esac; shift
@@ -156,7 +157,24 @@ SHELLQML="$PREFIX/shell.qml"
 if [ ! -f "$SHELLQML" ]; then
   warn "Pas de shell.qml dans $PREFIX : câblage à faire à la main (voir integration/)."
 elif grep -q "AssistantOverlay" "$SHELLQML"; then
-  say "shell.qml contient déjà Iris : rien à faire"
+  if grep -q "function prefill" "$SHELLQML"; then
+    say "shell.qml contient déjà Iris : rien à faire"
+  else
+    # Mise à jour d'un câblage plus ancien : ajoute la fonction IPC `prefill`
+    # (raccourci « joindre la sélection ») à côté de `ask`.
+    say "Ajout de la fonction IPC prefill à shell.qml (sauvegarde : shell.qml.iris-bak)"
+    backup "$SHELLQML"
+    [ "$DRY" = 1 ] || python3 -I - "$SHELLQML" <<'PY' || warn "Impossible d'ajouter prefill automatiquement : voir integration/shell.qml.snippet"
+import re, sys
+p = sys.argv[1]
+s = open(p).read()
+m = re.search(r"^([ \t]*)function ask\(text: string\)\s*\{\s*(\w+)\.openAssistant\(\);\s*assistantOverlay\.ask\(text\)\s*\}[^\n]*\n", s, re.M)
+if not m:
+    sys.exit(1)
+line = f"{m.group(1)}function prefill(text: string) {{ {m.group(2)}.openAssistant(); assistantOverlay.prefill(text) }}\n"
+open(p, "w").write(s[:m.end()] + line + s[m.end():])
+PY
+  fi
 else
   say "Câblage de shell.qml (sauvegarde : shell.qml.iris-bak)"
   backup "$SHELLQML"
@@ -188,6 +206,7 @@ props = f"""
 {ind}    function open()   {{ root.openAssistant()   }}
 {ind}    function close()  {{ root.closeAssistant()  }}
 {ind}    function ask(text: string) {{ root.openAssistant(); assistantOverlay.ask(text) }}
+{ind}    function prefill(text: string) {{ root.openAssistant(); assistantOverlay.prefill(text) }}
 {ind}    function reveal(path: string) {{ assistantOverlay.openLink("iris-file:" + encodeURIComponent(path)) }}
 {ind}}}
 {ind}AssistantOverlay {{ id: assistantOverlay; shellRoot: root; theme: theme }}
@@ -220,12 +239,14 @@ if [ "$HYPR_ON" = 1 ]; then
     warn "Config Hyprland au format .conf : ajoute (selon ta version) par ex.  layerrule = blur, quickshell-assistant  et  layerrule = ignorealpha 0.1, quickshell-assistant"
   fi
 
-  # Raccourci « envoyer la sélection à Iris » (scripts/iris-ask)
+  # Raccourcis « envoyer la sélection à Iris » (scripts/iris-ask)
   ASK="$PREFIX/scripts/iris-ask"
-  if grep -rqs "iris-ask" "$HYPR" 2>/dev/null; then
-    say "Raccourci iris-ask déjà présent"
-  elif [ -f "$HYPR/hyprland.lua" ]; then
-    if python3 -I - "$HYPR" "$ASK_KEY" <<'PY'
+  add_bind() {   # add_bind "SUPER + I" "commande" "libellé" "option à passer"
+    local key="$1" cmd="$2" label="$3" opt="$4"
+    if grep -rqsF "\"$cmd\"" "$HYPR" 2>/dev/null; then
+      say "Raccourci « $label » déjà présent"
+    elif [ -f "$HYPR/hyprland.lua" ]; then
+      if python3 -I - "$HYPR" "$key" <<'PY'
 import glob, re, sys
 d, want = sys.argv[1:]
 norm = lambda k: re.sub(r"[\s\"']|\.\.", "", k.replace("mainMod", "SUPER")).upper()
@@ -236,16 +257,19 @@ for f in glob.glob(d + "/**/*.lua", recursive=True):
             sys.exit(0)
 sys.exit(1)
 PY
-    then
-      warn "Le raccourci « $ASK_KEY » semble déjà pris : relance avec --ask-key \"SUPER + SHIFT + I\" (par ex.), ou ajoute-le toi-même."
+      then
+        warn "Le raccourci « $key » semble déjà pris : relance avec $opt \"SUPER + ALT + I\" (par ex.), ou ajoute-le toi-même."
+      else
+        say "Raccourci $key → $label"
+        backup "$HYPR/hyprland.lua"
+        [ "$DRY" = 1 ] || printf '\n-- Iris : %s\nhl.bind("%s", hl.dsp.exec_cmd("%s"))\n' "$label" "$key" "$cmd" >> "$HYPR/hyprland.lua"
+      fi
     else
-      say "Raccourci $ASK_KEY → envoyer la sélection à Iris"
-      backup "$HYPR/hyprland.lua"
-      [ "$DRY" = 1 ] || printf '\n-- Iris : envoie le texte sélectionné (ou le presse-papiers) à Iris\nhl.bind("%s", hl.dsp.exec_cmd("%s"))\n' "$ASK_KEY" "$ASK" >> "$HYPR/hyprland.lua"
+      warn "Pour le raccourci « $label » (hyprland.conf) : bind = ${key// + /, }, exec, $cmd"
     fi
-  else
-    warn "Pour le raccourci (hyprland.conf) : bind = SUPER, I, exec, $ASK"
-  fi
+  }
+  add_bind "$ASK_KEY" "$ASK" "envoyer la sélection à Iris" "--ask-key"
+  add_bind "$ASK_EDIT_KEY" "$ASK --edit" "joindre la sélection et taper une consigne" "--ask-edit-key"
 fi
 
 echo

@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Envoie à Iris le texte sélectionné (sinon le presse-papiers) et ouvre son panneau.
 # À brancher sur un raccourci clavier ; l'installateur le fait pour Hyprland.
+#   iris-ask --edit           joint le texte au panneau sans l'envoyer : tu tapes
+#                             ta consigne (« traduis », « explique »…) puis Entrée
 #   IRIS_ASK_DRY=1 iris-ask   affiche ce qui serait envoyé, sans rien envoyer
 set -u
+EDIT=0
+[ "${1:-}" = "--edit" ] && EDIT=1
 MAX=20000   # caractères ; au-delà, le texte est coupé
 
 paste() { wl-paste "$@" --no-newline --type text/plain 2>/dev/null || true; }
@@ -21,6 +25,11 @@ note=""
 if [ "${#text}" -gt "$MAX" ]; then
   text="${text:0:$MAX}"
   note=$'\n\n(texte coupé après '"$MAX"' caractères)'
+fi
+
+if [ "$EDIT" = 1 ]; then
+  if [ "${IRIS_ASK_DRY:-0}" = 1 ]; then printf '[dry] prefill: %s\n' "$text$note"; exit 0; fi
+  exec qs ipc call assistant prefill "$text$note"
 fi
 
 # Le préfixe donne le contexte à Iris et évite qu'un texte commençant par « - »

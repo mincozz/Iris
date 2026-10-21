@@ -61,11 +61,12 @@ check "iris-ask exécutable"           test -x "$T/qs/scripts/iris-ask"
 mkdir -p "$T/home/.config/hypr" "$T/bin"
 printf 'require("modules.keybinds")\n' > "$T/home/.config/hypr/hyprland.lua"
 printf '#!/bin/sh\nprintf "%%s" "texte test"\n' > "$T/bin/wl-paste"; chmod +x "$T/bin/wl-paste"
+check "iris-ask --edit joint la sélection (dry)" bash -c "IRIS_ASK_DRY=1 PATH='$T/bin':\$PATH '$T/qs/scripts/iris-ask' --edit | grep -q 'prefill: texte test'"
 check "iris-ask envoie la sélection (dry)" bash -c "IRIS_ASK_DRY=1 PATH='$T/bin':\$PATH '$T/qs/scripts/iris-ask' | grep -q 'texte test'"
 "$SRC/install.sh" --prefix "$T/qs" -y >/dev/null 2>&1
-check "raccourci Hyprland ajouté (1 fois)" bash -c "[ \$(grep -c 'iris-ask' '$T/home/.config/hypr/hyprland.lua') = 1 ]"
+check "raccourcis Hyprland ajoutés (2, un par commande)" bash -c "[ \$(grep -c 'hl.bind.*iris-ask' '$T/home/.config/hypr/hyprland.lua') = 2 ] && grep -q 'iris-ask --edit' '$T/home/.config/hypr/hyprland.lua'"
 "$SRC/install.sh" --prefix "$T/qs" -y >/dev/null 2>&1
-check "raccourci non dupliqué à la relance" bash -c "[ \$(grep -c 'iris-ask' '$T/home/.config/hypr/hyprland.lua') = 1 ]"
+check "raccourcis non dupliqués à la relance" bash -c "[ \$(grep -c 'hl.bind.*iris-ask' '$T/home/.config/hypr/hyprland.lua') = 2 ]"
 DOC="$T/qs/scripts/iris-doctor"
 check "doctor : câblage reconnu"       bash -c "python3 -I '$DOC' --prefix '$T/qs' | grep -q '✓ l.overlay est instancié'"
 cp "$T/qs/shell.qml" "$T/shell.qml.ok"
@@ -86,6 +87,14 @@ brief1="$(python3 "$T/qs/scripts/iris-watch.py" --once morning 2>/dev/null)"
 brief2="$(python3 "$T/qs/scripts/iris-watch.py" --once morning 2>/dev/null)"
 check "résumé du matin : texte et git (en)" bash -c "echo '$brief1' | grep -q 'Good morning Testeur' && echo '$brief1' | grep -q 'uncommitted'"
 check "résumé du matin : une seule fois par jour" test -z "$brief2"
+check "shell.qml : fonction IPC prefill"   grep -q "function prefill" "$T/qs/shell.qml"
+# Mise à niveau d'un ancien câblage (sans prefill) : l'installateur l'ajoute une fois
+mkdir -p "$T/qs3" && sed '/function prefill/d' "$T/qs/shell.qml" > "$T/qs3/shell.qml"
+"$SRC/install.sh" --prefix "$T/qs3" --no-hypr -y >/dev/null 2>&1
+check "mise à niveau : prefill ajouté à un ancien câblage" bash -c "[ \$(grep -c 'function prefill' '$T/qs3/shell.qml') = 1 ]"
+"$SRC/install.sh" --prefix "$T/qs3" --no-hypr -y >/dev/null 2>&1
+check "mise à niveau : pas de doublon à la relance"       bash -c "[ \$(grep -c 'function prefill' '$T/qs3/shell.qml') = 1 ]"
+"$SRC/install.sh" --prefix "$T/qs" --no-hypr -y >/dev/null 2>&1
 check "shell.qml câblé (bloc balisé)"  grep -q ">>> iris (install.sh)" "$T/qs/shell.qml"
 check "import \"./overlays\" ajouté"    grep -q 'import "./overlays"' "$T/qs/shell.qml"
 check "configDir et homeDir définis"   bash -c "grep -q 'configDir' '$T/qs/shell.qml' && grep -q 'homeDir' '$T/qs/shell.qml'"

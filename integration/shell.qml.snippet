@@ -15,5 +15,7 @@
         function close()  { root.closeAssistant()  }
         // Open the panel and send a message: `qs ipc call assistant ask "…"`
         function ask(text: string) { root.openAssistant(); assistantOverlay.ask(text) }
+        // Attach text to the next message: `qs ipc call assistant prefill "…"`
+        function prefill(text: string) { root.openAssistant(); assistantOverlay.prefill(text) }
         // Show a file/folder in the file manager: `qs ipc call assistant reveal ~/x.pdf`
         function reveal(path: string) { assistantOverlay.openLink("iris-file:" + encodeURIComponent(path)) }
