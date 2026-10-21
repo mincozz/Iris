@@ -33,6 +33,8 @@ La CI (`.github/workflows/ci.yml`) lance ShellCheck (`--severity=warning`), la c
 2. Décris ce qui change et pourquoi, et comment tu l'as testé (ce qui est visuel et que la CI ne peut pas voir, surtout).
 3. Mets à jour `README.md` / `README.en.md` / `AGENTS.md` si le comportement visible change.
 
+Les contributions sont acceptées sous la licence du projet ([MIT](LICENSE)).
+
 ## English summary
 
 Open an issue before big features. Report vulnerabilities privately (see `SECURITY.md`). Run `test/test-e2e.sh --no-gui` before a pull request (it works in a throwaway folder and never touches your shell, your data or your Claude account unless you pass `--with-claude`). Route user-visible strings through `pick(fr, en)` / `overlay.tr(key, default)`, never auto-approve commands that can write or execute depending on their arguments, keep personal data out of the repo, and add a test for what you change. ShellCheck (`--severity=warning`) must pass.

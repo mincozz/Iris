@@ -76,6 +76,10 @@ Iris runs `claude` with your rights. Reading files and read-only commands need n
 - Calendar, mail, Notion and Drive come through your Claude account's connectors; without them Iris can't see them (the calendar can also come from an iCal address, `ics_url`).
 - As with any assistant that reads external content, prompt injection remains possible: keep an eye on the permission cards.
 
+## License
+
+[MIT](LICENSE). Contributions are accepted under the same license.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Run `test/test-e2e.sh --no-gui` before a pull request.

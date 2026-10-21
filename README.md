@@ -131,6 +131,10 @@ Iris lance `claude` avec tes droits. Lire des fichiers et lancer des commandes e
 - Agenda, mails, Notion et Drive passent par les connecteurs de ton compte Claude ; sans eux, Iris ne les voit pas (l'agenda peut aussi venir d'une adresse iCal, `ics_url`).
 - Comme pour tout assistant qui lit du contenu externe, une injection de prompt reste possible : garde un œil sur les cartes d'autorisation.
 
+## Licence
+
+[MIT](LICENSE). Les contributions sont acceptées sous la même licence.
+
 ## Contribuer
 
 Voir [CONTRIBUTING.md](CONTRIBUTING.md). Lance `test/test-e2e.sh --no-gui` avant une pull request.
