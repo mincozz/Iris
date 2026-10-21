@@ -85,7 +85,7 @@ def check_requirements():
                             ("wl-paste", "paquet wl-clipboard (raccourci iris-ask)", "warn"),
                             ("notify-send", "paquet libnotify (notifications d'alerte)", "warn"),
                             ("gio", "paquet glib2 (corbeille du rangement)", "warn"),
-                            ("nautilus", "ouverture des fichiers cités par Iris", "warn")]:
+                            ("nautilus", "ouverture des fichiers cités par Iris (sinon xdg-open)", "warn")]:
         if shutil.which(cmd):
             extra = ""
             if cmd == "claude":

@@ -52,13 +52,37 @@ DATA_DIR = os.path.expanduser("~/.local/share/qs-assistant")
 CONFIG = os.path.join(DATA_DIR, "watch.json")
 HOME = os.path.expanduser("~")
 
+def _detect_tz():
+    """The machine's IANA zone (TZ, then /etc/localtime), or None."""
+    name = os.environ.get("TZ", "").lstrip(":")
+    if not name:
+        try:
+            name = os.path.realpath("/etc/localtime").split("zoneinfo/", 1)[1]
+        except (IndexError, OSError):
+            name = ""
+    try:
+        return ZoneInfo(name) if name else None
+    except Exception:       # noqa: BLE001 — unknown zone name
+        return None
+
+
+# Local time zone: used for all-day events, floating times and the agenda
+# prompt. "timezone" in watch.json (e.g. "America/New_York") overrides it.
+TZ = _detect_tz() or dt.datetime.now().astimezone().tzinfo
+
+
+def tz_name():
+    return getattr(TZ, "key", None) or str(TZ)
+
+
 DEFAULTS = {
     "ics_url": "",
     "calendar_refresh_hours": 3,
     "repo_roots": ["~"],
     # Path parts that disqualify a repo (third-party clones, tools…).
     "exclude": ["Downloads", "Téléchargements", "node_modules", ".oh-my-zsh",
-                ".cache", ".local", ".exegol", "epiclang"],
+                ".cache", ".local"],
+    "timezone": "",                  # IANA name; empty = this machine's zone
     "remind_minutes": 15,
     "unpushed_hour": 19,
     "morning_hour": 8,               # daily brief from this hour (null = off)
@@ -79,6 +103,12 @@ def load():
         data = {}
     for k, v in DEFAULTS.items():
         data.setdefault(k, v)
+    global TZ
+    if isinstance(data.get("timezone"), str) and data["timezone"].strip():
+        try:
+            TZ = ZoneInfo(data["timezone"].strip())
+        except Exception:   # noqa: BLE001 — bad name: keep the detected zone
+            pass
     data.setdefault("seen", {})
     return data
 
@@ -248,11 +278,11 @@ def _parse_dt(value, params):
         except Exception:
             tz = None
     if re.fullmatch(r"\d{8}", value):                  # all-day
-        return dt.datetime.strptime(value, "%Y%m%d").replace(tzinfo=ZoneInfo("Europe/Paris")), True
+        return dt.datetime.strptime(value, "%Y%m%d").replace(tzinfo=TZ), True
     if value.endswith("Z"):
         return dt.datetime.strptime(value, "%Y%m%dT%H%M%SZ").replace(tzinfo=dt.timezone.utc), False
     d = dt.datetime.strptime(value, "%Y%m%dT%H%M%S")
-    return d.replace(tzinfo=tz or ZoneInfo("Europe/Paris")), False
+    return d.replace(tzinfo=tz or TZ), False
 
 
 def upcoming_events(ics, start, end):
@@ -316,7 +346,7 @@ def fetch_calendar_via_claude():
              for t in A.MCP_TOOL_NAMES["Google_Calendar"] if t != "list_events"]
     today = dt.date.today()
     prompt = (f"Liste mes événements Google Agenda (agenda principal) du {today} au "
-              f"{today + dt.timedelta(days=2)} inclus, fuseau Europe/Paris. Réponds UNIQUEMENT "
+              f"{today + dt.timedelta(days=2)} inclus, fuseau {tz_name()}. Réponds UNIQUEMENT "
               'par un tableau JSON, sans texte autour : [{"start": "AAAA-MM-JJTHH:MM", '
               '"summary": "...", "location": "..."}]. Ignore les événements sur la journée '
               "entière et ceux que j'ai refusés. Tableau vide s'il n'y a rien.")
@@ -340,7 +370,7 @@ def fetch_calendar_via_claude():
     out = []
     for it in items:
         try:
-            start = dt.datetime.fromisoformat(it["start"]).replace(tzinfo=ZoneInfo("Europe/Paris"))
+            start = dt.datetime.fromisoformat(it["start"]).replace(tzinfo=TZ)
         except (KeyError, ValueError, TypeError):
             continue
         out.append((start.isoformat(), it.get("summary") or pick("Événement", "Event"), it.get("location") or ""))
@@ -393,7 +423,7 @@ def check_calendar(state):
     lead = dt.timedelta(minutes=state["remind_minutes"])
     for uid, start, summary, location in upcoming_events(ics, now, now + lead):
         mins = max(1, round((start - now).total_seconds() / 60))
-        local = start.astimezone(ZoneInfo("Europe/Paris")).strftime("%H:%M")
+        local = start.astimezone(TZ).strftime("%H:%M")
         text = " " + pick(f"**{summary}** dans {mins} min ({local})",
                                   f"**{summary}** in {mins} min ({local})")
         if location:

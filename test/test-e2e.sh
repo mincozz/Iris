@@ -88,6 +88,7 @@ printf '{"morning_hour": %s, "calendar_via_claude": false, "repo_roots": ["%s"],
 brief1="$(python3 "$T/qs/scripts/iris-watch.py" --once morning 2>/dev/null)"
 brief2="$(python3 "$T/qs/scripts/iris-watch.py" --once morning 2>/dev/null)"
 check "résumé du matin : texte et git (en)" bash -c "echo '$brief1' | grep -q 'Good morning Testeur' && echo '$brief1' | grep -q 'uncommitted'"
+check "fuseau : celui de la machine (TZ), pas Paris" bash -c "TZ=America/New_York python3 -I -c \"import runpy,sys,datetime as dt; sys.argv=['x']; m=runpy.run_path('$T/qs/scripts/iris-watch.py', run_name='w'); assert m['tz_name']()=='America/New_York'; assert m['_parse_dt']('20261021T090000','')[0].utcoffset()==dt.timedelta(hours=-4)\""
 check "résumé du matin : une seule fois par jour" test -z "$brief2"
 check "shell.qml : fonction IPC prefill"   grep -q "function prefill" "$T/qs/shell.qml"
 # Mise à niveau d'un ancien câblage (sans prefill) : l'installateur l'ajoute une fois

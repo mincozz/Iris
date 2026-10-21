@@ -68,6 +68,7 @@ L'installateur retient où est ton clone et quelle version il a installée. `iri
 | `morning_hour` | Heure du résumé, `null` pour le couper |
 | `calendar_via_claude` | `false` : Claude ne lit jamais ton agenda (seul `ics_url` sert) |
 | `ics_url` | Adresse iCal secrète de ton agenda (aucun quota) |
+| `timezone` | Fuseau IANA (ex. `America/New_York`) ; vide = celui de la machine |
 | `remind_minutes`, `unpushed_hour`, `repo_roots`, `exclude` | Rappels d'agenda, heure de l'alerte git du soir, dossiers scannés |
 
 Certaines alertes ont un **bouton** : « Mettre à jour » sur une nouvelle version d'Iris, « Faire le git pull » sur un dépôt en retard (`git pull --ff-only`, limité aux dépôts de ton dossier personnel). Ton clic vaut accord, sans passer par Claude ; le résultat s'affiche dans le panneau. Seule la dernière alerte de chaque action garde son bouton.

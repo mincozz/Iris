@@ -185,9 +185,13 @@ PanelWindow {
             // The shell runs without LANG: GLib would then reject accented
             // paths ("Invalid byte sequence"), so force UTF-8.
             'export LANG="${LANG:-C.UTF-8}"; '
-          + 'if [ -d "$1" ]; then exec nautilus --new-window "$1"; '
-          + 'elif [ -e "$1" ]; then exec nautilus --select "$1"; '
-          + 'else exec nautilus --new-window "$(dirname "$1")"; fi'
+          + 'if command -v nautilus >/dev/null 2>&1; then '
+          + '  if [ -d "$1" ]; then exec nautilus --new-window "$1"; '
+          + '  elif [ -e "$1" ]; then exec nautilus --select "$1"; '
+          + '  else exec nautilus --new-window "$(dirname "$1")"; fi; '
+          + 'else '
+          + '  if [ -d "$1" ]; then exec xdg-open "$1"; else exec xdg-open "$(dirname "$1")"; fi; '
+          + 'fi'
           + ' >"$XDG_RUNTIME_DIR/iris-reveal.log" 2>&1', "reveal", path])
         close()
     }

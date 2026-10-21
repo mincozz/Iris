@@ -13,5 +13,6 @@
   "unpushed_hour": 19,
   "calendar_refresh_hours": 3,
   "morning_hour": 8,
-  "calendar_via_claude": true
+  "calendar_via_claude": true,
+  "timezone": ""
 }
