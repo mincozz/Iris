@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
 # Test de bout en bout d'Iris sur un shell Quickshell minimal et un HOME jetable.
-#   test/test-e2e.sh [--no-claude] [--no-gui] [--keep]
+#   test/test-e2e.sh [--with-claude] [--no-gui] [--keep]
 #
 # Tout se passe dans $IRIS_TEST_DIR (défaut /tmp/iris-e2e) : ton vrai shell et
 # ton vrai ~/.local/share/qs-assistant ne sont pas touchés.
-#   --no-claude  ne lie pas ~/.claude et n'envoie aucun message (zéro quota)
-#   --no-gui     n'ouvre pas Quickshell (vérifie seulement l'installation)
-#   --keep       garde le dossier de test à la fin
-# Avec Claude, l'instance de test partage ton compte (un message Haiku minuscule).
+#   --with-claude  lie TON ~/.claude à l'instance de test et envoie un message
+#                  Haiku minuscule (consomme un peu de ton quota). Sans cette
+#                  option, aucun compte n'est utilisé et aucun message envoyé.
+#   --no-gui       n'ouvre pas Quickshell (vérifie seulement l'installation)
+#   --keep         garde le dossier de test à la fin
 set -uo pipefail
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 T="${IRIS_TEST_DIR:-/tmp/iris-e2e}"
-CLAUDE=1; GUI=1; KEEP=0
+CLAUDE=0; GUI=1; KEEP=0
 for a in "$@"; do case "$a" in
-  --no-claude) CLAUDE=0 ;; --no-gui) GUI=0 ;; --keep) KEEP=1 ;;
+  --with-claude) CLAUDE=1 ;; --no-gui) GUI=0 ;; --keep) KEEP=1 ;;
   -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
   *) echo "option inconnue : $a" >&2; exit 2 ;; esac; done
 
@@ -38,7 +39,7 @@ case "$T" in /tmp/*) ;; *) echo "IRIS_TEST_DIR doit être sous /tmp" >&2; exit 2
 rm -rf "$T"; mkdir -p "$T/home/.config" "$T/qs"
 cp "$SRC/test/shell.qml" "$T/qs/shell.qml"
 if [ "$CLAUDE" = 1 ]; then
-  command -v claude >/dev/null || { ko "claude introuvable (utilise --no-claude)"; exit 1; }
+  command -v claude >/dev/null || { ko "claude introuvable (retire --with-claude)"; exit 1; }
   ln -s "$HOME/.claude" "$T/home/.claude"
   [ -e "$HOME/.claude.json" ] && ln -s "$HOME/.claude.json" "$T/home/.claude.json"
 fi
