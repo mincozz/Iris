@@ -78,7 +78,7 @@ done
 
 # ── État utilisateur (jamais écrasé) ──────────────────────────────────────
 say "Données dans $DATA"
-run mkdir -p "$DATA"
+run mkdir -p "$DATA"; run chmod 700 "$DATA"
 [ -e "$DATA/memory.md" ]  || run cp "$SRC/integration/memory.example.md" "$DATA/memory.md"
 [ -e "$DATA/watch.json" ] || run cp "$SRC/integration/watch.example.json" "$DATA/watch.json"
 

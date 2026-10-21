@@ -123,13 +123,11 @@ READONLY_BASH = [
     "pacman -Q", "pacman -Si", "which", "sensors", "hyprctl monitors",
     "hyprctl clients", "hyprctl activewindow", "hyprctl workspaces",
     "git status", "git log", "git diff", "git show", "git branch",
-    "fc-list", "pwd", "tree", "grep", "rg", "echo", "wpctl status",
+    "fc-list", "pwd", "grep", "wpctl status",
     "wpctl get-volume", "bluetoothctl devices", "bluetoothctl info",
 ]
 ALLOWED_TOOLS = ["Read", "Glob", "Grep", "WebSearch",
                  f"Bash(python3 {ORGANIZE} scan:*)",
-                 # Iris keeps its own memory up to date without asking.
-                 "Edit(~/.local/share/qs-assistant/memory.md)",
                  ] + [f"Bash({c}:*)" for c in READONLY_BASH] + [
     "mcp__claude_ai_Google_Calendar__list_calendars",
     "mcp__claude_ai_Google_Calendar__list_events",
@@ -151,7 +149,10 @@ ALLOWED_TOOLS = ["Read", "Glob", "Grep", "WebSearch",
 ]
 # Never, not even with a click (sudo would also hang on its password).
 DENIED_TOOLS = ["Bash(sudo:*)", "Bash(su:*)", "Bash(doas:*)",
-                "Bash(dd:*)", "Bash(mkfs:*)", "Bash(wipefs:*)"]
+                "Bash(dd:*)", "Bash(mkfs:*)", "Bash(wipefs:*)",
+                # read-only git commands that can still write a file
+                "Bash(git diff --output:*)", "Bash(git log --output:*)",
+                "Bash(git show --output:*)", "Bash(git diff --ext-diff:*)"]
 
 
 def mcp_deny_rules(connectors=True):
@@ -267,7 +268,9 @@ def ask_detail(tool, inp):
             return organize_detail(cmd) or cmd
         return cmd
     if tool in ("Edit", "Write"):
-        return inp.get("file_path", "")
+        body = inp.get("content") or inp.get("new_string") or ""
+        body = body if len(body) <= 600 else body[:600] + "…"
+        return inp.get("file_path", "") + ("\n" + body if body else "")
     if tool == "WebFetch":
         return inp.get("url", "")
     if tool.startswith("mcp__"):
@@ -702,6 +705,7 @@ class Daemon:
 
 def main():
     os.makedirs(HIST_DIR, exist_ok=True)
+    os.chmod(DATA_DIR, 0o700)   # history holds mail/file contents
     daemon = Daemon()
     daemon.handle({"cmd": "hello"})
     for line in sys.stdin:

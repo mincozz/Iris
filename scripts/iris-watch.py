@@ -419,7 +419,7 @@ CHECKS = {                      # name → (function, interval in seconds)
 
 
 def main():
-    os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs(DATA_DIR, mode=0o700, exist_ok=True)
     if len(sys.argv) == 3 and sys.argv[1] == "--once":
         state = load()
         CHECKS[sys.argv[2]][0](state)

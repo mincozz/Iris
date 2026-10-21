@@ -134,7 +134,10 @@ PanelWindow {
         if (link.startsWith("iris-file:")) path = decodeURIComponent(link.slice(10))
         else if (link.startsWith("file://")) path = decodeURIComponent(link.slice(7))
         console.log("[iris] open link", link)
-        if (path === "") { Qt.openUrlExternally(link); return }
+        if (path === "") {
+            if (/^https?:\/\//i.test(link)) Qt.openUrlExternally(link)
+            return
+        }
         path = path.replace(/^~(?=\/|$)/, shellRoot.homeDir)
         Quickshell.execDetached(["sh", "-c",
             // The shell runs without LANG: GLib would then reject accented
@@ -843,7 +846,7 @@ PanelWindow {
                             Text {
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: parent.width - 32
-                                text: "Iris veut utiliser <b>" + msg.askTool.replace(/^mcp__claude_ai_/, "").replace(/__/g, " · ") + "</b>"
+                                text: "Iris veut utiliser <b>" + msg.askTool.replace(/^mcp__claude_ai_/, "").replace(/__/g, " · ").replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</b>"
                                 textFormat: Text.StyledText
                                 color: overlay.theme.fg
                                 font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
