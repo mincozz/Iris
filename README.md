@@ -35,6 +35,19 @@ L'installateur vérifie les prérequis (Quickshell, Python 3, CLI `claude` conne
 Restent à faire à la main, car ils dépendent de ton shell : le bouton dans la barre (`integration/Bar.qml.snippet`) et le clic sur une alerte (`integration/NotificationToast.qml.snippet`). L'overlay attend un objet `theme` (`ff`, `fs`, `hi()`, `barBg`…).
 Contrôle : `qs ipc call assistant toggle|open|close|ask "…"`.
 
+## Alertes et résumé du matin
+
+`iris-watch.py` tourne avec le panneau et écrit à Iris, sans quota Claude sauf la lecture de l'agenda : `git pull` à faire, travail non poussé le soir, rappels d'agenda, disque, batterie, services en échec, mises à jour. Chaque matin à partir de `morning_hour` (8 h par défaut, 5 h de fenêtre), il envoie un **résumé** : l'agenda du jour et le travail git resté en plan. Réglages dans `~/.local/share/qs-assistant/watch.json` (modèle `integration/watch.example.json`) :
+
+| Clé | Rôle |
+|---|---|
+| `morning_hour` | Heure du résumé, `null` pour le couper |
+| `calendar_via_claude` | `false` : Claude ne lit jamais ton agenda (seul `ics_url` sert) |
+| `ics_url` | Adresse iCal secrète de ton agenda (aucun quota) |
+| `remind_minutes`, `unpushed_hour`, `repo_roots`, `exclude` | Rappels d'agenda, heure de l'alerte git du soir, dossiers scannés |
+
+Test : `python3 scripts/iris-watch.py --once morning`.
+
 ## Diagnostic
 
 `~/.config/quickshell/scripts/iris-doctor` (lancé aussi à la fin de l'installation) vérifie les prérequis, les fichiers, le câblage de `shell.qml`, la config, les droits du dossier de données, Hyprland et l'instance Quickshell en cours. Chaque problème s'accompagne de l'action à faire. Il ne modifie rien et n'envoie rien à Claude.

@@ -38,6 +38,16 @@ def language():
 LANG = language()
 
 
+def user_name():
+    """`user_name` from config.json, "" if unset."""
+    try:
+        with open(CONFIG_FILE) as f:
+            v = json.load(f).get("user_name", "")
+        return v.strip() if isinstance(v, str) else ""
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
 def pick(fr, en):
     """The French or English text, depending on the configured language."""
     return en if LANG == "en" else fr

@@ -80,6 +80,12 @@ check "langue : le daemon suit config.json (en)" bash -c "python3 '$T/qs/scripts
 check "langue : IRIS_LANG=fr l'emporte"  bash -c "IRIS_LANG=fr python3 '$T/qs/scripts/assistant.py' </dev/null 2>/dev/null | head -1 | grep -q '\"lang\": \"fr\"'"
 check "langue : prompt anglais chargé"   bash -c "cd '$T/qs/scripts' && python3 -c \"import assistant; assert 'You are Iris' in assistant.system_prompt(True)\""
 check "langue : prompt français chargé"  bash -c "cd '$T/qs/scripts' && IRIS_LANG=fr python3 -c \"import assistant; assert 'Tu es Iris' in assistant.system_prompt(True)\""
+mkdir -p "$T/proj" && ( cd "$T/proj" && git init -q && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m init && echo x > f.txt )
+printf '{"morning_hour": %s, "calendar_via_claude": false, "repo_roots": ["%s"], "exclude": []}' "$((10#$(date +%H)))" "$T/proj/.." > "$DATA/watch.json"
+brief1="$(python3 "$T/qs/scripts/iris-watch.py" --once morning 2>/dev/null)"
+brief2="$(python3 "$T/qs/scripts/iris-watch.py" --once morning 2>/dev/null)"
+check "résumé du matin : texte et git (en)" bash -c "echo '$brief1' | grep -q 'Good morning Testeur' && echo '$brief1' | grep -q 'uncommitted'"
+check "résumé du matin : une seule fois par jour" test -z "$brief2"
 check "shell.qml câblé (bloc balisé)"  grep -q ">>> iris (install.sh)" "$T/qs/shell.qml"
 check "import \"./overlays\" ajouté"    grep -q 'import "./overlays"' "$T/qs/shell.qml"
 check "configDir et homeDir définis"   bash -c "grep -q 'configDir' '$T/qs/shell.qml' && grep -q 'homeDir' '$T/qs/shell.qml'"

@@ -19,6 +19,9 @@ Checks:
                 Claude's Calendar connector, at most every 3 h between 7 and
                 22 h (≈12k Haiku tokens per read, a single tool loaded), and
                 reminders are then computed locally.
+  morning       every 10 min: once a day from "morning_hour" (default 8 h, null
+                to disable), a brief: today's agenda + git work left unsaved.
+                "calendar_via_claude": false keeps Claude out of the agenda.
   health        every 15 min: disk > 90 %, battery < 15 % on battery,
                 failed systemd units, > 80 pending updates (weekly)
 
@@ -40,7 +43,7 @@ import urllib.request
 from zoneinfo import ZoneInfo
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from i18n import pick   # noqa: E402
+from i18n import pick, user_name   # noqa: E402
 
 DATA_DIR = os.path.expanduser("~/.local/share/qs-assistant")
 CONFIG = os.path.join(DATA_DIR, "watch.json")
@@ -55,6 +58,8 @@ DEFAULTS = {
                 ".cache", ".local", ".exegol", "epiclang"],
     "remind_minutes": 15,
     "unpushed_hour": 19,
+    "morning_hour": 8,               # daily brief from this hour (null = off)
+    "calendar_via_claude": True,     # False: never read the agenda through Claude
 }
 
 GIT_ENV = dict(os.environ, GIT_TERMINAL_PROMPT="0", LANG="C.UTF-8",
@@ -166,13 +171,8 @@ def check_git_behind(state):
             nudge(state, f"behind:{repo}:{upstream}", "git", text)
 
 
-def check_git_unpushed(state):
-    now = dt.datetime.now()
-    if now.hour < state["unpushed_hour"]:
-        return
-    key = f"unpushed:{now.date()}"
-    if key in state["seen"]:
-        return
+def unpushed_lines(state):
+    """One line per recently-touched repo with uncommitted or unpushed work."""
     lines = []
     for repo in find_repos(state):
         # Only projects touched recently (commit or working tree).
@@ -203,6 +203,17 @@ def check_git_unpushed(state):
                              f"{ahead} commit{'s' if int(ahead) > 1 else ''} not pushed yet"))
         if bits:
             lines.append(f"- `{short(repo)}/` : " + ", ".join(bits))
+    return lines
+
+
+def check_git_unpushed(state):
+    now = dt.datetime.now()
+    if now.hour < state["unpushed_hour"]:
+        return
+    key = f"unpushed:{now.date()}"
+    if key in state["seen"]:
+        return
+    lines = unpushed_lines(state)
     state["seen"][key] = time.time()
     if lines:
         nudge(state, key + ":sent", "git",
@@ -350,6 +361,8 @@ def check_calendar(state):
     now = dt.datetime.now(dt.timezone.utc)
     lead = dt.timedelta(minutes=state["remind_minutes"])
     if not url:
+        if not state.get("calendar_via_claude", True):
+            return
         for uid, start, summary, location in calendar_events_via_claude(state):
             if now <= start <= now + lead:
                 mins = max(1, round((start - now).total_seconds() / 60))
@@ -374,6 +387,60 @@ def check_calendar(state):
         if location:
             text += f", {location}"
         nudge(state, f"cal:{uid}:{start.isoformat()}", "calendar", text + ".")
+
+
+# ── Morning brief ────────────────────────────────────────────────────────
+def todays_events(state):
+    """Today's events as [(local start, summary, location)] sorted by time, or
+    None when no calendar source is available (no iCal URL, Claude disabled)."""
+    day0 = dt.datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
+    day1 = day0 + dt.timedelta(days=1)
+    url = state.get("ics_url")
+    if url:
+        try:
+            with urllib.request.urlopen(url, timeout=20) as r:
+                ics = r.read().decode("utf-8", "replace")
+        except OSError:
+            return None
+        found = [(s, summ, loc) for _, s, summ, loc in upcoming_events(ics, day0, day1)]
+    elif state.get("calendar_via_claude", True):
+        found = [(s, summ, loc) for _, s, summ, loc in calendar_events_via_claude(state)]
+    else:
+        return None
+    local = [(s.astimezone(), summ, loc) for s, summ, loc in found]
+    return sorted((e for e in local if day0 <= e[0] < day1), key=lambda e: e[0])
+
+
+def morning_text(name, events, pending):
+    """The brief itself. `events` is None when the agenda couldn't be read."""
+    hello = pick("Bonjour", "Good morning") + (f" {name}" if name else "")
+    out = ["\uf185 " + pick(f"**{hello}** — voici ta journée :", f"**{hello}** — here is your day:")]
+    if events is not None:
+        out.append("")
+        if events:
+            out.append("**Agenda**")
+            for start, summary, location in events:
+                out.append(f"- {start.strftime('%H:%M')} {summary}" + (f" ({location})" if location else ""))
+        else:
+            out.append(pick("Rien au programme dans ton agenda.", "Nothing on your calendar today."))
+    if pending:
+        out += ["", pick("**À finir côté git**", "**To wrap up on git**")] + pending
+    return "\n".join(out)
+
+
+def check_morning(state):
+    hour = state.get("morning_hour")
+    if not isinstance(hour, int) or isinstance(hour, bool) or not 0 <= hour <= 23:
+        return                                   # disabled
+    now = dt.datetime.now()
+    # From the set hour for 5 hours: a brief at 3 pm would be silly.
+    if not hour <= now.hour < hour + 5:
+        return
+    key = f"morning:{now.date()}"
+    if key in state["seen"]:
+        return
+    nudge(state, key, "morning",
+          morning_text(user_name(), todays_events(state), unpushed_lines(state)))
 
 
 # ── PC health ────────────────────────────────────────────────────────────
@@ -433,6 +500,7 @@ CHECKS = {                      # name → (function, interval in seconds)
     "calendar":     (check_calendar, 300),
     "git_behind":   (check_git_behind, 600),
     "git_unpushed": (check_git_unpushed, 900),
+    "morning":      (check_morning, 600),
     "health":       (check_health, 900),
 }
 

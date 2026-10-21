@@ -1,8 +1,17 @@
 {
   "ics_url": "",
-  "repo_roots": ["~"],
-  "exclude": ["Downloads", "node_modules", ".cache", ".local"],
+  "repo_roots": [
+    "~"
+  ],
+  "exclude": [
+    "Downloads",
+    "node_modules",
+    ".cache",
+    ".local"
+  ],
   "remind_minutes": 15,
   "unpushed_hour": 19,
-  "calendar_refresh_hours": 3
+  "calendar_refresh_hours": 3,
+  "morning_hour": 8,
+  "calendar_via_claude": true
 }
