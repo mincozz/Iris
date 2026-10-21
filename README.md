@@ -1,49 +1,95 @@
 # Iris
 
-[![CI](https://github.com/mincozz/IRIS/actions/workflows/ci.yml/badge.svg)](https://github.com/mincozz/IRIS/actions/workflows/ci.yml)
+**Assistante personnelle pour Quickshell, propulsée par Claude Code.**
+
+[![CI](https://github.com/mincozz/Iris/actions/workflows/ci.yml/badge.svg)](https://github.com/mincozz/Iris/actions/workflows/ci.yml)
+[![Licence MIT](https://img.shields.io/github/license/mincozz/Iris)](LICENSE)
+![Plateforme](https://img.shields.io/badge/plateforme-Linux%20%C2%B7%20Wayland%20%C2%B7%20Quickshell-informational)
 
 Français · [English](README.en.md)
 
-Assistante personnelle en pixel art qui vit dans la barre d'un shell [Quickshell](https://quickshell.org) (Wayland). Elle pilote la CLI [Claude Code](https://claude.com/claude-code) de **ton** compte Claude : chaque utilisateur utilise son propre abonnement, rien ne passe par un serveur du projet.
+Iris est un panneau de chat intégré à la barre de ton shell [Quickshell](https://quickshell.org). Elle pilote la CLI [Claude Code](https://claude.com/claude-code) de **ton** compte Claude : chaque utilisateur utilise son propre abonnement, et aucune donnée ne transite par un serveur du projet.
 
 > Projet indépendant, non affilié à Anthropic. « Claude » est une marque d'Anthropic.
 
-## Ce qu'elle fait
+## Sommaire
 
-- **Chat** dans un panneau de la barre, avec accès à ton PC (fichiers, commandes en lecture seule, infos système) et, si tu as activé les connecteurs Claude, à ton agenda, tes mails, Notion et Drive.
-- **Autorisations claires** : lire est libre, tout ce qui modifie quelque chose demande un clic sur Autoriser / Refuser.
-- **Alertes spontanées**, sans quota : `git pull` à faire (avec bouton), travail non poussé, rappels d'agenda, disque, batterie, services en échec, mises à jour, plus un **résumé du matin**.
-- **Raccourcis** : `SUPER + I` envoie la sélection à Iris, `SUPER + SHIFT + I` la joint pour que tu tapes une consigne.
-- **Rangement de dossiers** annulable, **skills** (tes recettes en Markdown), **mémoire** locale, **français et anglais**.
-- **Mise à jour en un clic** (bouton ⬇) et **diagnostic** (`iris-doctor`).
+[Aperçu](#aperçu) · [Démarrage rapide](#démarrage-rapide) · [Prérequis](#prérequis) · [Installation](#installation) · [Utilisation](#utilisation) · [Alertes](#alertes-et-résumé-du-matin) · [Mise à jour](#mise-à-jour) · [Configuration](#configuration) · [Architecture](#architecture) · [Sécurité](#sécurité) · [Limites](#limites-connues) · [Développement](#développement) · [Licence](#licence)
+
+## Aperçu
+
+| | |
+|---|---|
+| **Conversation** | Chat dans la barre, avec accès à ton PC (fichiers, commandes en lecture seule, informations système) et, si tu as activé les connecteurs Claude, à ton agenda, tes mails, Notion et Drive. Réponses rapides par défaut, modèle plus puissant pour le code. |
+| **Autorisations** | Lire est libre. Tout ce qui modifie quelque chose affiche une carte **Autoriser / Refuser** avec le contenu exact qui serait écrit. |
+| **Alertes** | Sans quota Claude : `git pull` à faire (avec bouton), travail non poussé, rappels d'agenda, disque, batterie, services en échec, mises à jour d'Iris, plus un **résumé du matin**. |
+| **Raccourcis** | `SUPER + I` envoie le texte sélectionné à Iris ; `SUPER + SHIFT + I` le joint pour que tu tapes une consigne (« traduis », « explique »…). |
+| **Rangement** | Analyse un dossier, propose un plan, l'applique en une validation, et tout s'annule. |
+| **Skills** | Tes propres recettes en Markdown pour les tâches récurrentes. |
+| **Mémoire** | Ce qu'Iris sait de toi reste dans un fichier local que tu peux lire et éditer. |
+| **Langues** | Français et anglais (interface, prompt, alertes). |
+| **Maintenance** | Mise à jour en un clic (bouton ⬇) et diagnostic en lecture seule (`iris-doctor`). |
+
+## Démarrage rapide
+
+```bash
+git clone https://github.com/mincozz/Iris.git && cd Iris
+./install.sh --dry-run   # voir ce qui sera fait, sans rien modifier
+./install.sh             # installer (quelques questions)
+```
+
+Puis recharge Quickshell et teste :
+
+```bash
+qs ipc call assistant toggle
+~/.config/quickshell/scripts/iris-doctor
+```
+
+Tu peux aussi laisser un assistant de code faire l'installation : lance-le dans le dépôt et demande-lui « installe Iris » ([AGENTS.md](AGENTS.md) décrit la procédure).
 
 ## Prérequis
 
-- Linux avec un compositeur Wayland et [Quickshell](https://quickshell.org) ; Hyprland est conseillé (flou, raccourcis) mais facultatif.
-- Python 3.9+, `git`, et la CLI `claude` **connectée** à un compte Claude (lance `claude` une fois pour te connecter).
-- Facultatifs : `wl-clipboard` (raccourci), `libnotify` (notifications), `glib2`/`gio` (corbeille du rangement), un gestionnaire de fichiers (Nautilus, sinon `xdg-open`).
-- Ton shell Quickshell doit fournir un objet `theme` (voir « Contrat avec le shell hôte » dans [AGENTS.md](AGENTS.md)) ; `test/shell.qml` en donne un minimal.
+| | Requis | Rôle |
+|---|---|---|
+| Système | Linux, compositeur Wayland, [Quickshell](https://quickshell.org) | Hôte du panneau. Hyprland est conseillé (flou, raccourcis) mais facultatif. |
+| Outils | Python 3.9+, `git` | Daemon, alertes, mise à jour. |
+| Compte | CLI `claude` **connectée** | Lance `claude` une fois pour te connecter. |
+| Facultatifs | `wl-clipboard`, `libnotify`, `glib2` (`gio`), Nautilus (sinon `xdg-open`) | Raccourcis, notifications, corbeille du rangement, ouverture des fichiers. |
+| Thème | Un objet `theme` dans ton `shell.qml` | Champs attendus : `bg, fg, ff, fs, primary, secondary, tertiary, lavender, light, outline, txt2, error, warn`. [`test/shell.qml`](test/shell.qml) en fournit un minimal. |
 
 ## Installation
 
 ```bash
-git clone git@github.com:mincozz/IRIS.git && cd IRIS
-./install.sh --dry-run   # voir ce qui sera fait
-./install.sh             # installer
+./install.sh [options]
 ```
 
-Options : `--prefix DIR` (autre dossier Quickshell), `--no-hypr`, `-y` (sans question), `--uninstall`.
+| Option | Effet |
+|---|---|
+| `--dry-run` | Montre les actions sans rien écrire |
+| `--prefix DIR` | Autre dossier Quickshell (défaut : `~/.config/quickshell`) |
+| `-y` | Sans question : garde les défauts et les options données |
+| `--language fr\|en\|auto` | Langue d'Iris (par défaut d'après `$LANG`) |
+| `--name NOM` | Comment Iris t'appelle |
+| `--deny-read "~/.ssh,~/.gnupg"` | Dossiers que `Read` et les commandes de lecture ne peuvent pas ouvrir |
+| `--fast-model ID` / `--power-model ID` | Modèles utilisés |
+| `--ask-key` / `--ask-edit-key` | Touches des deux raccourcis (défaut `SUPER + I` / `SUPER + SHIFT + I`) |
+| `--no-hypr` | Ne touche pas à la configuration Hyprland |
+| `--reconfigure` | Refait `config.json` (sinon il est conservé) |
+| `--uninstall` | Retire Iris (tes données restent dans `~/.local/share/qs-assistant/`) |
 
-Dans un terminal, l'installateur pose quatre questions : la langue (français ou anglais, d'après `$LANG` par défaut), ton prénom, l'interdiction de lire `~/.ssh` et `~/.gnupg` (oui par défaut) et le choix des modèles. Pour scripter ou déléguer à une IA : `--language fr|en|auto`, `--name NOM`, `--deny-read "~/.ssh,~/.gnupg"`, `--fast-model ID`, `--power-model ID`. Un `config.json` existant est conservé, `--reconfigure` le refait.
+Dans un terminal, l'installateur pose quatre questions : la langue, ton prénom, l'interdiction de lire `~/.ssh` et `~/.gnupg` (oui par défaut) et le choix des modèles.
 
-L'installateur vérifie les prérequis (Quickshell, Python 3, CLI `claude` connectée, git, `gio`), copie les fichiers, crée `~/.local/share/qs-assistant/` (mémoire et `watch.json` vierges, jamais écrasés), câble `shell.qml` (bloc balisé, sauvegarde `.iris-bak`) et ajoute la règle de flou dans `hyprland.lua`. Il est relançable sans risque.
+**Ce qu'il fait** : vérifie les prérequis, copie les fichiers (une sauvegarde `.iris-bak` est créée pour tout fichier remplacé), crée `~/.local/share/qs-assistant/` (mémoire, `config.json`, `watch.json`, recettes d'exemple, jamais écrasés), câble `shell.qml` dans un bloc balisé, ajoute la règle de flou et les deux raccourcis à `hyprland.lua`, puis lance le diagnostic. Il est relançable sans risque.
 
-Restent à faire à la main, car ils dépendent de ton shell : le bouton dans la barre (`integration/Bar.qml.snippet`) et le clic sur une alerte (`integration/NotificationToast.qml.snippet`). L'overlay attend un objet `theme` avec `bg, fg, ff, fs, primary, secondary, tertiary, lavender, light, outline, txt2, error, warn`.
-Contrôle : `qs ipc call assistant toggle|open|close|ask "…"`.
+**Restent à faire à la main**, car ils dépendent de ton shell (facultatifs) : le bouton d'avatar dans la barre ([`integration/Bar.qml.snippet`](integration/Bar.qml.snippet)) et le clic sur une alerte qui ouvre le panneau ([`integration/NotificationToast.qml.snippet`](integration/NotificationToast.qml.snippet)).
 
-## Skills (recettes perso)
+## Utilisation
 
-Des recettes en Markdown, une par tâche récurrente, dans `~/.local/share/qs-assistant/skills/nom.md` :
+**Panneau.** `qs ipc call assistant toggle|open|close` l'ouvre et le ferme ; `qs ipc call assistant ask "…"` envoie un message. En-tête : historique, nouvelle conversation et bouton de mise à jour. Le sélecteur Auto / Rapide / Puissant choisit le modèle.
+
+**Raccourcis.** `scripts/iris-ask` envoie la sélection (à défaut le presse-papiers) ; avec `--edit`, il la **joint** au panneau (pastille « Texte joint », retirable) et tu tapes ta consigne avant d'envoyer. `IRIS_ASK_DRY=1` montre ce qui partirait, sans rien envoyer. Le texte part tel quel à Claude : ne l'utilise pas sur un mot de passe.
+
+**Skills.** Une recette est un fichier `~/.local/share/qs-assistant/skills/nom.md` :
 
 ```markdown
 ---
@@ -53,104 +99,125 @@ description: Prépare mon rapport hebdo (« rapport de la semaine »)
 2. Réponds par 2 à 4 puces par projet, puis une phrase de synthèse.
 ```
 
-Iris reçoit la liste (nom, description) et lit la recette quand ta demande y correspond, ou quand tu écris `/nom`. La ligne `description:` sert à décider quand l'utiliser (sinon, la première ligne du fichier). Noms de fichier simples (lettres, chiffres, `-`, `_`, `.`), 30 recettes maximum. Les recettes d'exemple (rapport hebdo, rangement des téléchargements) sont copiées à l'installation, dans ta langue, sans jamais écraser les tiennes. La liste est lue au démarrage d'une conversation : lance « nouvelle conversation » après avoir ajouté une recette. Les recettes sont tes instructions : elles s'exécutent avec les mêmes autorisations que le reste (les actions qui modifient demandent ton clic).
+Iris reçoit la liste (nom et description) et lit la recette quand ta demande y correspond, ou quand tu écris `/nom`. Noms de fichier simples (lettres, chiffres, `-`, `_`, `.`), 30 recettes au plus. Des exemples dans ta langue sont copiés à l'installation, sans jamais écraser les tiens. La liste est lue au début d'une conversation : ouvre une nouvelle conversation après avoir ajouté une recette. Une recette n'a aucun droit supplémentaire : les actions qui modifient demandent toujours ton clic.
+
+**Rangement.** Demande à Iris de ranger un dossier : elle l'analyse (`organize.py scan`), propose un plan, l'applique en une seule validation, et `organize.py undo` annule le dernier rangement. Rien n'est écrasé, la corbeille passe par `gio trash`.
+
+## Alertes et résumé du matin
+
+`iris-watch.py` tourne avec le panneau et écrit à Iris sans consommer de quota Claude (seule la lecture de l'agenda via les connecteurs en utilise). Réglages dans `~/.local/share/qs-assistant/watch.json` (modèle : [`integration/watch.example.json`](integration/watch.example.json)).
+
+| Alerte | Quand |
+|---|---|
+| Dépôt en retard | `git fetch` régulier ; bouton **Faire le git pull** (`--ff-only`, limité à ton dossier personnel) |
+| Travail non sauvegardé | Le soir, à partir de `unpushed_hour` |
+| Agenda | `remind_minutes` avant chaque événement |
+| Santé du PC | Disque presque plein, batterie faible, services en échec, mises à jour en attente |
+| Mise à jour d'Iris | Toutes les 6 h ; bouton **Mettre à jour** |
+| Résumé du matin | Une fois par jour à partir de `morning_hour` : agenda du jour et travail git resté en plan |
+
+| Clé | Rôle |
+|---|---|
+| `morning_hour` | Heure du résumé (défaut 8), `null` pour le couper |
+| `calendar_via_claude` | `false` : Claude ne lit jamais ton agenda (seul `ics_url` sert) |
+| `ics_url` | Adresse iCal secrète de ton agenda (aucun quota) |
+| `timezone` | Fuseau IANA, par exemple `America/New_York` ; vide = celui de la machine |
+| `check_updates` | `false` pour couper les alertes de mise à jour |
+| `remind_minutes`, `unpushed_hour`, `repo_roots`, `exclude` | Rappels d'agenda, heure de l'alerte git du soir, dossiers scannés |
+
+Test : `python3 scripts/iris-watch.py --once morning`.
 
 ## Mise à jour
 
 ```bash
-~/.config/quickshell/scripts/iris-update          # ou dis « mets-toi à jour » à Iris
+~/.config/quickshell/scripts/iris-update          # ou le bouton ⬇ du panneau, ou « mets-toi à jour »
 ~/.config/quickshell/scripts/iris-update --check  # voir s'il y a du nouveau, sans rien changer
 ```
 
-L'installateur retient où est ton clone et quelle version il a installée. `iris-update` détecte deux cas : le remote a avancé (il fait `git pull --ff-only` dans le clone) ou le clone est plus récent que l'installation (tiré à la main, ou poussé depuis ce clone) ; dans les deux cas il relance l'installation avec ta config actuelle (conservée). Un clone modifié ne bloque que le `git pull`. Iris le vérifie aussi toute seule toutes les 6 h et te prévient quand une version est sortie, avec un bouton **Mettre à jour** sous l'alerte. Un bouton ⬇ reste en permanence dans l'en-tête du panneau, cliquable à tout moment, avec une pastille quand une version est disponible (`"check_updates": false` dans `watch.json` pour couper les alertes). Les boutons lancent `iris-update` sans passer par Claude (aucun quota) ; le panneau peut se recharger à la fin, un message confirme le résultat. Le clone doit rester en place et sans modification locale. Les fichiers installés sont remplacés : pour personnaliser, passe par `config.json` (ou `prompt_file`).
+L'installateur retient où est ton clone et quelle version il a installée. `iris-update` couvre deux cas : le remote a avancé (il fait `git pull --ff-only` dans le clone) ou le clone est plus récent que l'installation (tiré à la main, ou poussé depuis ce clone). Dans les deux cas il relance l'installation avec ta config, conservée. Un clone modifié ne bloque que le `git pull`. Garde le clone en place ; les fichiers installés sont remplacés, donc personnalise via `config.json` ou `prompt_file`.
 
-## Alertes et résumé du matin
-
-`iris-watch.py` tourne avec le panneau et écrit à Iris, sans quota Claude sauf la lecture de l'agenda : `git pull` à faire, travail non poussé le soir, rappels d'agenda, disque, batterie, services en échec, mises à jour. Chaque matin à partir de `morning_hour` (8 h par défaut, 5 h de fenêtre), il envoie un **résumé** : l'agenda du jour et le travail git resté en plan. Réglages dans `~/.local/share/qs-assistant/watch.json` (modèle `integration/watch.example.json`) :
-
-| Clé | Rôle |
-|---|---|
-| `morning_hour` | Heure du résumé, `null` pour le couper |
-| `calendar_via_claude` | `false` : Claude ne lit jamais ton agenda (seul `ics_url` sert) |
-| `ics_url` | Adresse iCal secrète de ton agenda (aucun quota) |
-| `timezone` | Fuseau IANA (ex. `America/New_York`) ; vide = celui de la machine |
-| `remind_minutes`, `unpushed_hour`, `repo_roots`, `exclude` | Rappels d'agenda, heure de l'alerte git du soir, dossiers scannés |
-
-Certaines alertes ont un **bouton** : « Mettre à jour » sur une nouvelle version d'Iris, « Faire le git pull » sur un dépôt en retard (`git pull --ff-only`, limité aux dépôts de ton dossier personnel). Ton clic vaut accord, sans passer par Claude ; le résultat s'affiche dans le panneau. Seule la dernière alerte de chaque action garde son bouton.
-
-Test : `python3 scripts/iris-watch.py --once morning`.
-
-## Diagnostic
-
-`~/.config/quickshell/scripts/iris-doctor` (lancé aussi à la fin de l'installation) vérifie les prérequis, les fichiers, le câblage de `shell.qml`, la config, les droits du dossier de données, Hyprland et l'instance Quickshell en cours. Chaque problème s'accompagne de l'action à faire. Il ne modifie rien et n'envoie rien à Claude.
-
-## Raccourci « demande à Iris »
-
-`scripts/iris-ask` envoie à Iris le texte sélectionné (sinon le presse-papiers) et ouvre son panneau. L'installateur ajoute `SUPER + I` (et `SUPER + SHIFT + I`, voir plus bas) à `hyprland.lua` (changeable avec `--ask-key "SUPER + SHIFT + I"`, ignoré si le raccourci est déjà pris). Pour un `hyprland.conf` : `bind = SUPER, I, exec, ~/.config/quickshell/scripts/iris-ask`. Nécessite `wl-clipboard`. `IRIS_ASK_DRY=1 iris-ask` montre ce qui serait envoyé, sans rien envoyer.
-
-Variante `iris-ask --edit` (`SUPER + SHIFT + I`, option `--ask-edit-key`) : le texte est **joint** au panneau sans être envoyé (pastille « Texte joint · N car. », retirable d'un clic), tu tapes ta consigne (« traduis », « explique »…) puis Entrée. Elle demande la fonction IPC `prefill` dans `shell.qml` ; l'installateur l'ajoute aux anciens câblages.
-
-Le texte sélectionné part tel quel à Claude : évite de le déclencher sur un mot de passe.
+Le bouton ne passe pas par Claude (aucun quota) ; le panneau peut se recharger à la fin, et un message confirme le résultat.
 
 ## Configuration
 
-`~/.local/share/qs-assistant/config.json` (créé par l'installateur, modèle : `integration/config.example.json`). Toutes les clés sont facultatives ; une valeur invalide est ignorée (message sur stderr) et le défaut reste.
+`~/.local/share/qs-assistant/config.json` : toutes les clés sont facultatives ; une valeur invalide est ignorée avec un message sur stderr.
 
 | Clé | Rôle |
 |---|---|
-| `language` | `fr` (défaut), `en` ou `auto` (suit `$LANG`). Change le prompt, le panneau, les alertes et les messages du rangement. `IRIS_LANG=en` l'emporte sur le fichier |
+| `language` | `fr` (défaut), `en` ou `auto` (suit `$LANG`). `IRIS_LANG=en` l'emporte sur le fichier |
 | `user_name` | Comment Iris t'appelle |
-| `models` | `fast` et `power` : les modèles utilisés (défaut Haiku / Sonnet) |
+| `models` | `fast` et `power` : modèles utilisés (défaut Haiku / Sonnet) |
 | `session_idle_minutes` | Inactivité avant une nouvelle conversation (défaut 30) |
 | `prompt_file` | Chemin d'un prompt à toi, à la place de `assistant-prompt.md` |
-| `deny_read_paths` | Dossiers que `Read`/`Grep`/`Glob` et `cat`/`head`/`tail`/`less`/`grep` ne peuvent pas lire, ex. `["~/.ssh"]`. Meilleur effort, ce n'est pas un bac à sable |
-| `extra_readonly_commands` | Commandes exécutées sans demander. À toi d'être sûr qu'elles n'ont aucun effet de bord |
+| `deny_read_paths` | Dossiers que `Read`/`Grep`/`Glob` et `cat`/`head`/`tail`/`less`/`grep` ne peuvent pas lire, ex. `["~/.ssh"]`. Au mieux, ce n'est pas un bac à sable |
+| `extra_readonly_commands` | Commandes lancées sans demander : à toi de t'assurer qu'elles n'ont aucun effet de bord |
 | `extra_denied_commands` | Commandes refusées même avec un clic |
 
-Redémarre Iris (ou Quickshell) après une modification.
+**Mémoire.** Iris lit `~/.local/share/qs-assistant/memory.md` et le met à jour quand tu lui demandes de retenir quelque chose, avec une demande d'autorisation. Un modèle vide est fourni dans [`integration/memory.example.md`](integration/memory.example.md). Historique, mémoire et agenda restent dans `~/.local/share/qs-assistant/` et ne sont jamais versionnés.
 
-## Installation assistée par IA
+**Prompts.** [`assistant-prompt.md`](scripts/assistant-prompt.md) (français) et [`assistant-prompt.en.md`](scripts/assistant-prompt.en.md) sont à adapter à ton goût, ou remplace-les via `prompt_file`.
 
-`AGENTS.md` (lu aussi via `CLAUDE.md` par Claude Code) décrit la procédure, le contrat avec le shell hôte et les règles de sécurité : lance ton assistant de code dans le repo et demande-lui « installe Iris ».
+## Architecture
 
-## Personnalisation
+```mermaid
+flowchart LR
+    subgraph QS["Quickshell"]
+        O["Overlay QML<br/>panneau + avatar"]
+    end
+    D["assistant.py<br/>daemon"]
+    C["claude -p<br/>ton compte Claude"]
+    W["iris-watch.py<br/>alertes locales"]
+    S[("~/.local/share/<br/>qs-assistant")]
+    O <-->|"JSON, une ligne par message"| D
+    D <-->|"stream-json"| C
+    W -->|"alertes"| O
+    D --- S
+    W --- S
+```
 
-Les prompts `assistant-prompt.md` (français, tutoiement) et `assistant-prompt.en.md` sont à adapter à ton goût (ou `prompt_file` pour le tien). `iris-doctor` et l'installateur restent en français.
-
-Mémoire : Iris lit `~/.local/share/qs-assistant/memory.md` et le met à jour quand tu lui demandes de retenir quelque chose. Un modèle vide est fourni dans `integration/memory.example.md`.
-L'état (historique, mémoire, agenda) reste dans `~/.local/share/qs-assistant/` et n'est pas versionné.
-
-## Sécurité en bref
-
-Iris lance `claude` avec tes droits. Lire des fichiers et lancer des commandes en lecture seule se fait sans demander ; tout le reste passe par Autoriser / Refuser, avec le contenu qui serait écrit. `sudo`, `su`, `dd`, `mkfs` et leurs proches sont refusés. Le contenu des mails, pages et fichiers est traité comme des données, pas des ordres. `deny_read_paths` ajoute un garde-fou sur certains dossiers, sans être un bac à sable. Historique, mémoire et agenda restent dans `~/.local/share/qs-assistant/` (droits 700). Détails et signalement d'une faille : [SECURITY.md](SECURITY.md).
-
-## Limites connues
-
-- Conçu et testé sur Arch Linux + Hyprland + Quickshell ; ailleurs, l'installateur et `iris-doctor` te disent ce qui manque, mais le bouton de barre, le flou et les raccourcis sont à adapter.
-- Chaque message consomme le quota de ton abonnement Claude ; le modèle rapide est utilisé par défaut, le puissant pour le code.
-- Agenda, mails, Notion et Drive passent par les connecteurs de ton compte Claude ; sans eux, Iris ne les voit pas (l'agenda peut aussi venir d'une adresse iCal, `ics_url`).
-- Comme pour tout assistant qui lit du contenu externe, une injection de prompt reste possible : garde un œil sur les cartes d'autorisation.
-
-## Licence
-
-[MIT](LICENSE). Les contributions sont acceptées sous la même licence.
-
-## Contribuer
-
-Voir [CONTRIBUTING.md](CONTRIBUTING.md). Lance `test/test-e2e.sh --no-gui` avant une pull request.
-
-## Contenu du dépôt
+L'overlay lance le daemon et le moniteur d'alertes comme processus fils. Le daemon garde un `claude -p` ouvert en flux, choisit le modèle, transmet les demandes d'autorisation au panneau et n'exécute que ce que tu valides.
 
 | Chemin | Rôle |
 |---|---|
 | `overlays/AssistantOverlay.qml` | Panneau de chat « liquid glass » |
-| `overlays/AssistantAvatar.qml` | Avatar animé (humeur : idle / thinking / talking), aussi utilisé dans la barre |
-| `scripts/assistant.py` | Daemon : pont overlay ↔ `claude -p`, choix Haiku/Sonnet, permissions (Autoriser/Refuser), historique |
-| `scripts/assistant-prompt.md`, `assistant-prompt.en.md` | Prompt système d'Iris (français, anglais) |
+| `overlays/AssistantAvatar.qml` | Avatar animé (humeur : idle, thinking, talking) |
+| `scripts/assistant.py` | Daemon : pont overlay ↔ `claude -p`, permissions, historique, actions des boutons |
+| `scripts/assistant-prompt.md`, `.en.md` | Prompt système (français, anglais) |
+| `scripts/iris-watch.py` | Alertes locales et résumé du matin |
+| `scripts/organize.py` | Rangement de dossiers : `scan`, `apply`, `undo` |
+| `scripts/iris-ask` | Raccourci : envoie ou joint la sélection |
+| `scripts/iris-update`, `scripts/iris-doctor` | Mise à jour et diagnostic |
 | `scripts/i18n.py` | Choix de la langue partagé par les scripts |
-| `scripts/iris-watch.py` | Alertes locales sans quota : `git pull` à faire, commits non poussés, agenda, disque/batterie/units en échec |
-| `scripts/organize.py` | `scan` / `apply` / `undo` pour ranger des dossiers |
-| `scripts/iris-ask` | Raccourci : envoie la sélection (ou le presse-papiers) à Iris |
-| `scripts/iris-doctor` | Diagnostic : vérifie l'installation et dit quoi réparer |
-| `scripts/iris-update` | Mise à jour en une commande (`git pull` + réinstallation) |
-| `integration/` | Extraits à greffer dans `shell.qml`, `Bar.qml`, `NotificationToast.qml`, règle de blur Hyprland, `watch.json` d'exemple |
+| `integration/` | Extraits à greffer, exemples de configuration et de recettes |
+| `test/` | Shell minimal, test de bout en bout, tests du daemon |
+
+## Sécurité
+
+Iris lance `claude` avec tes droits.
+
+- Lire des fichiers et lancer des commandes en lecture seule se fait sans demander ; **tout le reste** passe par Autoriser / Refuser, avec le contenu qui serait écrit.
+- `sudo`, `su`, `doas`, `dd`, `mkfs` et `wipefs` sont refusés.
+- Le contenu des mails, pages web et fichiers est traité comme des **données**, pas des ordres.
+- Les boutons d'alerte n'exécutent que des actions connues (`update`, `git_pull`), arguments vérifiés côté daemon.
+- Les données restent dans un dossier en droits 700 ; la CI scanne les secrets (Gitleaks).
+
+Aucun assistant qui lit du contenu externe n'est à l'abri d'une injection de prompt : garde un œil sur les cartes d'autorisation. Modèle complet et signalement d'une faille : [SECURITY.md](SECURITY.md).
+
+## Limites connues
+
+- Conçu et testé sur Arch Linux + Hyprland + Quickshell ; ailleurs, l'installateur et `iris-doctor` indiquent ce qui manque, mais le bouton de barre, le flou et les raccourcis sont à adapter.
+- Chaque message consomme le quota de ton abonnement Claude.
+- Agenda, mails, Notion et Drive passent par les connecteurs de ton compte Claude ; sans eux, Iris ne les voit pas (l'agenda peut aussi venir d'une adresse iCal).
+- Le panneau n'envoie que du texte (pas d'images ni de voix pour l'instant).
+
+## Développement
+
+```bash
+test/test-e2e.sh --no-gui    # installe dans /tmp, vérifie, désinstalle ; ne touche pas à ta config
+```
+
+Ce test ne touche ni ton shell, ni tes données, ni ton compte Claude (`--with-claude` l'autorise explicitement pour un message minuscule). La CI lance ShellCheck, la compilation Python, ce test et Gitleaks. Les conventions (textes via `pick()` / `overlay.tr()`, aucune donnée personnelle, un test par changement) et la procédure de pull request sont dans [CONTRIBUTING.md](CONTRIBUTING.md) ; l'historique des changements dans [CHANGELOG.md](CHANGELOG.md).
+
+## Licence
+
+[MIT](LICENSE). Les contributions sont acceptées sous la même licence.
