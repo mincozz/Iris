@@ -41,7 +41,7 @@ while [ $# -gt 0 ]; do
     --reconfigure) RECONF=1 ;;
     --ask-key)     ASK_KEY="$2"; shift ;;
     --ask-edit-key) ASK_EDIT_KEY="$2"; shift ;;
-    -h|--help)   sed -n '2,5p' "$0"; exit 0 ;;
+    -h|--help)   sed -n '2,/^set -euo/p' "$0" | sed '$d'; exit 0 ;;
     *) echo "option inconnue : $1" >&2; exit 2 ;;
   esac; shift
 done

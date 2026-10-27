@@ -37,3 +37,9 @@ Vérification commune : `python3 -I -m py_compile <fichiers touchés>` et `test/
   - Vérif : `test-e2e.sh` ; manuel : capture → Ctrl+V → question → Iris décrit l'image.
   - Dépend de : T6. Fichiers : `overlays/AssistantOverlay.qml`, `scripts/assistant.py` (`ui_strings`), prompts FR/EN, `README.md`, `docs/CHANGELOG.md`.
 - [x] **Checkpoint 3** : CI verte, aucun fichier > 7 jours après collage, `ponytail-review`, commit, puis `scripts/iris-update` sur votre PC.
+
+## Lot 2 : agents, installeur, finitions (specs/SPEC-agent-switch.md, specs/SPEC-installer-agents.md)
+- [x] Changer d'agent : commande `agent`, fichier d'état, pastille dans l'en-tête, `test-agent-switch.py`
+- [x] Installeur : `--ollama-model`, `--add-agent`, `--no-pull`, fusion dans `config.json`, `iris-doctor`, tests e2e
+- [x] Finitions : sortie de l'installateur, panneau (pastille, historique groupé, points d'attente)
+- [x] Docs : README FR/EN, AGENTS.md, CONTRIBUTING, SECURITY, modèle de PR, CHANGELOG

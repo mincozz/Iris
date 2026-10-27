@@ -8,7 +8,7 @@
 
 Français · [English](docs/README.en.md)
 
-Iris est un panneau de chat intégré à la barre de votre shell [Quickshell](https://quickshell.org). Elle pilote la CLI [Claude Code](https://claude.com/claude-code) de **votre** compte Claude : chaque utilisateur utilise son propre abonnement, et aucune donnée ne transite par un serveur du projet.
+Iris est un panneau de chat intégré à la barre de votre shell [Quickshell](https://quickshell.org). Elle pilote par défaut la CLI [Claude Code](https://claude.com/claude-code) de **votre** compte Claude (chaque utilisateur utilise son propre abonnement), ou une autre CLI de votre choix comme Ollama. Aucune donnée ne transite par un serveur du projet.
 
 > Projet indépendant, non affilié à Anthropic. « Claude » est une marque d'Anthropic.
 
@@ -25,6 +25,10 @@ Iris est un panneau de chat intégré à la barre de votre shell [Quickshell](ht
 | | |
 |---|---|
 | **Conversation** | Chat dans la barre, avec accès à votre PC (fichiers, commandes en lecture seule, informations système) et, si vous avez activé les connecteurs Claude, à votre agenda, vos mails, Notion et Drive. Réponses rapides par défaut, modèle plus puissant pour le code. |
+| **Agents** | Claude par défaut ; vous pouvez ajouter Ollama, Gemini ou toute CLI et en changer d'un clic depuis le panneau. L'installeur télécharge vos modèles Ollama. |
+| **Recherche** | Retrouvez une ancienne conversation en tapant quelques lettres (accents et casse ignorés). |
+| **Rappels** | « Rappelle-moi dans 20 min… » : alerte à l'heure, même si le PC était éteint à ce moment-là. |
+| **Images** | Collez une capture avec Ctrl+V : Iris la lit. |
 | **Autorisations** | Lire est libre. Tout ce qui modifie quelque chose affiche une carte **Autoriser / Refuser** avec le contenu exact qui serait écrit. |
 | **Alertes** | Sans quota Claude : `git pull` à faire (avec bouton), travail non poussé, rappels d'agenda, disque, batterie, services en échec, mises à jour d'Iris, plus un **résumé du matin**. |
 | **Raccourcis** | `SUPER + I` envoie le texte sélectionné à Iris ; `SUPER + SHIFT + I` le joint pour que vous tapiez une consigne (« traduis », « explique »…). |
@@ -75,21 +79,24 @@ Vous pouvez aussi laisser un assistant de code faire l'installation : lancez-le 
 | `--language fr\|en\|auto` | Langue d'Iris (par défaut d'après `$LANG`) |
 | `--name NOM` | Comment Iris vous appelle |
 | `--deny-read "~/.ssh,~/.gnupg"` | Dossiers que `Read` et les commandes de lecture ne peuvent pas ouvrir |
-| `--fast-model ID` / `--power-model ID` | Modèles utilisés |
+| `--fast-model ID` / `--power-model ID` | Modèles Claude utilisés |
+| `--ollama-model ID` | Déclare l'agent `ollama` avec ce modèle et télécharge ce qui manque (`ollama pull`). Répétable : le 1er est le modèle rapide, le 2e le puissant |
+| `--add-agent "nom=commande"` | Déclare une autre CLI (ex. `"gemini=gemini -p {prompt}"`) ; la commande n'est pas exécutée par l'installeur. Répétable |
+| `--no-pull` | Déclare les modèles Ollama sans les télécharger |
 | `--ask-key` / `--ask-edit-key` | Touches des deux raccourcis (défaut `SUPER + I` / `SUPER + SHIFT + I`) |
 | `--no-hypr` | Ne touche pas à la configuration Hyprland |
 | `--reconfigure` | Refait `config.json` (sinon il est conservé) |
 | `--uninstall` | Retire Iris (vos données restent dans `~/.local/share/qs-assistant/`) |
 
-Dans un terminal, l'installateur pose quatre questions : la langue, votre prénom, l'interdiction de lire `~/.ssh` et `~/.gnupg` (oui par défaut) et le choix des modèles.
+Dans un terminal, l'installateur pose quelques questions : la langue, votre prénom, l'interdiction de lire `~/.ssh` et `~/.gnupg` (oui par défaut), le choix des modèles Claude, puis s'il faut ajouter un agent local (Ollama) et un autre agent (Gemini, Codex…). Avec `-y` ou hors terminal, il garde les défauts et **ne télécharge rien**, sauf si `--ollama-model` est donné explicitement. Les options d'agents fonctionnent aussi sur un `config.json` existant (seules les clés `agents` sont fusionnées, un agent déjà déclaré est conservé). La sortie est en couleur dans un terminal, sans couleur avec `NO_COLOR=1` ou hors terminal.
 
-**Ce qu'il fait** : vérifie les prérequis, copie les fichiers (une sauvegarde `.iris-bak` est créée pour tout fichier remplacé), crée `~/.local/share/qs-assistant/` (mémoire, `config.json`, `watch.json`, recettes d'exemple, jamais écrasés), câble `shell.qml` dans un bloc balisé, ajoute la règle de flou et les deux raccourcis à `hyprland.lua`, puis lance le diagnostic. Il est relançable sans risque.
+**Ce qu'il fait** : vérifie les prérequis, copie les fichiers (une sauvegarde `.iris-bak` est créée pour tout fichier remplacé), crée `~/.local/share/qs-assistant/` (mémoire, `config.json`, `watch.json`, recettes d'exemple, jamais écrasés), déclare vos agents et télécharge vos modèles Ollama si vous l'avez demandé, câble `shell.qml` dans un bloc balisé, ajoute la règle de flou et les deux raccourcis à `hyprland.lua`, puis lance le diagnostic. Il est relançable sans risque.
 
 **Restent à faire à la main**, car ils dépendent de votre shell (facultatifs) : le bouton d'avatar dans la barre ([`integration/Bar.qml.snippet`](integration/Bar.qml.snippet)) et le clic sur une alerte qui ouvre le panneau ([`integration/NotificationToast.qml.snippet`](integration/NotificationToast.qml.snippet)).
 
 ## Utilisation
 
-**Panneau.** `qs ipc call assistant toggle|open|close` l'ouvre et le ferme ; `qs ipc call assistant ask "…"` envoie un message. En-tête : historique (avec un champ de recherche qui filtre à chaque lettre, sans tenir compte des accents ni de la casse), nouvelle conversation et bouton de mise à jour. Le sélecteur Auto / Rapide / Puissant choisit le modèle.
+**Panneau.** `qs ipc call assistant toggle|open|close` l'ouvre et le ferme ; `qs ipc call assistant ask "…"` envoie un message. En-tête : une pastille d'agent (visible dès que vous en avez déclaré un second), l'historique (groupé par jour, avec un champ de recherche qui filtre à chaque lettre, sans tenir compte des accents ni de la casse), nouvelle conversation et bouton de mise à jour. Le sélecteur Auto / Rapide / Puissant choisit le modèle. Trois points animés indiquent qu'Iris n'a pas encore commencé à répondre.
 
 **Raccourcis.** `scripts/iris-ask` envoie la sélection (à défaut le presse-papiers) ; avec `--edit`, il la **joint** au panneau (pastille « Texte joint », retirable) et vous tapez votre consigne avant d'envoyer. `IRIS_ASK_DRY=1` montre ce qui partirait, sans rien envoyer. Le texte part tel quel à Claude : ne l'utilisez pas sur un mot de passe.
 
@@ -164,7 +171,7 @@ Le bouton ne passe pas par Claude (aucun quota) ; le panneau peut se recharger �
 | `agent` | `claude` (défaut) ou le nom d'une entrée de `agents` |
 | `agents` | Vos propres agents, voir ci-dessous |
 
-**Autre agent que Claude.** Déclarez n'importe quelle CLI qui répond sur stdout :
+**Autre agent que Claude.** Le plus simple : `./install.sh --ollama-model llama3.2 --ollama-model qwen2.5-coder` (déclare l'agent et télécharge les modèles) ou `./install.sh --add-agent "gemini=gemini -p {prompt}"`. À la main, déclarez n'importe quelle CLI qui répond sur stdout :
 
 ```json
 {
@@ -214,10 +221,12 @@ L'overlay lance le daemon et le moniteur d'alertes comme processus fils. Le daem
 | `scripts/iris-watch.py` | Alertes locales et résumé du matin |
 | `scripts/organize.py` | Rangement de dossiers : `scan`, `apply`, `undo` |
 | `scripts/iris-ask` | Raccourci : envoie ou joint la sélection |
+| `scripts/iris-remind` | Rappels uniques : `add`, `cancel`, `due` (`iris-watch` appelle `due`) |
 | `scripts/iris-update`, `scripts/iris-doctor` | Mise à jour et diagnostic |
 | `scripts/i18n.py` | Choix de la langue partagé par les scripts |
 | `integration/` | Extraits à greffer, exemples de configuration et de recettes |
-| `test/` | Shell minimal, test de bout en bout, tests du daemon |
+| `test/` | Shell minimal, test de bout en bout, tests du daemon, des rappels, des images, de la recherche et des agents |
+| `specs/`, `tasks/` | Spécifications et plan des fonctionnalités (méthode : spec, plan, tâches, code) |
 | `docs/` | Version anglaise du README et journal des changements |
 
 ## Sécurité
@@ -228,6 +237,9 @@ Iris lance `claude` avec vos droits.
 - `sudo`, `su`, `doas`, `dd`, `mkfs` et `wipefs` sont refusés.
 - Le contenu des mails, pages web et fichiers est traité comme des **données**, pas des ordres.
 - Les boutons d'alerte n'exécutent que des actions connues (`update`, `git_pull`), arguments vérifiés côté daemon.
+- Les images collées sont vérifiées (signature PNG, 10 Mo), copiées en droits 600 dans `attachments/` et supprimées après 7 jours ; leur contenu est une donnée, pas un ordre.
+- Les rappels passent par une carte Autoriser / Refuser (`iris-remind add`) ; leur texte est neutralisé à l'affichage et jamais exécuté.
+- Le changement d'agent n'accepte que `claude` et les noms déclarés dans `config.json` ; l'installateur ne lance jamais la commande d'un agent.
 - Les données restent dans un dossier en droits 700 ; la CI scanne les secrets (Gitleaks).
 
 Aucun assistant qui lit du contenu externe n'est à l'abri d'une injection de prompt : gardez un œil sur les cartes d'autorisation. Modèle complet et signalement d'une faille : [SECURITY.md](.github/SECURITY.md).
@@ -245,7 +257,7 @@ Aucun assistant qui lit du contenu externe n'est à l'abri d'une injection de pr
 test/test-e2e.sh --no-gui    # installe dans /tmp, vérifie, désinstalle ; ne touche pas à votre config
 ```
 
-Ce test ne touche ni votre shell, ni vos données, ni votre compte Claude (`--with-claude` l'autorise explicitement pour un message minuscule). La CI lance ShellCheck, la compilation Python, ce test et Gitleaks. Les conventions (textes via `pick()` / `overlay.tr()`, aucune donnée personnelle, un test par changement) et la procédure de pull request sont dans [CONTRIBUTING.md](.github/CONTRIBUTING.md) ; l'historique des changements dans [CHANGELOG.md](docs/CHANGELOG.md).
+Ce test ne touche ni votre shell, ni vos données, ni votre compte Claude (`--with-claude` l'autorise explicitement pour un message minuscule). La CI lance ShellCheck, la compilation Python, les tests du daemon (`test-agent`, `test-agent-switch`, `test-security`, `test-search`, `test-remind`, `test-image`, chacun sans compte Claude), ce test et Gitleaks. Les conventions (textes via `pick()` / `overlay.tr()`, aucune donnée personnelle, un test par changement) et la procédure de pull request sont dans [CONTRIBUTING.md](.github/CONTRIBUTING.md) ; l'historique des changements dans [CHANGELOG.md](docs/CHANGELOG.md).
 
 ## Licence
 
