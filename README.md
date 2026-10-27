@@ -153,9 +153,26 @@ Le bouton ne passe pas par Claude (aucun quota) ; le panneau peut se recharger �
 | `models` | `fast` et `power` : modèles utilisés (défaut Haiku / Sonnet) |
 | `session_idle_minutes` | Inactivité avant une nouvelle conversation (défaut 30) |
 | `prompt_file` | Chemin d'un prompt à vous, à la place de `assistant-prompt.md` |
-| `deny_read_paths` | Dossiers que `Read`/`Grep`/`Glob` et `cat`/`head`/`tail`/`less`/`grep` ne peuvent pas lire, ex. `["~/.ssh"]`. Au mieux, ce n'est pas un bac à sable |
+| `deny_read_paths` | Dossiers que `Read`/`Grep`/`Glob` et `cat`/`head`/`tail`/`less`/`grep` ne peuvent pas lire, défaut `~/.ssh`, `~/.gnupg`, `~/.aws` (`[]` pour tout autoriser). Toute commande qui cite ces chemins est refusée. Au mieux, ce n'est pas un bac à sable |
 | `extra_readonly_commands` | Commandes lancées sans demander : à vous de vous assurer qu'elles n'ont aucun effet de bord |
 | `extra_denied_commands` | Commandes refusées même avec un clic |
+| `agent` | `claude` (défaut) ou le nom d'une entrée de `agents` |
+| `agents` | Vos propres agents, voir ci-dessous |
+
+**Autre agent que Claude.** Déclarez n'importe quelle CLI qui répond sur stdout :
+
+```json
+{
+  "agent": "gemini",
+  "agents": {
+    "gemini": { "command": ["gemini", "-p", "{prompt}"] },
+    "ollama": { "command": ["ollama", "run", "{model}"],
+                "models": { "fast": "llama3.2", "power": "qwen2.5-coder" } }
+  }
+}
+```
+
+`{prompt}` et `{model}` sont remplacés ; sans `{prompt}`, le prompt arrive sur stdin. La commande est lancée une fois par message, avec l'historique récent (`history`, 8 par défaut). Le prompt est court par défaut (le prompt complet décrit des outils que l'agent n'a pas et ralentit un modèle local) : `prompt_file` dans l'agent le remplace. Limites : pas de cartes Autoriser / Refuser, pas d'outils d'Iris (agenda, mails, fichiers) ni de jauge de quota, et les outils éventuels de l'agent suivent ses propres règles, pas celles d'Iris. Si le nom est inconnu, Iris retombe sur `claude`.
 
 **Mémoire.** Iris lit `~/.local/share/qs-assistant/memory.md` et le met à jour quand vous lui demandez de retenir quelque chose, avec une demande d'autorisation. Un modèle vide est fourni dans [`integration/memory.example.md`](integration/memory.example.md). Historique, mémoire et agenda restent dans `~/.local/share/qs-assistant/` et ne sont jamais versionnés.
 

@@ -136,11 +136,27 @@ def nudge(state, key, kind, text, action=None):
     sys.stdout.flush()
 
 
+def esc(text):
+    """Outside text (commit, author, event title…) on one line, with no Markdown
+    or HTML left in it: the chat renders alerts as Markdown."""
+    text = " ".join(str(text).split())
+    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return re.sub(r"([\\`*_~\[\]()!#|])", r"\\\1", text)
+
+
 def short(path):
     return path.replace(HOME, "~", 1)
 
 
+# A repo's own .git/config is untrusted (a .git folder taken from a zip…): no
+# fsmonitor command, no hooks. shortcut: remote.*.uploadpack / url.*.insteadOf
+# are not neutralised; upgrade if repos from unknown sources live under repo_roots.
+GIT_SAFE = ["-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null"]
+
+
 def run(cmd, cwd=None, timeout=20):
+    if cmd and cmd[0] == "git":
+        cmd = ["git", *GIT_SAFE, *cmd[1:]]
     try:
         r = subprocess.run(cmd, cwd=cwd, env=GIT_ENV, capture_output=True,
                            text=True, timeout=timeout)
@@ -196,15 +212,16 @@ def check_git_behind(state):
             if not res:
                 continue
             repo, n, upstream, authors, branch, last, dirty = res
-            who = ", ".join(dict.fromkeys(a for a in authors.splitlines() if a))
+            who = ", ".join(dict.fromkeys(esc(a) for a in authors.splitlines() if a))
+            branch, last = esc(branch), esc(last[:70])
             text = (f" " + pick(
-                f"**Nouveau push sur {os.path.basename(repo)}** : "
-                f"{n} commit{'s' if n > 1 else ''} de {who} sur `{branch}` "
-                f"(dernier : « {last[:70]} »).\n\nTu devrais faire un `git pull` "
+                f"**Nouveau push sur {esc(os.path.basename(repo))}** : "
+                f"{n} commit{'s' if n > 1 else ''} de {who} sur {branch} "
+                f"(dernier : « {last} »).\n\nTu devrais faire un `git pull` "
                 f"dans `{short(repo)}/`.",
-                f"**New push on {os.path.basename(repo)}**: "
-                f"{n} commit{'s' if n > 1 else ''} by {who} on `{branch}` "
-                f"(latest: “{last[:70]}”).\n\nYou should run `git pull` "
+                f"**New push on {esc(os.path.basename(repo))}**: "
+                f"{n} commit{'s' if n > 1 else ''} by {who} on {branch} "
+                f"(latest: “{last}”).\n\nYou should run `git pull` "
                 f"in `{short(repo)}/`."))
             if dirty:
                 text += pick(" Attention, tu as des modifs locales non commitées.",
@@ -406,6 +423,7 @@ def check_calendar(state):
         if not state.get("calendar_via_claude", True):
             return
         for uid, start, summary, location in calendar_events_via_claude(state):
+            summary, location = esc(summary), esc(location)
             if now <= start <= now + lead:
                 mins = max(1, round((start - now).total_seconds() / 60))
                 text = "\uf073 " + pick(f"**{summary}** dans {mins} min ({start.strftime('%H:%M')})",
@@ -424,6 +442,7 @@ def check_calendar(state):
     for uid, start, summary, location in upcoming_events(ics, now, now + lead):
         mins = max(1, round((start - now).total_seconds() / 60))
         local = start.astimezone(TZ).strftime("%H:%M")
+        summary, location = esc(summary), esc(location)
         text = " " + pick(f"**{summary}** dans {mins} min ({local})",
                                   f"**{summary}** in {mins} min ({local})")
         if location:
@@ -462,7 +481,7 @@ def morning_text(name, events, pending):
         if events:
             out.append("**Agenda**")
             for start, summary, location in events:
-                out.append(f"- {start.strftime('%H:%M')} {summary}" + (f" ({location})" if location else ""))
+                out.append(f"- {start.strftime('%H:%M')} {esc(summary)}" + (f" ({esc(location)})" if location else ""))
         else:
             out.append(pick("Rien au programme dans ton agenda.", "Nothing on your calendar today."))
     if pending:

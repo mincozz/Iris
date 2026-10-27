@@ -153,9 +153,26 @@ The button does not go through Claude (no quota); the panel may reload at the en
 | `models` | `fast` and `power`: models used (default Haiku / Sonnet) |
 | `session_idle_minutes` | Idle time before a fresh conversation (default 30) |
 | `prompt_file` | Path to your own prompt instead of `assistant-prompt.md` |
-| `deny_read_paths` | Folders `Read`/`Grep`/`Glob` and `cat`/`head`/`tail`/`less`/`grep` can't read, e.g. `["~/.ssh"]`. Best effort, not a sandbox |
+| `deny_read_paths` | Folders `Read`/`Grep`/`Glob` and `cat`/`head`/`tail`/`less`/`grep` can't read, default `~/.ssh`, `~/.gnupg`, `~/.aws` (`[]` allows everything). Any command naming these paths is refused. Best effort, not a sandbox |
 | `extra_readonly_commands` | Commands run without asking: make sure they have no side effects |
 | `extra_denied_commands` | Commands refused even with a click |
+| `agent` | `claude` (default) or the name of an entry in `agents` |
+| `agents` | Your own agents, see below |
+
+**An agent other than Claude.** Declare any CLI that answers on stdout:
+
+```json
+{
+  "agent": "gemini",
+  "agents": {
+    "gemini": { "command": ["gemini", "-p", "{prompt}"] },
+    "ollama": { "command": ["ollama", "run", "{model}"],
+                "models": { "fast": "llama3.2", "power": "qwen2.5-coder" } }
+  }
+}
+```
+
+`{prompt}` and `{model}` are substituted; without `{prompt}` the prompt goes to stdin. The command runs once per message with the recent history (`history`, default 8). The prompt is short by default (the full one describes tools the agent lacks and slows a local model down): `prompt_file` in the agent replaces it. Limits: no Allow / Deny cards, none of Iris's tools (calendar, mail, files) and no quota gauge, and any tools the agent has follow its own rules, not Iris's. An unknown name falls back to `claude`.
 
 **Memory.** Iris reads `~/.local/share/qs-assistant/memory.md` and updates it when you ask her to remember something, with an authorisation request. An empty template is in [`integration/memory.example.md`](../integration/memory.example.md). History, memory and calendar stay in `~/.local/share/qs-assistant/` and are never versioned.
 

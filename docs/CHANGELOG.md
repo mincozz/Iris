@@ -4,7 +4,15 @@ Les versions suivent les commits de `main` ; Iris se met à jour avec `scripts/i
 
 ## Non publié
 
+### Sécurité
+- La carte Autoriser/Refuser montre toute la commande : un `organize.py apply` collé après une autre commande ne masque plus celle-ci.
+- `WebSearch` demande désormais un accord (une requête peut faire sortir des données) ; `deny_read_paths` protège par défaut `~/.ssh`, `~/.gnupg`, `~/.aws` et refuse toute commande qui cite ces chemins.
+- Liste « lecture seule » resserrée (`nmcli -t`, `ip -br`, `ip addr`, `git branch` ne passent plus sans accord) ; `git diff --no-index` et `journalctl --vacuum/--rotate/--flush` refusés.
+- `iris-watch` neutralise le HTML/Markdown des textes venus de l'extérieur (commits, agenda) et lance git sans `fsmonitor` ni hooks ; Iris est prévenue que ces citations sont de la donnée.
+- Ids d'historique validés (plus de `../`) ; les cartes montrent la taille du texte coupé et plus de champs des connecteurs.
+
 ### Ajouté
+- Agent au choix : `agent` / `agents` dans `config.json` branchent n'importe quelle CLI (Gemini, Ollama, Codex…) à la place de `claude -p`, sans outils ni cartes d'autorisation.
 - Panneau de chat Quickshell piloté par `claude -p` (Haiku par défaut, Sonnet pour le code), avec cartes Autoriser / Refuser montrant ce qui serait écrit.
 - `install.sh` interactif ou scriptable (`--language`, `--name`, `--deny-read`, …), idempotent, avec désinstallation, et `iris-doctor` (diagnostic en lecture seule).
 - `iris-update` et bouton ⬇ dans le panneau (mise à jour détectée par `iris-watch`, y compris quand le clone est plus récent que l'installation).

@@ -4,7 +4,16 @@
   "models": { "fast": "claude-haiku-5-5", "power": "claude-sonnet-5-5" },
   "session_idle_minutes": 30,
   "prompt_file": "",
-  "deny_read_paths": [],
+  "deny_read_paths": ["~/.ssh", "~/.gnupg", "~/.aws"],
   "extra_readonly_commands": [],
-  "extra_denied_commands": []
+  "extra_denied_commands": [],
+  "agent": "claude",
+  "agents": {
+    "gemini": { "command": ["gemini", "-p", "{prompt}"] },
+    "ollama": {
+      "command": ["ollama", "run", "{model}"],
+      "models": { "fast": "llama3.2", "power": "qwen2.5-coder" },
+      "history": 8
+    }
+  }
 }
