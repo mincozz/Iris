@@ -3,7 +3,7 @@
 Vérification commune : `python3 -I -m py_compile <fichiers touchés>` et `test/test-e2e.sh --no-gui` (la CI doit rester verte).
 
 ## Phase 1 : history-search
-- [ ] **T1 Daemon : commande `search`** (S)
+- [x] **T1 Daemon : commande `search`** (S)
   - Critères : `{cmd:"search", q}` renvoie `history` avec `snippet` ; sans accents/casse ; 30 résultats ; q vide = liste ; q tronquée à 100.
   - Vérif : `python3 -I test/test-search.py`.
   - Fichiers : `scripts/assistant.py`, `test/test-search.py`, `.github/workflows/ci.yml`.
