@@ -122,13 +122,21 @@ PanelWindow {
         Qt.callLater(() => input.forceActiveFocus())
     }
 
+    // Image pasted with Ctrl+V (a file the daemon saved), sent with the next message.
+    property string image: ""
+
     function send() {
         const typed = input.text.trim()
-        if ((!typed && attached === "") || busy) return
-        const msg = attached === "" ? typed
+        if ((!typed && attached === "" && image === "") || busy) return
+        let msg = attached === "" ? typed
             : (typed !== "" ? typed : tr("attached_default", "Voici le texte que j'ai sélectionné :"))
               + "\n\n```\n" + attached + "\n```"
+        if (image !== "") {
+            if (msg === "") msg = tr("image_default", "Regarde cette image :")
+            msg += "\n\n" + tr("image_line", "[Image jointe : {path}]").replace("{path}", image)
+        }
         attached = ""
+        image = ""
         input.text  = ""
         showHistory = false
         _push("user", msg)
@@ -138,7 +146,7 @@ PanelWindow {
     }
     function ask(text) { input.text = text; send() }
     function stop()    { if (busy) cmd({ cmd: "stop" }) }
-    function newChat() { showHistory = false; cmd({ cmd: "new" }) }
+    function newChat() { showHistory = false; image = ""; cmd({ cmd: "new" }) }
     function answer(index, allow) {
         const it = messages.get(index)
         if (it.askState !== "pending") return
@@ -341,6 +349,9 @@ PanelWindow {
                 Quickshell.execDetached(["notify-send", "-a", "Iris", "Iris", _plain(d.v)])
             }
             if (list.stick) Qt.callLater(() => list.positionViewAtEnd())
+            break
+        case "image":
+            image = d.path
             break
         case "history":
             history.clear()
@@ -1126,6 +1137,7 @@ PanelWindow {
 
         // Attached-text pill (iris-ask --edit): type an instruction, send both.
         Rectangle {
+            id: attachedPill
             visible: overlay.attached !== ""
             anchors { left: inputBox.left; bottom: inputBox.top; bottomMargin: 6 }
             height: 26; radius: 13
@@ -1147,6 +1159,37 @@ PanelWindow {
                     font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                     TapHandler { onTapped: overlay.attached = "" }
+                }
+            }
+        }
+
+        // Pasted-image pill (Ctrl+V), next to the attached-text one when both exist.
+        Rectangle {
+            visible: overlay.image !== ""
+            anchors {
+                left: overlay.attached !== "" ? attachedPill.right : inputBox.left
+                leftMargin: overlay.attached !== "" ? 6 : 0
+                bottom: inputBox.top; bottomMargin: 6
+            }
+            height: 26; radius: 13
+            width: imageRow.implicitWidth + 20
+            color: overlay.alpha(overlay.theme.primary, 0.14)
+            border.color: overlay.alpha(overlay.theme.primary, 0.45); border.width: 1
+            Row {
+                id: imageRow
+                anchors.centerIn: parent
+                spacing: 8
+                Text {
+                    text: "\uf03e  " + overlay.tr("image_attached", "Image jointe")
+                    color: overlay.theme.fg
+                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                }
+                Text {
+                    text: "\uf00d"
+                    color: overlay.theme.txt2
+                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    TapHandler { onTapped: overlay.image = "" }
                 }
             }
         }
@@ -1175,6 +1218,8 @@ PanelWindow {
                 selectedTextColor: overlay.theme.fg
                 font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs
                 clip: true
+                // Ctrl+V still pastes text; if the clipboard holds an image the daemon picks it up.
+                Keys.onPressed: e => { if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_V) overlay.cmd({ cmd: "paste_image" }) }
                 Keys.onReturnPressed: overlay.send()
                 Keys.onEnterPressed:  overlay.send()
 
@@ -1190,7 +1235,7 @@ PanelWindow {
             // Send / stop
             Rectangle {
                 id: sendBtn
-                readonly property bool ready: input.text.trim() !== "" || overlay.attached !== ""
+                readonly property bool ready: input.text.trim() !== "" || overlay.attached !== "" || overlay.image !== ""
                 anchors { right: parent.right; rightMargin: 7; verticalCenter: parent.verticalCenter }
                 width: 36; height: 36; radius: 18
                 color: overlay.busy ? overlay.theme.error

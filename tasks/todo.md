@@ -32,8 +32,8 @@ Vérification commune : `python3 -I -m py_compile <fichiers touchés>` et `test/
   - Critères : `wl-paste --type image/png` → fichier `0600` dans dossier `0700` ; signature PNG, ≤ 10 Mo ; événement `image` ; pas d'image = silence ; purge au démarrage et à chaque collage ; `CommandAgent` refuse avec message.
   - Vérif : `python3 -I test/test-image.py` (faux `wl-paste`).
   - Dépend de : T5. Fichiers : `scripts/assistant.py`, `test/test-image.py`, `.github/workflows/ci.yml`.
-- [ ] **T7 Overlay : Ctrl+V, pastille, envoi + docs** (M)
+- [x] **T7 Overlay : Ctrl+V, pastille, envoi + docs** (M)
   - Critères : Ctrl+V déclenche `paste_image` sans casser le collage texte ; pastille « Image jointe » retirable ; message `[Image jointe : chemin]` ; prompts FR/EN ; README FR/EN + CHANGELOG.
   - Vérif : `test-e2e.sh` ; manuel : capture → Ctrl+V → question → Iris décrit l'image.
   - Dépend de : T6. Fichiers : `overlays/AssistantOverlay.qml`, `scripts/assistant.py` (`ui_strings`), prompts FR/EN, `README.md`, `docs/CHANGELOG.md`.
-- [ ] **Checkpoint 3** : CI verte, aucun fichier > 7 jours après collage, `ponytail-review`, commit, puis `scripts/iris-update` sur votre PC.
+- [x] **Checkpoint 3** : CI verte, aucun fichier > 7 jours après collage, `ponytail-review`, commit, puis `scripts/iris-update` sur votre PC.
