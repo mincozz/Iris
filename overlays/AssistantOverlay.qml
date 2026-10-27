@@ -208,6 +208,12 @@ PanelWindow {
         close()
     }
 
+    // History bucket of a conversation (epoch seconds): today / yesterday / older.
+    function _group(ts) {
+        const d0 = new Date(); d0.setHours(0, 0, 0, 0)
+        const day = 86400000
+        return ts * 1000 >= d0.getTime() ? "today" : ts * 1000 >= d0.getTime() - day ? "yesterday" : "older"
+    }
     function _relTime(ts) {
         const s = Date.now() / 1000 - ts
         if (s < 3600)     return Math.max(1, Math.round(s / 60)) + " min"
@@ -362,7 +368,8 @@ PanelWindow {
             break
         case "history":
             history.clear()
-            for (const h of d.v) history.append({ cid: h.id, title: h.title, updated: h.updated, snippet: h.snippet || "" })
+            for (const h of d.v) history.append({ cid: h.id, title: h.title, updated: h.updated, snippet: h.snippet || "",
+                                         group: searchQuery.trim() !== "" ? "" : _group(h.updated) })
             break
         }
     }
@@ -539,21 +546,29 @@ PanelWindow {
                 Rectangle {
                     visible: overlay.agentList.length > 1
                     height: 34; radius: 17
-                    width: Math.min(110, agentLabel.implicitWidth + 24)
+                    width: Math.min(124, agentRow.implicitWidth + 24)
                     opacity: overlay.busy ? 0.5 : 1
                     color: overlay.agentMenu ? overlay.alpha(overlay.theme.primary, 0.18)
                          : agentHover.hovered ? overlay.cardHover : overlay.cardFill
                     border.color: overlay.agentMenu ? overlay.alpha(overlay.theme.primary, 0.4) : overlay.cardStroke
                     border.width: 1
-                    Text {
-                        id: agentLabel
+                    Row {
+                        id: agentRow
                         anchors.centerIn: parent
-                        width: parent.width - 24
-                        horizontalAlignment: Text.AlignHCenter
-                        elide: Text.ElideRight
-                        text: overlay.agent
-                        color: overlay.agentMenu ? overlay.theme.primary : overlay.theme.txt2
-                        font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                        spacing: 7
+                        Rectangle {          // Claude = accent, any other agent = secondary tone
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 7; height: 7; radius: 3.5
+                            color: overlay.agent === "claude" ? overlay.theme.primary : overlay.theme.tertiary
+                        }
+                        Text {
+                            id: agentLabel
+                            width: Math.min(implicitWidth, 78)
+                            elide: Text.ElideRight
+                            text: overlay.agent
+                            color: overlay.agentMenu ? overlay.theme.primary : overlay.theme.txt2
+                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                        }
                     }
                     HoverHandler { id: agentHover; cursorShape: Qt.PointingHandCursor }
                     TapHandler { enabled: !overlay.busy; onTapped: overlay.agentMenu = !overlay.agentMenu }
@@ -713,6 +728,22 @@ PanelWindow {
             spacing: 6
             model: history
             boundsBehavior: Flickable.StopAtBounds
+            section.property: "group"
+            section.criteria: ViewSection.FullString
+            section.delegate: Text {
+                required property string section
+                width: historyList.width
+                height: section === "" ? 0 : 26
+                visible: section !== ""
+                verticalAlignment: Text.AlignVCenter
+                text: section === "today" ? overlay.tr("group_today", "Aujourd'hui")
+                    : section === "yesterday" ? overlay.tr("group_yesterday", "Hier")
+                    : overlay.tr("group_older", "Plus ancien")
+                color: overlay.theme.outline
+                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                font.weight: Font.DemiBold; font.letterSpacing: 1
+                font.capitalization: Font.AllUppercase
+            }
 
             Text {
                 visible: history.count === 0
@@ -729,6 +760,7 @@ PanelWindow {
                 required property string title
                 required property real   updated
                 required property string snippet
+                required property string group
                 width: historyList.width; height: snippet !== "" ? 64 : 48
                 radius: 14
                 color: hHover.hovered ? overlay.cardHover : overlay.cardFill
@@ -804,6 +836,38 @@ PanelWindow {
             spacing: 12
             model: messages
             boundsBehavior: Flickable.StopAtBounds
+            // Three soft dots while the agent has not started to answer.
+            footer: Item {
+                width: list.width
+                height: overlay.busy && !overlay.streaming ? 42 : 0
+                visible: height > 0
+                Rectangle {
+                    anchors { left: parent.left; top: parent.top; topMargin: 12 }
+                    width: 58; height: 30; radius: 15
+                    color: overlay.cardFill
+                    border.color: overlay.cardStroke; border.width: 1
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 6
+                        Repeater {
+                            model: 3
+                            delegate: Rectangle {
+                                required property int index
+                                width: 7; height: 7; radius: 3.5
+                                color: overlay.theme.txt2
+                                opacity: 0.3
+                                SequentialAnimation on opacity {
+                                    running: overlay.busy && !overlay.streaming; loops: Animation.Infinite
+                                    PauseAnimation { duration: index * 160 }
+                                    NumberAnimation { to: 0.9; duration: 320; easing.type: Easing.InOutSine }
+                                    NumberAnimation { to: 0.3; duration: 320; easing.type: Easing.InOutSine }
+                                    PauseAnimation { duration: (2 - index) * 160 }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             // Mouse drags select text instead of flicking; the wheel /
             // touchpad scrolls (smoothly) through the MouseArea below the list.
             interactive: false
@@ -1197,12 +1261,17 @@ PanelWindow {
 
         // Agent menu, under the header's picker.
         Rectangle {
-            visible: overlay.agentMenu
+            visible: opacity > 0
+            opacity: overlay.agentMenu ? 1 : 0
+            scale: overlay.agentMenu ? 1 : 0.96
+            transformOrigin: Item.TopRight
+            Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            Behavior on scale   { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
             z: 20
             anchors { right: parent.right; rightMargin: 14; top: header.bottom; topMargin: -8 }
-            width: 150; height: agentCol.implicitHeight + 12; radius: 14
-            color: overlay.theme.bg
-            border.color: overlay.cardStroke; border.width: 1
+            width: 160; height: agentCol.implicitHeight + 12; radius: 16
+            color: overlay.alpha(overlay.theme.bg, 0.94)
+            border.color: overlay.glassStroke; border.width: 1
             Column {
                 id: agentCol
                 anchors { left: parent.left; right: parent.right; top: parent.top; margins: 6 }
@@ -1214,12 +1283,19 @@ PanelWindow {
                         color: modelData === overlay.agent ? overlay.alpha(overlay.theme.primary, 0.18)
                              : rowHover.hovered ? overlay.cardHover : "transparent"
                         Text {
-                            anchors { left: parent.left; right: parent.right; leftMargin: 10; rightMargin: 10
+                            anchors { left: parent.left; right: parent.right; leftMargin: 10; rightMargin: 28
                                       verticalCenter: parent.verticalCenter }
                             text: modelData
                             elide: Text.ElideRight
                             color: modelData === overlay.agent ? overlay.theme.primary : overlay.theme.fg
                             font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                        }
+                        Text {
+                            visible: modelData === overlay.agent
+                            anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                            text: "\u2713"
+                            color: overlay.theme.primary
+                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 2
                         }
                         HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
                         TapHandler { onTapped: { overlay.agentMenu = false; overlay.cmd({ cmd: "agent", name: modelData }) } }
