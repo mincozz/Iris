@@ -47,6 +47,7 @@ import time
 import unicodedata
 import uuid
 import re
+import signal
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from i18n import LANG, pick   # noqa: E402
@@ -789,7 +790,8 @@ class CommandAgent:
             self.proc = subprocess.Popen(
                 cmd, cwd=os.path.expanduser("~"), env=env, text=True,
                 stdin=subprocess.PIPE if use_stdin else subprocess.DEVNULL,
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                start_new_session=True)      # own process group: stop must reach the agent's children too
         except OSError as e:
             self._result(pick(f"Impossible de lancer « {cmd[0]} » : {e.strerror or e}",
                               f"Could not start '{cmd[0]}': {e.strerror or e}"))
@@ -835,7 +837,10 @@ class CommandAgent:
     def interrupt(self):
         self.stopped = True
         if self.proc and self.proc.poll() is None:
-            self.proc.terminate()
+            try:
+                os.killpg(self.proc.pid, signal.SIGTERM)   # a shell wrapper's children keep stdout open otherwise
+            except OSError:
+                self.proc.terminate()
 
     def answer(self, request_id, allow, tool_input):
         pass

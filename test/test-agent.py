@@ -108,7 +108,7 @@ check(bool(err) and err != "timeout", "le daemon survit")
 d.close()
 
 # stop kills the process and ends the reply without an error
-d = Daemon("slow", {"slow": {"command": ["sh", "-c", "echo start; sleep 30"]}})
+d = Daemon("slow", {"slow": {"command": ["sh", "-c", "echo start; sleep 30; true"]}})
 t0 = time.time()
 out, err = d.reply("hello", then=lambda: (time.sleep(1), d.send({"cmd": "stop"})))
 check(err is None and time.time() - t0 < 10, "stop interrompt l'agent")
