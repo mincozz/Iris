@@ -63,6 +63,9 @@ UPDATE = os.path.join(SCRIPT_DIR, "iris-update")
 REMIND = os.path.join(SCRIPT_DIR, "iris-remind")
 REMINDERS_FILE = os.path.join(DATA_DIR, "reminders.json")
 SKILLS_DIR = os.path.join(DATA_DIR, "skills")      # your own recipes, one .md each
+IMAGES_DIR = os.path.join(DATA_DIR, "attachments")   # pasted images, purged after IMAGE_KEEP
+IMAGE_KEEP = 7 * 86400
+IMAGE_MAX = 10 * 1024 * 1024
 UPDATE_LOG = os.path.join(DATA_DIR, "update.log")
 UPDATE_RESULT = os.path.join(DATA_DIR, "update-result")   # exit code of the last button update
 UPDATE_RUNNING = os.path.join(DATA_DIR, "update-running")  # exists while it runs
@@ -520,6 +523,30 @@ def search_history(query):
     return out
 
 
+def purge_images():
+    cut = time.time() - IMAGE_KEEP
+    try:
+        names = os.listdir(IMAGES_DIR)
+    except OSError:
+        return
+    for name in names:
+        path = os.path.join(IMAGES_DIR, name)
+        try:
+            if name.endswith(".png") and os.path.getmtime(path) < cut:
+                os.remove(path)
+        except OSError:
+            pass
+
+
+def clipboard_png():
+    """The PNG in the Wayland clipboard (a screenshot, say), or None."""
+    try:
+        r = subprocess.run(["wl-paste", "--type", "image/png"], capture_output=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return r.stdout if r.returncode == 0 and r.stdout.startswith(b"\x89PNG\r\n\x1a\n") else None
+
+
 # ── Claude process ───────────────────────────────────────────────────────
 class Claude:
     """One streaming `claude -p` process bound to a conversation."""
@@ -692,6 +719,8 @@ class Daemon:
                 self._new()
             elif c == "list":
                 emit("history", v=list_history())
+            elif c == "paste_image":
+                threading.Thread(target=self._paste_image, daemon=True).start()
             elif c == "search":
                 emit("history", v=search_history(cmd.get("q")))
             elif c == "load":
@@ -724,6 +753,25 @@ class Daemon:
                 self._run_action(cmd.get("id"), cmd.get("arg"))
             elif c == "hello":
                 self._show_conversation()
+
+    def _paste_image(self):
+        """Ctrl+V in the panel: keep the clipboard image, if there is one, for the next message."""
+        data = clipboard_png()
+        if data is None:
+            return                                   # text paste: nothing to do
+        # AGENT only exists when the custom-agent backend is installed; only Claude sees images.
+        if globals().get("AGENT", "claude") != "claude":
+            emit("error", v=pick("Cet agent ne gère pas les images.", "This agent does not handle images."))
+            return
+        if len(data) > IMAGE_MAX:
+            emit("error", v=pick("Image trop grosse (10 Mo au plus).", "Image too large (10 MB at most)."))
+            return
+        os.makedirs(IMAGES_DIR, mode=0o700, exist_ok=True)
+        purge_images()
+        path = os.path.join(IMAGES_DIR, uuid.uuid4().hex[:12] + ".png")
+        with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as f:
+            f.write(data)
+        emit("image", path=path)
 
     def _nudge(self, text, kind="", action=None):
         """Iris speaks first: an alert from the watcher joins the chat."""
@@ -1074,6 +1122,7 @@ def main():
     os.makedirs(HIST_DIR, exist_ok=True)
     os.chmod(DATA_DIR, 0o700)   # history holds mail/file contents
     daemon = Daemon()
+    purge_images()
     emit("ui", lang=LANG, s=ui_strings())
     daemon.handle({"cmd": "hello"})
     # An update from the "Update" button may have finished (or still run)

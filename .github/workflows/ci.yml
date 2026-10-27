@@ -25,13 +25,16 @@ jobs:
         run: shellcheck --severity=warning install.sh test/test-e2e.sh scripts/iris-ask scripts/iris-update
 
       - name: Python (compilation)
-        run: python3 -I -m py_compile scripts/assistant.py scripts/iris-watch.py scripts/organize.py scripts/iris-doctor scripts/i18n.py test/test-update-button.py test/test-actions.py test/test-search.py scripts/iris-remind test/test-remind.py
+        run: python3 -I -m py_compile scripts/assistant.py scripts/iris-watch.py scripts/organize.py scripts/iris-doctor scripts/i18n.py test/test-update-button.py test/test-actions.py test/test-search.py scripts/iris-remind test/test-remind.py test/test-image.py
 
       - name: Recherche dans l'historique
         run: python3 -I test/test-search.py
 
       - name: Rappels
         run: python3 -I test/test-remind.py
+
+      - name: Collage d'images
+        run: python3 -I test/test-image.py
 
       - name: Test de bout en bout (sans fenêtre, sans compte Claude)
         run: test/test-e2e.sh --no-gui

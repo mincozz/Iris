@@ -22,13 +22,13 @@ Vérification commune : `python3 -I -m py_compile <fichiers touchés>` et `test/
   - Critères : `check_reminders` (30 s) émet une alerte `reminder` une seule fois puis supprime ; rappel manqué envoyé au démarrage ; texte échappé ; prompts FR/EN expliquent l'usage ; README FR/EN + CHANGELOG.
   - Vérif : `test-remind.py` (cas échéance) ; manuel : « rappelle-moi dans 2 min » → carte → alerte.
   - Dépend de : T3. Fichiers : `scripts/iris-watch.py`, `scripts/assistant-prompt.md`, `scripts/assistant-prompt.en.md`, `README.md`, `docs/CHANGELOG.md`.
-- [ ] **Checkpoint 2** : CI verte, rappel de bout en bout, revue de sécurité (texte = donnée, `READONLY_BASH` inchangé), commit.
+- [x] **Checkpoint 2** : CI verte, rappel de bout en bout, revue de sécurité (texte = donnée, `READONLY_BASH` inchangé), commit.
 
 ## Phase 3 : image-input
-- [ ] **T5 Spike : `Read` lit un PNG hors du cwd** (XS)
+- [x] **T5 Spike : `Read` lit un PNG hors du cwd** (XS)
   - Critères : `claude -p` avec `Read` décrit un PNG de `attachments/` ; sinon on adapte la spec avant de continuer.
   - Vérif : manuel.
-- [ ] **T6 Daemon : `paste_image`, purge 7 jours** (M)
+- [x] **T6 Daemon : `paste_image`, purge 7 jours** (M)
   - Critères : `wl-paste --type image/png` → fichier `0600` dans dossier `0700` ; signature PNG, ≤ 10 Mo ; événement `image` ; pas d'image = silence ; purge au démarrage et à chaque collage ; `CommandAgent` refuse avec message.
   - Vérif : `python3 -I test/test-image.py` (faux `wl-paste`).
   - Dépend de : T5. Fichiers : `scripts/assistant.py`, `test/test-image.py`, `.github/workflows/ci.yml`.
