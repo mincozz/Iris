@@ -57,6 +57,10 @@ PanelWindow {
     property string modelName:   ""      // "haiku" | "sonnet" (last reply)
     property string mode:        "auto"  // auto | fast | power
     property bool   showHistory: false
+    property var    agentList:  ["claude"]   // agents the daemon accepts (claude + config.json's "agents")
+    property string agent:      "claude"
+    property bool   agentMenu:  false
+    property string searchQuery: ""      // text typed in the history search field
     // Subscription usage (0..1) reported by Claude Code; -1 = unknown yet.
     property real   usage5h:     -1
     property real   usageWeek:   -1
@@ -121,13 +125,21 @@ PanelWindow {
         Qt.callLater(() => input.forceActiveFocus())
     }
 
+    // Image pasted with Ctrl+V (a file the daemon saved), sent with the next message.
+    property string image: ""
+
     function send() {
         const typed = input.text.trim()
-        if ((!typed && attached === "") || busy) return
-        const msg = attached === "" ? typed
+        if ((!typed && attached === "" && image === "") || busy) return
+        let msg = attached === "" ? typed
             : (typed !== "" ? typed : tr("attached_default", "Voici le texte que j'ai sélectionné :"))
               + "\n\n```\n" + attached + "\n```"
+        if (image !== "") {
+            if (msg === "") msg = tr("image_default", "Regarde cette image :")
+            msg += "\n\n" + tr("image_line", "[Image jointe : {path}]").replace("{path}", image)
+        }
         attached = ""
+        image = ""
         input.text  = ""
         showHistory = false
         _push("user", msg)
@@ -137,7 +149,7 @@ PanelWindow {
     }
     function ask(text) { input.text = text; send() }
     function stop()    { if (busy) cmd({ cmd: "stop" }) }
-    function newChat() { showHistory = false; cmd({ cmd: "new" }) }
+    function newChat() { showHistory = false; image = ""; cmd({ cmd: "new" }) }
     function answer(index, allow) {
         const it = messages.get(index)
         if (it.askState !== "pending") return
@@ -196,6 +208,12 @@ PanelWindow {
         close()
     }
 
+    // History bucket of a conversation (epoch seconds): today / yesterday / older.
+    function _group(ts) {
+        const d0 = new Date(); d0.setHours(0, 0, 0, 0)
+        const day = 86400000
+        return ts * 1000 >= d0.getTime() ? "today" : ts * 1000 >= d0.getTime() - day ? "yesterday" : "older"
+    }
     function _relTime(ts) {
         const s = Date.now() / 1000 - ts
         if (s < 3600)     return Math.max(1, Math.round(s / 60)) + " min"
@@ -341,9 +359,17 @@ PanelWindow {
             }
             if (list.stick) Qt.callLater(() => list.positionViewAtEnd())
             break
+        case "agents":
+            agentList = d.v; agent = d.current; agentMenu = false
+            if (d.switched) _push("nudge", tr("agent_switched", "Agent : ") + d.current)
+            break
+        case "image":
+            image = d.path
+            break
         case "history":
             history.clear()
-            for (const h of d.v) history.append({ cid: h.id, title: h.title, updated: h.updated })
+            for (const h of d.v) history.append({ cid: h.id, title: h.title, updated: h.updated, snippet: h.snippet || "",
+                                         group: searchQuery.trim() !== "" ? "" : _group(h.updated) })
             break
         }
     }
@@ -516,6 +542,37 @@ PanelWindow {
                 id: actions
                 anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
                 spacing: 6
+                // Agent picker: shows the current agent, opens a small menu.
+                Rectangle {
+                    visible: overlay.agentList.length > 1
+                    height: 34; radius: 17
+                    width: Math.min(124, agentRow.implicitWidth + 24)
+                    opacity: overlay.busy ? 0.5 : 1
+                    color: overlay.agentMenu ? overlay.alpha(overlay.theme.primary, 0.18)
+                         : agentHover.hovered ? overlay.cardHover : overlay.cardFill
+                    border.color: overlay.agentMenu ? overlay.alpha(overlay.theme.primary, 0.4) : overlay.cardStroke
+                    border.width: 1
+                    Row {
+                        id: agentRow
+                        anchors.centerIn: parent
+                        spacing: 7
+                        Rectangle {          // Claude = accent, any other agent = secondary tone
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 7; height: 7; radius: 3.5
+                            color: overlay.agent === "claude" ? overlay.theme.primary : overlay.theme.tertiary
+                        }
+                        Text {
+                            id: agentLabel
+                            width: Math.min(implicitWidth, 78)
+                            elide: Text.ElideRight
+                            text: overlay.agent
+                            color: overlay.agentMenu ? overlay.theme.primary : overlay.theme.txt2
+                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                        }
+                    }
+                    HoverHandler { id: agentHover; cursorShape: Qt.PointingHandCursor }
+                    TapHandler { enabled: !overlay.busy; onTapped: overlay.agentMenu = !overlay.agentMenu }
+                }
                 Repeater {
                     model: [
                         { icon: "", tip: "history" },
@@ -620,22 +677,68 @@ PanelWindow {
         }
 
         // ── History ────────────────────────────────────────────────────
+        // The search field lives outside the list: the list's model is reset on
+        // every answer, which took the focus away from a field inside it.
+        Rectangle {
+            id: searchBox
+            visible: overlay.showHistory
+            anchors { left: parent.left; right: parent.right; top: modeBar.bottom
+                      leftMargin: 16; rightMargin: 16; topMargin: 16 }
+            height: 36; radius: 18
+            color: overlay.wellFill
+            border.color: searchInput.activeFocus ? overlay.alpha(overlay.theme.primary, 0.6) : overlay.cardStroke
+            border.width: 1
+            TextInput {
+                id: searchInput
+                anchors { left: parent.left; right: parent.right; leftMargin: 16; rightMargin: 16
+                          verticalCenter: parent.verticalCenter }
+                color: overlay.theme.fg
+                selectionColor: overlay.alpha(overlay.theme.primary, 0.45)
+                selectedTextColor: overlay.theme.fg
+                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                clip: true
+                onTextChanged: { overlay.searchQuery = text; overlay.cmd({ cmd: "search", q: text }) }
+                Connections {
+                    target: overlay
+                    function onShowHistoryChanged() {
+                        if (!overlay.showHistory) return
+                        searchInput.text = ""
+                        searchInput.forceActiveFocus()
+                    }
+                }
+                Text {
+                    visible: searchInput.text === ""
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: overlay.tr("search_placeholder", "Rechercher une conversation…")
+                    color: overlay.theme.outline
+                    font: searchInput.font
+                }
+            }
+        }
+
         ListView {
             id: historyList
             visible: overlay.showHistory
             anchors {
                 left: parent.left; right: parent.right
-                top: modeBar.bottom; bottom: inputBox.top
-                margins: 16
+                top: searchBox.bottom; bottom: inputBox.top
+                margins: 16; topMargin: 10
             }
             clip: true
             spacing: 6
             model: history
             boundsBehavior: Flickable.StopAtBounds
-
-            header: Text {
-                width: historyList.width; height: 28
-                text: "Conversations"
+            section.property: "group"
+            section.criteria: ViewSection.FullString
+            section.delegate: Text {
+                required property string section
+                width: historyList.width
+                height: section === "" ? 0 : 26
+                visible: section !== ""
+                verticalAlignment: Text.AlignVCenter
+                text: section === "today" ? overlay.tr("group_today", "Aujourd'hui")
+                    : section === "yesterday" ? overlay.tr("group_yesterday", "Hier")
+                    : overlay.tr("group_older", "Plus ancien")
                 color: overlay.theme.outline
                 font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
                 font.weight: Font.DemiBold; font.letterSpacing: 1
@@ -645,7 +748,8 @@ PanelWindow {
             Text {
                 visible: history.count === 0
                 anchors.centerIn: parent
-                text: overlay.tr("no_history", "Aucune conversation pour l'instant")
+                text: overlay.searchQuery.trim() !== "" ? overlay.tr("no_match", "Aucun résultat")
+                    : overlay.tr("no_history", "Aucune conversation pour l'instant")
                 color: overlay.theme.outline
                 font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs
             }
@@ -655,7 +759,9 @@ PanelWindow {
                 required property string cid
                 required property string title
                 required property real   updated
-                width: historyList.width; height: 48
+                required property string snippet
+                required property string group
+                width: historyList.width; height: snippet !== "" ? 64 : 48
                 radius: 14
                 color: hHover.hovered ? overlay.cardHover : overlay.cardFill
                 border.color: overlay.cardStroke; border.width: 1
@@ -674,12 +780,23 @@ PanelWindow {
                     font.family: overlay.theme.ff; font.pixelSize: 15
                 }
                 Text {
+                    id: hTitle
                     anchors { left: hIcon.right; leftMargin: 10; right: hDate.left; rightMargin: 10
-                              verticalCenter: parent.verticalCenter }
+                              verticalCenter: parent.verticalCenter
+                              verticalCenterOffset: hrow.snippet !== "" ? -10 : 0 }
                     text: hrow.title
                     elide: Text.ElideRight
                     color: overlay.theme.fg
                     font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                }
+                Text {
+                    visible: hrow.snippet !== ""
+                    anchors { left: hTitle.left; right: hTitle.right; top: hTitle.bottom; topMargin: 2 }
+                    text: hrow.snippet
+                    textFormat: Text.PlainText
+                    elide: Text.ElideRight
+                    color: overlay.theme.outline
+                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
                 }
                 Text {
                     id: hDate
@@ -719,6 +836,38 @@ PanelWindow {
             spacing: 12
             model: messages
             boundsBehavior: Flickable.StopAtBounds
+            // Three soft dots while the agent has not started to answer.
+            footer: Item {
+                width: list.width
+                height: overlay.busy && !overlay.streaming ? 42 : 0
+                visible: height > 0
+                Rectangle {
+                    anchors { left: parent.left; top: parent.top; topMargin: 12 }
+                    width: 58; height: 30; radius: 15
+                    color: overlay.cardFill
+                    border.color: overlay.cardStroke; border.width: 1
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 6
+                        Repeater {
+                            model: 3
+                            delegate: Rectangle {
+                                required property int index
+                                width: 7; height: 7; radius: 3.5
+                                color: overlay.theme.txt2
+                                opacity: 0.3
+                                SequentialAnimation on opacity {
+                                    running: overlay.busy && !overlay.streaming; loops: Animation.Infinite
+                                    PauseAnimation { duration: index * 160 }
+                                    NumberAnimation { to: 0.9; duration: 320; easing.type: Easing.InOutSine }
+                                    NumberAnimation { to: 0.3; duration: 320; easing.type: Easing.InOutSine }
+                                    PauseAnimation { duration: (2 - index) * 160 }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             // Mouse drags select text instead of flicking; the wheel /
             // touchpad scrolls (smoothly) through the MouseArea below the list.
             interactive: false
@@ -1084,6 +1233,7 @@ PanelWindow {
 
         // Attached-text pill (iris-ask --edit): type an instruction, send both.
         Rectangle {
+            id: attachedPill
             visible: overlay.attached !== ""
             anchors { left: inputBox.left; bottom: inputBox.top; bottomMargin: 6 }
             height: 26; radius: 13
@@ -1105,6 +1255,82 @@ PanelWindow {
                     font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                     TapHandler { onTapped: overlay.attached = "" }
+                }
+            }
+        }
+
+        // Agent menu, under the header's picker.
+        Rectangle {
+            visible: opacity > 0
+            opacity: overlay.agentMenu ? 1 : 0
+            scale: overlay.agentMenu ? 1 : 0.96
+            transformOrigin: Item.TopRight
+            Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            Behavior on scale   { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            z: 20
+            anchors { right: parent.right; rightMargin: 14; top: header.bottom; topMargin: -8 }
+            width: 160; height: agentCol.implicitHeight + 12; radius: 16
+            color: overlay.alpha(overlay.theme.bg, 0.94)
+            border.color: overlay.glassStroke; border.width: 1
+            Column {
+                id: agentCol
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 6 }
+                Repeater {
+                    model: overlay.agentList
+                    delegate: Rectangle {
+                        required property string modelData
+                        width: agentCol.width; height: 30; radius: 10
+                        color: modelData === overlay.agent ? overlay.alpha(overlay.theme.primary, 0.18)
+                             : rowHover.hovered ? overlay.cardHover : "transparent"
+                        Text {
+                            anchors { left: parent.left; right: parent.right; leftMargin: 10; rightMargin: 28
+                                      verticalCenter: parent.verticalCenter }
+                            text: modelData
+                            elide: Text.ElideRight
+                            color: modelData === overlay.agent ? overlay.theme.primary : overlay.theme.fg
+                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                        }
+                        Text {
+                            visible: modelData === overlay.agent
+                            anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                            text: "\u2713"
+                            color: overlay.theme.primary
+                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 2
+                        }
+                        HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler { onTapped: { overlay.agentMenu = false; overlay.cmd({ cmd: "agent", name: modelData }) } }
+                    }
+                }
+            }
+        }
+
+        // Pasted-image pill (Ctrl+V), next to the attached-text one when both exist.
+        Rectangle {
+            visible: overlay.image !== ""
+            anchors {
+                left: overlay.attached !== "" ? attachedPill.right : inputBox.left
+                leftMargin: overlay.attached !== "" ? 6 : 0
+                bottom: inputBox.top; bottomMargin: 6
+            }
+            height: 26; radius: 13
+            width: imageRow.implicitWidth + 20
+            color: overlay.alpha(overlay.theme.primary, 0.14)
+            border.color: overlay.alpha(overlay.theme.primary, 0.45); border.width: 1
+            Row {
+                id: imageRow
+                anchors.centerIn: parent
+                spacing: 8
+                Text {
+                    text: "\uf03e  " + overlay.tr("image_attached", "Image jointe")
+                    color: overlay.theme.fg
+                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                }
+                Text {
+                    text: "\uf00d"
+                    color: overlay.theme.txt2
+                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    TapHandler { onTapped: overlay.image = "" }
                 }
             }
         }
@@ -1133,6 +1359,8 @@ PanelWindow {
                 selectedTextColor: overlay.theme.fg
                 font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs
                 clip: true
+                // Ctrl+V still pastes text; if the clipboard holds an image the daemon picks it up.
+                Keys.onPressed: e => { if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_V) overlay.cmd({ cmd: "paste_image" }) }
                 Keys.onReturnPressed: overlay.send()
                 Keys.onEnterPressed:  overlay.send()
 
@@ -1148,7 +1376,7 @@ PanelWindow {
             // Send / stop
             Rectangle {
                 id: sendBtn
-                readonly property bool ready: input.text.trim() !== "" || overlay.attached !== ""
+                readonly property bool ready: input.text.trim() !== "" || overlay.attached !== "" || overlay.image !== ""
                 anchors { right: parent.right; rightMargin: 7; verticalCenter: parent.verticalCenter }
                 width: 36; height: 36; radius: 18
                 color: overlay.busy ? overlay.theme.error

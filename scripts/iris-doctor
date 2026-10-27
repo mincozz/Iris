@@ -25,7 +25,7 @@ XDG = os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config")
 FILES = ["overlays/AssistantOverlay.qml", "overlays/AssistantAvatar.qml",
          "scripts/assistant.py", "scripts/assistant-prompt.md",
          "scripts/iris-watch.py", "scripts/organize.py", "scripts/iris-ask",
-         "scripts/i18n.py", "scripts/assistant-prompt.en.md", "scripts/iris-update"]
+         "scripts/i18n.py", "scripts/assistant-prompt.en.md", "scripts/iris-update", "scripts/iris-remind"]
 THEME_TOKENS = ["bg", "fg", "ff", "fs", "primary", "secondary", "tertiary",
                 "lavender", "light", "outline", "txt2", "error", "warn"]
 
@@ -72,14 +72,67 @@ def default_prefix():
     return os.path.join(XDG, "quickshell")
 
 
+def configured_agent():
+    """(name, spec) of the agent set in config.json; ("claude", None) by default."""
+    try:
+        cfg = json.load(open(os.path.join(DATA, "config.json")))
+        try:                                   # the panel's picker wins over config.json
+            picked = open(os.path.join(DATA, "agent")).read().strip()
+            if picked == "claude" or picked in cfg["agents"]:
+                cfg["agent"] = picked
+        except OSError:
+            pass
+        name, spec = cfg["agent"], cfg["agents"][cfg["agent"]]
+        if name != "claude" and isinstance(spec.get("command"), list) and spec["command"]:
+            return name, spec
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        pass
+    return "claude", None
+
+
+def check_agents():
+    """Every agent declared in config.json: program present, Ollama models downloaded."""
+    try:
+        agents = json.load(open(os.path.join(DATA, "config.json"))).get("agents") or {}
+    except (OSError, ValueError, AttributeError):
+        return
+    if not isinstance(agents, dict) or not agents:
+        return
+    section("Agents déclarés")
+    have = None
+    for name, spec in agents.items():
+        cmd = spec.get("command") if isinstance(spec, dict) else None
+        if not (isinstance(cmd, list) and cmd and all(isinstance(x, str) for x in cmd)):
+            report("warn", f"« {name} » : commande invalide", "corrige `command` dans config.json")
+        elif not shutil.which(os.path.expanduser(cmd[0])):
+            report("warn", f"« {name} » : {cmd[0]} introuvable", "installe-le avant de choisir cet agent dans le panneau")
+        else:
+            report("ok", f"« {name} » : {cmd[0]}")
+        if cmd and cmd[:2] == ["ollama", "run"] and shutil.which("ollama"):
+            if have is None:
+                code, out = run(["ollama", "list"])
+                have = {ln.split()[0] for ln in out.splitlines()[1:] if ln.split()} if code == 0 else False
+            if have is False:
+                report("warn", "ollama ne répond pas", "lance le service (`ollama serve`)")
+                continue
+            models = spec.get("models") if isinstance(spec.get("models"), dict) else {}
+            for m in sorted({v for v in models.values() if isinstance(v, str) and v}):
+                if m in have or f"{m}:latest" in have:
+                    report("ok", f"  modèle {m} téléchargé")
+                else:
+                    report("warn", f"  modèle {m} absent", f"ollama pull {m}")
+
+
 def check_requirements():
     section("Prérequis")
+    agent, spec = configured_agent()
     v = sys.version_info
     if v >= (3, 9):
         report("ok", f"python {v.major}.{v.minor}")
     else:
         report("fail", f"python {v.major}.{v.minor} trop ancien", "Iris demande Python 3.9 ou plus")
-    for cmd, why, level in [("claude", "CLI Claude Code : https://claude.com/claude-code", "fail"),
+    for cmd, why, level in [("claude", "CLI Claude Code : https://claude.com/claude-code",
+                             "fail" if spec is None else "warn"),
                             ("qs", "Quickshell : https://quickshell.org", "fail"),
                             ("git", "nécessaire aux alertes git", "warn"),
                             ("wl-paste", "paquet wl-clipboard (raccourci iris-ask)", "warn"),
@@ -94,7 +147,16 @@ def check_requirements():
             report("ok", cmd + extra)
         else:
             report(level, f"{cmd} introuvable", why)
-    if shutil.which("claude"):
+    if spec is not None:
+        exe = str(spec["command"][0])
+        if shutil.which(os.path.expanduser(exe)):
+            report("ok", f"agent « {agent} » : {exe}")
+        else:
+            report("fail", f"agent « {agent} » : {exe} introuvable",
+                   "installe-le, ou remets `agent` à \"claude\" dans config.json")
+        report("warn", f"agent « {agent} » : hors cartes Autoriser / Refuser",
+               "Iris ne contrôle pas les outils propres à cet agent (voir le README)")
+    elif shutil.which("claude"):
         creds = os.path.join(HOME, ".claude/.credentials.json")
         cfg = read(os.path.join(HOME, ".claude.json")) or ""
         if os.path.exists(creds) or '"oauthAccount"' in cfg:
@@ -305,6 +367,7 @@ def main():
         prefix = os.path.expanduser(args[1])
     print(color("1", "Diagnostic d'Iris"))
     check_requirements()
+    check_agents()
     if check_files(prefix):
         check_wiring(prefix)
     check_data(prefix)

@@ -8,7 +8,7 @@
 
 [Français](../README.md) · English
 
-Iris is a chat panel built into the bar of your [Quickshell](https://quickshell.org) shell. It drives the [Claude Code](https://claude.com/claude-code) CLI on **your** Claude account: every user uses their own subscription, and no data goes through a project server.
+Iris is a chat panel built into the bar of your [Quickshell](https://quickshell.org) shell. By default it drives the [Claude Code](https://claude.com/claude-code) CLI on **your** Claude account (every user uses their own subscription), or another CLI of your choice such as Ollama. No data goes through a project server.
 
 > Independent project, not affiliated with Anthropic. "Claude" is a trademark of Anthropic.
 
@@ -25,6 +25,10 @@ Iris is a chat panel built into the bar of your [Quickshell](https://quickshell.
 | | |
 |---|---|
 | **Conversation** | Chat in the bar, with access to your PC (files, read-only commands, system info) and, if you enabled the Claude connectors, your calendar, mail, Notion and Drive. Fast replies by default, a more powerful model for code. |
+| **Agents** | Claude by default; you can add Ollama, Gemini or any CLI and switch between them with one click in the panel. The installer downloads your Ollama models. |
+| **Search** | Find an old conversation by typing a few letters (accents and case ignored). |
+| **Reminders** | "Remind me in 20 min…": an alert on time, even if the PC was off at that moment. |
+| **Images** | Paste a screenshot with Ctrl+V: Iris reads it. |
 | **Permissions** | Reading is free. Anything that changes something shows an **Allow / Deny** card with the exact content that would be written. |
 | **Alerts** | No Claude quota: `git pull` to do (with a button), unpushed work, calendar reminders, disk, battery, failed services, Iris updates, plus a **morning brief**. |
 | **Shortcuts** | `SUPER + I` sends the selected text to Iris; `SUPER + SHIFT + I` attaches it so you type an instruction ("translate", "explain"…). |
@@ -75,21 +79,24 @@ You can also let a coding assistant do the install: run it in the repository and
 | `--language fr\|en\|auto` | Iris's language (defaults from `$LANG`) |
 | `--name NAME` | What Iris calls you |
 | `--deny-read "~/.ssh,~/.gnupg"` | Folders `Read` and the read commands may not open |
-| `--fast-model ID` / `--power-model ID` | Models used |
+| `--fast-model ID` / `--power-model ID` | Claude models used |
+| `--ollama-model ID` | Declares the `ollama` agent with this model and downloads what is missing (`ollama pull`). Repeatable: the 1st is the fast model, the 2nd the powerful one |
+| `--add-agent "name=command"` | Declares another CLI (e.g. `"gemini=gemini -p {prompt}"`); the installer never runs the command. Repeatable |
+| `--no-pull` | Declares Ollama models without downloading them |
 | `--ask-key` / `--ask-edit-key` | Keys of the two shortcuts (default `SUPER + I` / `SUPER + SHIFT + I`) |
 | `--no-hypr` | Leaves the Hyprland configuration alone |
 | `--reconfigure` | Redoes `config.json` (otherwise it is kept) |
 | `--uninstall` | Removes Iris (your data stays in `~/.local/share/qs-assistant/`) |
 
-In a terminal the installer asks four questions: the language, your first name, whether to forbid reading `~/.ssh` and `~/.gnupg` (yes by default) and which models to use.
+In a terminal the installer asks a few questions: the language, your first name, whether to forbid reading `~/.ssh` and `~/.gnupg` (yes by default), which Claude models to use, then whether to add a local agent (Ollama) and another agent (Gemini, Codex…). With `-y` or outside a terminal it keeps the defaults and **downloads nothing**, unless `--ollama-model` is given explicitly. The agent options also work on an existing `config.json` (only the `agents` keys are merged, an agent already declared is kept). Output is coloured in a terminal, plain with `NO_COLOR=1` or outside one.
 
-**What it does**: checks the requirements, copies the files (a `.iris-bak` backup is made for any replaced file), creates `~/.local/share/qs-assistant/` (memory, `config.json`, `watch.json`, example recipes, never overwritten), wires `shell.qml` in a marked block, adds the blur rule and the two shortcuts to `hyprland.lua`, then runs the diagnostic. It is safe to re-run. The installer's own messages are in French.
+**What it does**: checks the requirements, copies the files (a `.iris-bak` backup is made for any replaced file), creates `~/.local/share/qs-assistant/` (memory, `config.json`, `watch.json`, example recipes, never overwritten), declares your agents and downloads your Ollama models if you asked, wires `shell.qml` in a marked block, adds the blur rule and the two shortcuts to `hyprland.lua`, then runs the diagnostic. It is safe to re-run. The installer's own messages are in French.
 
 **Left to do by hand**, because they depend on your shell (optional): the avatar button in the bar ([`integration/Bar.qml.snippet`](../integration/Bar.qml.snippet)) and clicking an alert to open the panel ([`integration/NotificationToast.qml.snippet`](../integration/NotificationToast.qml.snippet)).
 
 ## Usage
 
-**Panel.** `qs ipc call assistant toggle|open|close` opens and closes it; `qs ipc call assistant ask "…"` sends a message. Header: history, new conversation and the update button. The Auto / Fast / Powerful selector picks the model.
+**Panel.** `qs ipc call assistant toggle|open|close` opens and closes it; `qs ipc call assistant ask "…"` sends a message. Header: an agent pill (shown once you have declared a second agent), history (grouped by day, with a search field that filters as you type, ignoring accents and case), new conversation and the update button. The Auto / Fast / Powerful selector picks the model. Three animated dots show that Iris has not started answering yet.
 
 **Shortcuts.** `scripts/iris-ask` sends the selection (the clipboard if nothing is selected); with `--edit` it **attaches** it to the panel (an "Attached text" pill, removable) and you type your instruction before sending. `IRIS_ASK_DRY=1` shows what would be sent without sending anything. The text goes to Claude as is: don't use it on a password.
 
@@ -105,6 +112,10 @@ description: Prepare my weekly report ("weekly report")
 
 Iris gets the list (name and description) and reads a recipe when your request matches it, or when you type `/name`. Plain file names (letters, digits, `-`, `_`, `.`), 30 recipes at most. Examples in your language are copied at install time, never overwriting yours. The list is read when a conversation starts: open a new conversation after adding a recipe. A recipe gets no extra permissions: actions that change something still ask for your click.
 
+**Images.** Copy a screenshot (for example `grim -g "$(slurp)" - | wl-copy`) then press **Ctrl+V** in the panel: an "Attached image" pill (removable) appears and the image goes with your next message; Iris reads it with `Read`. PNG, 10 MB at most, copied to `~/.local/share/qs-assistant/attachments/` (mode `0600`) and deleted after 7 days. Pasting text is unchanged.
+
+**Reminders.** "Remind me in 20 min to call Alex": Iris runs `iris-remind add` (an Allow / Deny card shows the reminder) and `iris-watch` alerts you on time, in the panel and by notification. One-shot reminders, one year ahead at most, 50 pending at most, stored in `~/.local/share/qs-assistant/reminders.json`. A reminder missed while the PC was off is sent at the next start, with its due time. Ask Iris to cancel one.
+
 **Tidying.** Ask Iris to tidy a folder: she analyses it (`organize.py scan`), proposes a plan, applies it with a single approval, and `organize.py undo` reverts the last tidy-up. Nothing is overwritten, and the trash goes through `gio trash`.
 
 ## Alerts and morning brief
@@ -118,6 +129,7 @@ Iris gets the list (name and description) and reads a recipe when your request m
 | Calendar | `remind_minutes` before each event |
 | PC health | Disk almost full, low battery, failed services, pending updates |
 | Iris update | Every 6 hours; **Update now** button |
+| Reminder | At the requested time (`iris-remind`), checked every 30 s |
 | Morning brief | Once a day from `morning_hour`: today's agenda and git work left unsaved |
 
 | Key | Purpose |
@@ -153,9 +165,28 @@ The button does not go through Claude (no quota); the panel may reload at the en
 | `models` | `fast` and `power`: models used (default Haiku / Sonnet) |
 | `session_idle_minutes` | Idle time before a fresh conversation (default 30) |
 | `prompt_file` | Path to your own prompt instead of `assistant-prompt.md` |
-| `deny_read_paths` | Folders `Read`/`Grep`/`Glob` and `cat`/`head`/`tail`/`less`/`grep` can't read, e.g. `["~/.ssh"]`. Best effort, not a sandbox |
+| `deny_read_paths` | Folders `Read`/`Grep`/`Glob` and `cat`/`head`/`tail`/`less`/`grep` can't read, default `~/.ssh`, `~/.gnupg`, `~/.aws` (`[]` allows everything). Any command naming these paths is refused. Best effort, not a sandbox |
 | `extra_readonly_commands` | Commands run without asking: make sure they have no side effects |
 | `extra_denied_commands` | Commands refused even with a click |
+| `agent` | `claude` (default) or the name of an entry in `agents` |
+| `agents` | Your own agents, see below |
+
+**An agent other than Claude.** Simplest: `./install.sh --ollama-model llama3.2 --ollama-model qwen2.5-coder` (declares the agent and downloads the models) or `./install.sh --add-agent "gemini=gemini -p {prompt}"`. By hand, declare any CLI that answers on stdout:
+
+```json
+{
+  "agent": "gemini",
+  "agents": {
+    "gemini": { "command": ["gemini", "-p", "{prompt}"] },
+    "ollama": { "command": ["ollama", "run", "{model}"],
+                "models": { "fast": "llama3.2", "power": "qwen2.5-coder" } }
+  }
+}
+```
+
+`{prompt}` and `{model}` are substituted; without `{prompt}` the prompt goes to stdin. The command runs once per message with the recent history (`history`, default 8). The prompt is short by default (the full one describes tools the agent lacks and slows a local model down): `prompt_file` in the agent replaces it. Limits: no Allow / Deny cards, none of Iris's tools (calendar, mail, files) and no quota gauge, and any tools the agent has follow its own rules, not Iris's. An unknown name falls back to `claude`.
+
+**Switching agent from the panel.** As soon as `agents` has an entry, a pill with the agent's name shows in the header: click it to open the list (`claude` and your agents). The choice is kept in `~/.local/share/qs-assistant/agent` and wins over `agent` in `config.json`, which is never modified. Switching is refused while Iris is replying; the conversation goes on (the new agent receives the recent history as text).
 
 **Memory.** Iris reads `~/.local/share/qs-assistant/memory.md` and updates it when you ask her to remember something, with an authorisation request. An empty template is in [`integration/memory.example.md`](../integration/memory.example.md). History, memory and calendar stay in `~/.local/share/qs-assistant/` and are never versioned.
 
@@ -190,10 +221,12 @@ The overlay starts the daemon and the alert watcher as child processes. The daem
 | `scripts/iris-watch.py` | Local alerts and morning brief |
 | `scripts/organize.py` | Folder tidying: `scan`, `apply`, `undo` |
 | `scripts/iris-ask` | Shortcut: sends or attaches the selection |
+| `scripts/iris-remind` | One-shot reminders: `add`, `cancel`, `due` (`iris-watch` calls `due`) |
 | `scripts/iris-update`, `scripts/iris-doctor` | Updating and diagnostic |
 | `scripts/i18n.py` | Language choice shared by the scripts |
 | `integration/` | Snippets to graft, example config and recipes |
-| `test/` | Minimal shell, end-to-end test, daemon tests |
+| `test/` | Minimal shell, end-to-end test, daemon, reminder, image, search and agent tests |
+| `specs/`, `tasks/` | Feature specifications and plans (method: spec, plan, tasks, code) |
 | `docs/` | English README and changelog |
 
 ## Security
@@ -204,6 +237,9 @@ Iris runs `claude` with your rights.
 - `sudo`, `su`, `doas`, `dd`, `mkfs` and `wipefs` are refused.
 - The content of mails, web pages and files is treated as **data**, not orders.
 - Alert buttons only run known actions (`update`, `git_pull`), with arguments checked by the daemon.
+- Pasted images are checked (PNG signature, 10 MB), copied with mode 600 into `attachments/` and deleted after 7 days; what they show is data, not orders.
+- Reminders go through an Allow / Deny card (`iris-remind add`); their text is neutralised when displayed and never executed.
+- Switching agent only accepts `claude` and the names declared in `config.json`; the installer never runs an agent's command.
 - Data lives in a mode-700 folder; CI scans for secrets (Gitleaks).
 
 No assistant that reads external content is immune to prompt injection: keep an eye on the permission cards. Full model and how to report a vulnerability: [SECURITY.md](../.github/SECURITY.md) (French).
@@ -213,7 +249,7 @@ No assistant that reads external content is immune to prompt injection: keep an 
 - Built and tested on Arch Linux + Hyprland + Quickshell; elsewhere the installer and `iris-doctor` tell you what is missing, but the bar button, blur and shortcuts need adapting.
 - Every message uses your Claude subscription quota.
 - Calendar, mail, Notion and Drive come through your Claude account's connectors; without them Iris can't see them (the calendar can also come from an iCal address).
-- The panel only sends text (no images or voice yet).
+- The panel sends text and pasted images (PNG, needs `wl-clipboard`), no voice yet. Images only work with the `claude` agent.
 
 ## Development
 
@@ -221,7 +257,7 @@ No assistant that reads external content is immune to prompt injection: keep an 
 test/test-e2e.sh --no-gui    # installs into /tmp, checks, uninstalls; leaves your config alone
 ```
 
-This test touches neither your shell, nor your data, nor your Claude account (`--with-claude` explicitly allows it for one tiny message). CI runs ShellCheck, Python compilation, this test and Gitleaks. Conventions (strings through `pick()` / `overlay.tr()`, no personal data, a test per change) and the pull-request process are in [CONTRIBUTING.md](../.github/CONTRIBUTING.md); the history of changes is in [CHANGELOG.md](CHANGELOG.md).
+This test touches neither your shell, nor your data, nor your Claude account (`--with-claude` explicitly allows it for one tiny message). CI runs ShellCheck, Python compilation, the daemon tests (`test-agent`, `test-agent-switch`, `test-security`, `test-search`, `test-remind`, `test-image`, none needing a Claude account), this test and Gitleaks. Conventions (strings through `pick()` / `overlay.tr()`, no personal data, a test per change) and the pull-request process are in [CONTRIBUTING.md](../.github/CONTRIBUTING.md); the history of changes is in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

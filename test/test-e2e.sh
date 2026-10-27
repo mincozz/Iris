@@ -54,10 +54,11 @@ check "dry-run sans erreur"           "${INST[0]}" "${INST[@]:1}" --dry-run
 check "dry-run n'écrit rien"          test ! -e "$T/qs/overlays"
 check "installation sans erreur"      "${INST[@]}"
 for f in overlays/AssistantOverlay.qml overlays/AssistantAvatar.qml scripts/assistant.py \
-         scripts/assistant-prompt.md scripts/iris-watch.py scripts/organize.py scripts/iris-ask scripts/iris-doctor scripts/i18n.py scripts/assistant-prompt.en.md scripts/iris-update; do
+         scripts/assistant-prompt.md scripts/iris-watch.py scripts/organize.py scripts/iris-ask scripts/iris-doctor scripts/i18n.py scripts/assistant-prompt.en.md scripts/iris-update scripts/iris-remind; do
   check "fichier copié : $f" test -f "$T/qs/$f"
 done
 check "iris-ask exécutable"           test -x "$T/qs/scripts/iris-ask"
+check "iris-remind exécutable"        test -x "$T/qs/scripts/iris-remind"
 mkdir -p "$T/home/.config/hypr" "$T/bin"
 printf 'require("modules.keybinds")\n' > "$T/home/.config/hypr/hyprland.lua"
 printf '#!/bin/sh\nprintf "%%s" "texte test"\n' > "$T/bin/wl-paste"; chmod +x "$T/bin/wl-paste"
@@ -159,6 +160,35 @@ TXT
 fi
 
 # ── 2b. Mise à jour (repo factice : origin + clone) ───────────────────────
+step "Agents et modèles (installeur)"
+# Faux ollama : `list` montre ce qui a été « téléchargé », `pull` l'ajoute et le journalise.
+printf 'NAME ID\nllama3.2:latest abc\n' > "$T/ollama.have"; : > "$T/ollama.log"
+cat > "$T/bin/ollama" <<SH
+#!/bin/sh
+case "\$1" in
+  list) cat "$T/ollama.have" ;;
+  pull) echo "\$2" >> "$T/ollama.log"; echo "\$2:latest x" >> "$T/ollama.have" ;;
+esac
+SH
+chmod +x "$T/bin/ollama"
+AG=("$SRC/install.sh" --prefix "$T/qs" --no-hypr -y)
+PATH="$T/bin:$PATH" "${AG[@]}" --ollama-model llama3.2 --ollama-model qwen2.5-coder --add-agent "gem=sh -c cat" >/dev/null 2>&1
+agent_cfg() { python3 -I -c "import json,sys; a=json.load(open('$DATA/config.json'))['agents']; $1"; }
+check "agent ollama déclaré (rapide / puissant)" agent_cfg "assert a['ollama']['models']=={'fast':'llama3.2','power':'qwen2.5-coder'}"
+check "agent CLI déclaré comme liste (pas de shell)" agent_cfg "assert a['gem']['command']==['sh','-c','cat']"
+check "télécharge seulement ce qui manque"  test "$(cat "$T/ollama.log")" = "qwen2.5-coder"
+check "config.json sauvegardé en .iris-bak"  test -f "$DATA/config.json.iris-bak"
+check "agent par défaut inchangé (claude)"   bash -c "python3 -I -c \"import json; assert json.load(open('$DATA/config.json'))['agent']=='claude'\""
+PATH="$T/bin:$PATH" "${AG[@]}" --ollama-model llama3.2 --ollama-model gemma3 >/dev/null 2>&1
+check "relance : agent existant conservé"    agent_cfg "assert a['ollama']['models']['power']=='qwen2.5-coder'"
+PATH="$T/bin:$PATH" "${AG[@]}" --no-pull --ollama-model phi4 >/dev/null 2>&1
+check "--no-pull : rien téléchargé"          bash -c "! grep -q phi4 '$T/ollama.log'"
+PATH="$T/bin:$PATH" "${AG[@]}" --add-agent "autre=sh -c cat" >/dev/null 2>&1
+check "-y sans --ollama-model : aucun pull"  bash -c "[ \$(wc -l < '$T/ollama.log') = 2 ]"
+check "modèle invalide refusé"               bash -c "! '$SRC/install.sh' --prefix '$T/qs' --no-hypr -y --ollama-model 'a;rm -rf /' >/dev/null 2>&1"
+check "agent nommé claude refusé"            bash -c "! '$SRC/install.sh' --prefix '$T/qs' --no-hypr -y --add-agent 'claude=ls' >/dev/null 2>&1"
+check "dry-run : ni pull ni écriture"        bash -c "before=\$(cat '$DATA/config.json'); PATH='$T/bin':\$PATH '$SRC/install.sh' --prefix '$T/qs' --no-hypr -y --dry-run --ollama-model zzz >/dev/null 2>&1; [ \"\$before\" = \"\$(cat '$DATA/config.json')\" ] && ! grep -q zzz '$T/ollama.log'"
+
 step "Mise à jour (iris-update)"
 mkdir -p "$T/upd/src" && ( cd "$SRC" && tar --exclude=.git -cf - . ) | tar -xf - -C "$T/upd/src"
 (
