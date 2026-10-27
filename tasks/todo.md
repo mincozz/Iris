@@ -14,7 +14,7 @@ Vérification commune : `python3 -I -m py_compile <fichiers touchés>` et `test/
 - [ ] **Checkpoint 1** : CI verte, recherche fluide avec ~200 conversations, relecture (`ponytail-review`) puis commit.
 
 ## Phase 2 : reminders
-- [ ] **T3 `iris-remind` (add / cancel) + install** (M)
+- [x] **T3 `iris-remind` (add / cancel) + install** (M)
   - Critères : formats `+20m|h|d` et `YYYY-MM-DD HH:MM` ; refus passé, > 1 an, texte vide ou > 200, > 50 rappels ; écriture atomique `0600`.
   - Vérif : `python3 -I test/test-remind.py`.
   - Fichiers : `scripts/iris-remind`, `test/test-remind.py`, `install.sh`, `.github/workflows/ci.yml`.

@@ -1,0 +1,112 @@
+#!/usr/bin/env python3
+"""Rappels uniques d'Iris. Fichier : ~/.local/share/qs-assistant/reminders.json
+
+    iris-remind add <quand> <texte>   quand = +20m, +2h, +3d ou "AAAA-MM-JJ HH:MM" (heure locale)
+    iris-remind cancel <id>
+    iris-remind due                   (iris-watch) affiche en JSON les rappels échus et les supprime
+
+Iris appelle `add` et `cancel` (une carte Autoriser / Refuser s'affiche) ;
+`iris-watch` appelle `due` et transforme chaque rappel en alerte.
+"""
+import datetime as dt
+import json
+import os
+import re
+import sys
+import time
+import uuid
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from i18n import pick   # noqa: E402
+
+DATA_DIR = os.path.expanduser("~/.local/share/qs-assistant")
+FILE = os.path.join(DATA_DIR, "reminders.json")
+MAX_TEXT, MAX_COUNT, MAX_AHEAD = 200, 50, 366 * 86400
+UNITS = {"m": 60, "h": 3600, "d": 86400}
+
+
+def fail(msg):
+    sys.stderr.write(msg + "\n")
+    sys.exit(1)
+
+
+def load():
+    try:
+        with open(FILE) as f:
+            data = json.load(f)
+        return [r for r in data if isinstance(r, dict)] if isinstance(data, list) else []
+    except (OSError, ValueError):
+        return []
+
+
+def save(reminders):
+    os.makedirs(DATA_DIR, mode=0o700, exist_ok=True)
+    tmp = FILE + ".tmp"
+    with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
+        json.dump(reminders, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, FILE)
+
+
+def parse_when(when, now):
+    m = re.fullmatch(r"\+(\d{1,5})([mhd])", when.strip())
+    if m:
+        return now + int(m.group(1)) * UNITS[m.group(2)]
+    try:
+        return dt.datetime.strptime(when.strip(), "%Y-%m-%d %H:%M").astimezone().timestamp()
+    except ValueError:
+        fail(pick("Heure non comprise : utilise +20m, +2h, +3d ou « AAAA-MM-JJ HH:MM ».",
+                  "Time not understood: use +20m, +2h, +3d or \"YYYY-MM-DD HH:MM\"."))
+
+
+def add(when, text):
+    text = " ".join(text.split())          # one line, no control characters
+    if not text or len(text) > MAX_TEXT:
+        fail(pick(f"Le texte doit faire entre 1 et {MAX_TEXT} caractères.",
+                  f"The text must be 1 to {MAX_TEXT} characters long."))
+    now = time.time()
+    due = parse_when(when, now)
+    if due <= now:
+        fail(pick("Cette heure est déjà passée.", "That time is already past."))
+    if due > now + MAX_AHEAD:
+        fail(pick("Trop loin : un an au plus.", "Too far ahead: one year at most."))
+    reminders = load()
+    if len(reminders) >= MAX_COUNT:
+        fail(pick(f"Déjà {MAX_COUNT} rappels en attente.", f"Already {MAX_COUNT} pending reminders."))
+    rid = uuid.uuid4().hex[:6]
+    reminders.append({"id": rid, "due": due, "text": text})
+    save(reminders)
+    print(f"OK {rid} {dt.datetime.fromtimestamp(due).astimezone().strftime('%Y-%m-%d %H:%M')}")
+
+
+def cancel(rid):
+    reminders = load()
+    kept = [r for r in reminders if r.get("id") != rid]
+    if len(kept) == len(reminders):
+        fail(pick("Aucun rappel avec cet id.", "No reminder with that id."))
+    save(kept)
+    print("OK")
+
+
+def due():
+    now = time.time()
+    reminders = load()
+    ready = [r for r in reminders if isinstance(r.get("due"), (int, float)) and r["due"] <= now]
+    if ready:
+        # shortcut: a crash between this write and the alert loses the reminder, no retry
+        save([r for r in reminders if r not in ready])
+    print(json.dumps(ready, ensure_ascii=False))
+
+
+def main(argv):
+    if len(argv) >= 4 and argv[1] == "add":
+        add(argv[2], " ".join(argv[3:]))
+    elif len(argv) == 3 and argv[1] == "cancel":
+        cancel(argv[2])
+    elif len(argv) == 2 and argv[1] == "due":
+        due()
+    else:
+        fail(__doc__)
+
+
+if __name__ == "__main__":
+    main(sys.argv)

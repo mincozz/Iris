@@ -54,10 +54,11 @@ check "dry-run sans erreur"           "${INST[0]}" "${INST[@]:1}" --dry-run
 check "dry-run n'écrit rien"          test ! -e "$T/qs/overlays"
 check "installation sans erreur"      "${INST[@]}"
 for f in overlays/AssistantOverlay.qml overlays/AssistantAvatar.qml scripts/assistant.py \
-         scripts/assistant-prompt.md scripts/iris-watch.py scripts/organize.py scripts/iris-ask scripts/iris-doctor scripts/i18n.py scripts/assistant-prompt.en.md scripts/iris-update; do
+         scripts/assistant-prompt.md scripts/iris-watch.py scripts/organize.py scripts/iris-ask scripts/iris-doctor scripts/i18n.py scripts/assistant-prompt.en.md scripts/iris-update scripts/iris-remind; do
   check "fichier copié : $f" test -f "$T/qs/$f"
 done
 check "iris-ask exécutable"           test -x "$T/qs/scripts/iris-ask"
+check "iris-remind exécutable"        test -x "$T/qs/scripts/iris-remind"
 mkdir -p "$T/home/.config/hypr" "$T/bin"
 printf 'require("modules.keybinds")\n' > "$T/home/.config/hypr/hyprland.lua"
 printf '#!/bin/sh\nprintf "%%s" "texte test"\n' > "$T/bin/wl-paste"; chmod +x "$T/bin/wl-paste"

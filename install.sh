@@ -47,6 +47,7 @@ FILES=(
   "scripts/assistant.py" "scripts/assistant-prompt.md"
   "scripts/iris-watch.py" "scripts/organize.py" "scripts/iris-ask" "scripts/iris-doctor"
   "scripts/i18n.py" "scripts/assistant-prompt.en.md" "scripts/iris-update"
+  "scripts/iris-remind"
 )
 
 backup() { [ -e "$1" ] && [ ! -e "$1.iris-bak" ] && run cp -p "$1" "$1.iris-bak" || true; }
@@ -87,7 +88,7 @@ say "Copie vers $PREFIX"
 for f in "${FILES[@]}"; do
   run mkdir -p "$PREFIX/$(dirname "$f")"
   if [ -e "$PREFIX/$f" ] && ! cmp -s "$SRC/$f" "$PREFIX/$f"; then backup "$PREFIX/$f"; fi
-  run install -m "$([[ $f == scripts/*.py || $f == scripts/iris-ask || $f == scripts/iris-doctor || $f == scripts/iris-update ]] && echo 755 || echo 644)" "$SRC/$f" "$PREFIX/$f"
+  run install -m "$([[ $f == scripts/*.py || $f == scripts/iris-ask || $f == scripts/iris-doctor || $f == scripts/iris-update || $f == scripts/iris-remind ]] && echo 755 || echo 644)" "$SRC/$f" "$PREFIX/$f"
 done
 
 # ── État utilisateur (jamais écrasé) ──────────────────────────────────────
