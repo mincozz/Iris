@@ -632,55 +632,57 @@ PanelWindow {
         }
 
         // ── History ────────────────────────────────────────────────────
+        // The search field lives outside the list: the list's model is reset on
+        // every answer, which took the focus away from a field inside it.
+        Rectangle {
+            id: searchBox
+            visible: overlay.showHistory
+            anchors { left: parent.left; right: parent.right; top: modeBar.bottom
+                      leftMargin: 16; rightMargin: 16; topMargin: 16 }
+            height: 36; radius: 18
+            color: overlay.wellFill
+            border.color: searchInput.activeFocus ? overlay.alpha(overlay.theme.primary, 0.6) : overlay.cardStroke
+            border.width: 1
+            TextInput {
+                id: searchInput
+                anchors { left: parent.left; right: parent.right; leftMargin: 16; rightMargin: 16
+                          verticalCenter: parent.verticalCenter }
+                color: overlay.theme.fg
+                selectionColor: overlay.alpha(overlay.theme.primary, 0.45)
+                selectedTextColor: overlay.theme.fg
+                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                clip: true
+                onTextChanged: { overlay.searchQuery = text; overlay.cmd({ cmd: "search", q: text }) }
+                Connections {
+                    target: overlay
+                    function onShowHistoryChanged() {
+                        if (!overlay.showHistory) return
+                        searchInput.text = ""
+                        searchInput.forceActiveFocus()
+                    }
+                }
+                Text {
+                    visible: searchInput.text === ""
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: overlay.tr("search_placeholder", "Rechercher une conversation…")
+                    color: overlay.theme.outline
+                    font: searchInput.font
+                }
+            }
+        }
+
         ListView {
             id: historyList
             visible: overlay.showHistory
             anchors {
                 left: parent.left; right: parent.right
-                top: modeBar.bottom; bottom: inputBox.top
-                margins: 16
+                top: searchBox.bottom; bottom: inputBox.top
+                margins: 16; topMargin: 10
             }
             clip: true
             spacing: 6
             model: history
             boundsBehavior: Flickable.StopAtBounds
-
-            header: Item {
-                width: historyList.width; height: 44
-                Rectangle {
-                    anchors { left: parent.left; right: parent.right; top: parent.top }
-                    height: 36; radius: 18
-                    color: overlay.wellFill
-                    border.color: searchInput.activeFocus ? overlay.alpha(overlay.theme.primary, 0.6) : overlay.cardStroke
-                    border.width: 1
-                    TextInput {
-                        id: searchInput
-                        anchors { left: parent.left; right: parent.right; leftMargin: 16; rightMargin: 16
-                                  verticalCenter: parent.verticalCenter }
-                        color: overlay.theme.fg
-                        selectionColor: overlay.alpha(overlay.theme.primary, 0.45)
-                        selectedTextColor: overlay.theme.fg
-                        font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
-                        clip: true
-                        onTextChanged: { overlay.searchQuery = text; overlay.cmd({ cmd: "search", q: text }) }
-                        Connections {
-                            target: overlay
-                            function onShowHistoryChanged() {
-                                if (!overlay.showHistory) return
-                                searchInput.text = ""
-                                searchInput.forceActiveFocus()
-                            }
-                        }
-                        Text {
-                            visible: searchInput.text === ""
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: overlay.tr("search_placeholder", "Rechercher une conversation…")
-                            color: overlay.theme.outline
-                            font: searchInput.font
-                        }
-                    }
-                }
-            }
 
             Text {
                 visible: history.count === 0
