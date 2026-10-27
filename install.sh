@@ -4,8 +4,12 @@
 #                [--name NOM] [--deny-read "~/.ssh,~/.gnupg"] [--reconfigure]
 #                [--fast-model ID] [--power-model ID] [--ask-key "SUPER + I"] [--ask-edit-key "SUPER + SHIFT + I"]
 #                [--language fr|en|auto]
+#                [--ollama-model ID]... [--add-agent "nom=commande {prompt}"]... [--no-pull]
 # Sans option de config et dans un terminal, l'installateur pose quelques
 # questions ; avec -y ou sans terminal, il garde les défauts.
+# --ollama-model : déclare l'agent « ollama » (1er modèle = rapide, 2e = puissant)
+#   et télécharge ce qui manque (ollama pull ; -y ne télécharge que si l'option
+#   est donnée). --add-agent : déclare une autre CLI (jamais exécutée ici).
 # Idempotent : on peut le relancer sans risque. Chaque fichier existant
 # modifié est sauvegardé en <fichier>.iris-bak (une seule fois).
 set -euo pipefail
@@ -16,6 +20,7 @@ HYPR="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
 DATA="$HOME/.local/share/qs-assistant"
 DRY=0; HYPR_ON=1; UNINSTALL=0; YES=0
 ASK_KEY="SUPER + I"; ASK_EDIT_KEY="SUPER + SHIFT + I"; CFG_LANG=""; CFG_NAME=""; CFG_DENY=""; CFG_FAST=""; CFG_POWER=""; RECONF=0; CFG_SET=0
+OLLAMA_MODELS=(); ADD_AGENTS=(); NO_PULL=0
 BEGIN="// >>> iris (install.sh) >>>"; END="// <<< iris (install.sh) <<<"
 
 while [ $# -gt 0 ]; do
@@ -30,6 +35,9 @@ while [ $# -gt 0 ]; do
     --deny-read)   CFG_DENY="$2"; CFG_SET=1; shift ;;
     --fast-model)  CFG_FAST="$2"; CFG_SET=1; shift ;;
     --power-model) CFG_POWER="$2"; CFG_SET=1; shift ;;
+    --ollama-model) OLLAMA_MODELS+=("$2"); shift ;;
+    --add-agent)   ADD_AGENTS+=("$2"); shift ;;
+    --no-pull)     NO_PULL=1 ;;
     --reconfigure) RECONF=1 ;;
     --ask-key)     ASK_KEY="$2"; shift ;;
     --ask-edit-key) ASK_EDIT_KEY="$2"; shift ;;
@@ -123,6 +131,19 @@ else
       read -r -p "    Modèle rapide [claude-haiku-5-5] : " CFG_FAST
       read -r -p "    Modèle puissant [claude-sonnet-5-5] : " CFG_POWER
     fi
+    read -r -p "  Ajouter un agent local (Ollama) ? [o/N] " a
+    if [[ "$a" =~ ^[oOyY]$ ]]; then
+      read -r -p "    Modèles, séparés par des virgules (ex. llama3.2,qwen2.5-coder) : " a
+      IFS=',' read -r -a OLLAMA_MODELS <<< "${a// /}"
+      read -r -p "    Télécharger ceux qui manquent maintenant ? [O/n] " a
+      [[ "$a" =~ ^[nN]$ ]] && NO_PULL=1
+    fi
+    read -r -p "  Ajouter un autre agent (Gemini, Codex…) ? [o/N] " a
+    if [[ "$a" =~ ^[oOyY]$ ]]; then
+      read -r -p "    Nom : " a; an="$a"
+      read -r -p "    Commande, avec {prompt} là où va la question (ex. gemini -p {prompt}) : " a
+      ADD_AGENTS+=("$an=$a")
+    fi
   fi
   if [ -z "$CFG_LANG" ] && [ ! -e "$DATA/config.json" ]; then
     case "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}" in en*) CFG_LANG=en ;; *) CFG_LANG=fr ;; esac
@@ -146,6 +167,63 @@ if deny:  cfg["deny_read_paths"] = [p.strip() for p in deny.split(",") if p.stri
 if fast:  cfg.setdefault("models", {})["fast"] = fast.strip()
 if power: cfg.setdefault("models", {})["power"] = power.strip()
 with open(out, "w") as f:
+    json.dump(cfg, f, ensure_ascii=False, indent=2)
+    f.write("\n")
+PY
+    chmod 600 "$DATA/config.json"
+  fi
+fi
+
+# ── Agents et modèles (--ollama-model, --add-agent) ──────────────────────
+# Fonctionne aussi sur un config.json existant : seules les clés `agents` sont
+# fusionnées (sauvegarde .iris-bak) ; un agent déjà déclaré est conservé.
+if [ ${#OLLAMA_MODELS[@]} -gt 0 ] || [ ${#ADD_AGENTS[@]} -gt 0 ]; then
+  say "Agents et modèles"
+  for m in "${OLLAMA_MODELS[@]}"; do
+    [[ "$m" =~ ^[A-Za-z0-9._:/-]+$ ]] || { echo "modèle invalide : $m" >&2; exit 2; }
+  done
+  if [ ${#OLLAMA_MODELS[@]} -gt 0 ] && [ "$NO_PULL" = 0 ]; then
+    if command -v ollama >/dev/null 2>&1; then
+      have="$(ollama list 2>/dev/null | awk 'NR>1 {print $1}' || true)"
+      for m in "${OLLAMA_MODELS[@]}"; do
+        if grep -qxF -e "$m" -e "$m:latest" <<< "$have"; then echo "  ✓ $m déjà téléchargé"
+        else run ollama pull "$m" || warn "téléchargement de $m impossible (Ollama est-il lancé ?) : relance \`ollama pull $m\`"; fi
+      done
+    else
+      warn "ollama introuvable : installe-le (https://ollama.com), puis \`ollama pull ${OLLAMA_MODELS[0]}\`"
+    fi
+  fi
+  if [ "$DRY" = 1 ]; then
+    echo "  [dry-run] agents ajoutés à $DATA/config.json : ${OLLAMA_MODELS[*]:+ollama (${OLLAMA_MODELS[*]}) }${ADD_AGENTS[*]:-}"
+  elif [ -e "$DATA/config.json" ]; then
+    backup "$DATA/config.json"
+    python3 -I - "$DATA/config.json" "$RECONF" "$(IFS=,; echo "${OLLAMA_MODELS[*]:-}")" "${ADD_AGENTS[@]}" <<'PY'
+import json, re, shlex, shutil, sys
+path, reconf, models, *specs = sys.argv[1:]
+cfg = json.load(open(path))
+agents = cfg.setdefault("agents", {})
+
+def put(name, spec):
+    if name in agents and reconf != "1":
+        print(f"  ! agent « {name} » déjà déclaré : conservé (--reconfigure pour le remplacer)")
+    else:
+        agents[name] = spec
+        print(f"  ✓ agent « {name} » déclaré")
+
+ms = [m for m in models.split(",") if m]
+if ms:
+    put("ollama", {"command": ["ollama", "run", "{model}"],
+                   "models": {"fast": ms[0], "power": ms[1] if len(ms) > 1 else ms[0]}, "history": 8})
+for s in specs:
+    name, _, cmd = s.partition("=")
+    name = name.strip()
+    argv = shlex.split(cmd)          # a list, never handed to a shell
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,32}", name) or name == "claude" or not argv:
+        sys.exit(f"--add-agent : « {s} » invalide (attendu nom=commande, nom ≠ claude)")
+    if not shutil.which(argv[0]):
+        print(f"  ! {argv[0]} introuvable pour l'instant : à installer avant de choisir « {name} »")
+    put(name, {"command": argv, "models": {}, "history": 8})
+with open(path, "w") as f:
     json.dump(cfg, f, ensure_ascii=False, indent=2)
     f.write("\n")
 PY

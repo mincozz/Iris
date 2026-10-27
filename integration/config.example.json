@@ -8,12 +8,5 @@
   "extra_readonly_commands": [],
   "extra_denied_commands": [],
   "agent": "claude",
-  "agents": {
-    "gemini": { "command": ["gemini", "-p", "{prompt}"] },
-    "ollama": {
-      "command": ["ollama", "run", "{model}"],
-      "models": { "fast": "llama3.2", "power": "qwen2.5-coder" },
-      "history": 8
-    }
-  }
+  "agents": {}
 }
