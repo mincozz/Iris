@@ -64,6 +64,7 @@ UPDATE = os.path.join(SCRIPT_DIR, "iris-update")
 REMIND = os.path.join(SCRIPT_DIR, "iris-remind")
 REMINDERS_FILE = os.path.join(DATA_DIR, "reminders.json")
 SKILLS_DIR = os.path.join(DATA_DIR, "skills")      # your own recipes, one .md each
+AGENT_FILE = os.path.join(DATA_DIR, "agent")          # agent picked in the panel (wins over config.json)
 IMAGES_DIR = os.path.join(DATA_DIR, "attachments")   # pasted images, purged after IMAGE_KEEP
 IMAGE_KEEP = 7 * 86400
 IMAGE_MAX = 10 * 1024 * 1024
@@ -176,7 +177,18 @@ AGENT = CONFIG["agent"] if CONFIG["agent"] in CONFIG["agents"] else "claude"
 if CONFIG["agent"] != AGENT:
     print(f"[iris] config.json: agent '{CONFIG['agent']}' not found in 'agents', using claude",
           file=sys.stderr)
+try:
+    with open(AGENT_FILE) as f:
+        _saved = f.read().strip()
+except OSError:
+    _saved = ""
+if _saved == "claude" or _saved in CONFIG["agents"]:
+    AGENT = _saved
 SESSION_IDLE = CONFIG["session_idle_minutes"] * 60
+
+
+def agent_names():
+    return ["claude", *CONFIG["agents"]]
 
 # Messages that deserve the strong model in "auto" mode: code and real dev
 # work only (Sonnet costs several times Haiku's quota). Everything else,
@@ -957,16 +969,31 @@ class Daemon:
                 self._start_update()
             elif c == "action":
                 self._run_action(cmd.get("id"), cmd.get("arg"))
+            elif c == "agent":
+                self._set_agent(cmd.get("name"))
             elif c == "hello":
                 self._show_conversation()
+                emit("agents", v=agent_names(), current=AGENT)
+
+    def _set_agent(self, name):
+        """The panel's agent picker. Only names declared in config.json are accepted."""
+        global AGENT
+        switched = name in agent_names() and name != AGENT and not self.busy
+        if switched:
+            AGENT = name
+            tmp = AGENT_FILE + ".tmp"
+            with open(tmp, "w") as f:
+                f.write(name)
+            os.replace(tmp, AGENT_FILE)
+            self._drop_claude()          # the next message starts the new agent
+        emit("agents", v=agent_names(), current=AGENT, switched=switched)
 
     def _paste_image(self):
         """Ctrl+V in the panel: keep the clipboard image, if there is one, for the next message."""
         data = clipboard_png()
         if data is None:
             return                                   # text paste: nothing to do
-        # AGENT only exists when the custom-agent backend is installed; only Claude sees images.
-        if globals().get("AGENT", "claude") != "claude":
+        if AGENT != "claude":                        # only Claude sees images
             emit("error", v=pick("Cet agent ne gère pas les images.", "This agent does not handle images."))
             return
         if len(data) > IMAGE_MAX:
