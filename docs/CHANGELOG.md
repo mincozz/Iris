@@ -21,3 +21,6 @@ Les versions suivent les commits de `main` ; Iris se met à jour avec `scripts/i
 - Skills (recettes Markdown), mémoire locale, rangement de dossiers annulable (`organize.py`).
 - Français et anglais (`language` dans `config.json`), fuseau horaire de la machine.
 - `AGENTS.md` / `CLAUDE.md` pour installer avec une IA ; CI (ShellCheck, compilation, test de bout en bout, Gitleaks) ; Dependabot ; `SECURITY.md`.
+- Recherche dans l'historique : un champ filtre les conversations à chaque lettre (titre et messages, accents et casse ignorés) et montre un extrait.
+- Rappels uniques (`iris-remind`) : « rappelle-moi dans 20 min… », carte d'autorisation, alerte à l'heure par `iris-watch`, rappel manqué envoyé au démarrage suivant.
+- Images : Ctrl+V colle une capture du presse-papiers (PNG, 10 Mo au plus) avec une pastille « Image jointe » ; fichiers gardés 7 jours dans `attachments/`.

@@ -89,7 +89,7 @@ In a terminal the installer asks four questions: the language, your first name, 
 
 ## Usage
 
-**Panel.** `qs ipc call assistant toggle|open|close` opens and closes it; `qs ipc call assistant ask "…"` sends a message. Header: history, new conversation and the update button. The Auto / Fast / Powerful selector picks the model.
+**Panel.** `qs ipc call assistant toggle|open|close` opens and closes it; `qs ipc call assistant ask "…"` sends a message. Header: history (with a search field that filters as you type, ignoring accents and case), new conversation and the update button. The Auto / Fast / Powerful selector picks the model.
 
 **Shortcuts.** `scripts/iris-ask` sends the selection (the clipboard if nothing is selected); with `--edit` it **attaches** it to the panel (an "Attached text" pill, removable) and you type your instruction before sending. `IRIS_ASK_DRY=1` shows what would be sent without sending anything. The text goes to Claude as is: don't use it on a password.
 
@@ -105,6 +105,10 @@ description: Prepare my weekly report ("weekly report")
 
 Iris gets the list (name and description) and reads a recipe when your request matches it, or when you type `/name`. Plain file names (letters, digits, `-`, `_`, `.`), 30 recipes at most. Examples in your language are copied at install time, never overwriting yours. The list is read when a conversation starts: open a new conversation after adding a recipe. A recipe gets no extra permissions: actions that change something still ask for your click.
 
+**Images.** Copy a screenshot (for example `grim -g "$(slurp)" - | wl-copy`) then press **Ctrl+V** in the panel: an "Attached image" pill (removable) appears and the image goes with your next message; Iris reads it with `Read`. PNG, 10 MB at most, copied to `~/.local/share/qs-assistant/attachments/` (mode `0600`) and deleted after 7 days. Pasting text is unchanged.
+
+**Reminders.** "Remind me in 20 min to call Alex": Iris runs `iris-remind add` (an Allow / Deny card shows the reminder) and `iris-watch` alerts you on time, in the panel and by notification. One-shot reminders, one year ahead at most, 50 pending at most, stored in `~/.local/share/qs-assistant/reminders.json`. A reminder missed while the PC was off is sent at the next start, with its due time. Ask Iris to cancel one.
+
 **Tidying.** Ask Iris to tidy a folder: she analyses it (`organize.py scan`), proposes a plan, applies it with a single approval, and `organize.py undo` reverts the last tidy-up. Nothing is overwritten, and the trash goes through `gio trash`.
 
 ## Alerts and morning brief
@@ -118,6 +122,7 @@ Iris gets the list (name and description) and reads a recipe when your request m
 | Calendar | `remind_minutes` before each event |
 | PC health | Disk almost full, low battery, failed services, pending updates |
 | Iris update | Every 6 hours; **Update now** button |
+| Reminder | At the requested time (`iris-remind`), checked every 30 s |
 | Morning brief | Once a day from `morning_hour`: today's agenda and git work left unsaved |
 
 | Key | Purpose |
@@ -230,7 +235,7 @@ No assistant that reads external content is immune to prompt injection: keep an 
 - Built and tested on Arch Linux + Hyprland + Quickshell; elsewhere the installer and `iris-doctor` tell you what is missing, but the bar button, blur and shortcuts need adapting.
 - Every message uses your Claude subscription quota.
 - Calendar, mail, Notion and Drive come through your Claude account's connectors; without them Iris can't see them (the calendar can also come from an iCal address).
-- The panel only sends text (no images or voice yet).
+- The panel sends text and pasted images (PNG, needs `wl-clipboard`), no voice yet. Images only work with the `claude` agent.
 
 ## Development
 

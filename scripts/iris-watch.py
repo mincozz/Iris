@@ -25,6 +25,8 @@ Checks:
   updates       every 6 h: `git fetch` of the clone Iris was installed from;
                 tells you when a new version is out ("check_updates": false
                 to disable). `iris-update` then installs it.
+  reminders     every 30 s: reminders created with `iris-remind` that are due
+                (a reminder missed while the PC was off is sent at the next start)
   health        every 15 min: disk > 90 %, battery < 15 % on battery,
                 failed systemd units, > 80 pending updates (weekly)
 
@@ -608,12 +610,29 @@ def check_health(state):
 
 
 # ── Main loop ────────────────────────────────────────────────────────────
+def check_reminders(state):
+    try:
+        r = subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "iris-remind"), "due"],
+                           capture_output=True, text=True, timeout=20)
+        due = json.loads(r.stdout) if r.returncode == 0 else []
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return
+    for rem in due:
+        when = dt.datetime.fromtimestamp(rem["due"], TZ)
+        late = time.time() - rem["due"] > 300
+        text = f"⏰ **{pick('Rappel', 'Reminder')}** : {esc(rem.get('text', ''))}"
+        if late:
+            text += pick(f" (prévu à {when:%H:%M})", f" (due at {when:%H:%M})")
+        nudge(state, f"remind-{rem.get('id')}", "reminder", text)
+
+
 CHECKS = {                      # name → (function, interval in seconds)
     "calendar":     (check_calendar, 300),
     "git_behind":   (check_git_behind, 600),
     "git_unpushed": (check_git_unpushed, 900),
     "morning":      (check_morning, 600),
     "updates":      (check_updates, 6 * 3600),
+    "reminders":    (check_reminders, 30),
     "health":       (check_health, 900),
 }
 

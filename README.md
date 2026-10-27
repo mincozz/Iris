@@ -89,7 +89,7 @@ Dans un terminal, l'installateur pose quatre questions : la langue, votre préno
 
 ## Utilisation
 
-**Panneau.** `qs ipc call assistant toggle|open|close` l'ouvre et le ferme ; `qs ipc call assistant ask "…"` envoie un message. En-tête : historique, nouvelle conversation et bouton de mise à jour. Le sélecteur Auto / Rapide / Puissant choisit le modèle.
+**Panneau.** `qs ipc call assistant toggle|open|close` l'ouvre et le ferme ; `qs ipc call assistant ask "…"` envoie un message. En-tête : historique (avec un champ de recherche qui filtre à chaque lettre, sans tenir compte des accents ni de la casse), nouvelle conversation et bouton de mise à jour. Le sélecteur Auto / Rapide / Puissant choisit le modèle.
 
 **Raccourcis.** `scripts/iris-ask` envoie la sélection (à défaut le presse-papiers) ; avec `--edit`, il la **joint** au panneau (pastille « Texte joint », retirable) et vous tapez votre consigne avant d'envoyer. `IRIS_ASK_DRY=1` montre ce qui partirait, sans rien envoyer. Le texte part tel quel à Claude : ne l'utilisez pas sur un mot de passe.
 
@@ -105,6 +105,10 @@ description: Prépare mon rapport hebdo (« rapport de la semaine »)
 
 Iris reçoit la liste (nom et description) et lit la recette quand votre demande y correspond, ou quand vous écrivez `/nom`. Noms de fichier simples (lettres, chiffres, `-`, `_`, `.`), 30 recettes au plus. Des exemples dans votre langue sont copiés à l'installation, sans jamais écraser les vôtres. La liste est lue au début d'une conversation : ouvrez une nouvelle conversation après avoir ajouté une recette. Une recette n'a aucun droit supplémentaire : les actions qui modifient demandent toujours votre clic.
 
+**Images.** Copiez une capture d'écran (par exemple `grim -g "$(slurp)" - | wl-copy`) puis **Ctrl+V** dans le panneau : une pastille « Image jointe » (retirable) apparaît et l'image part avec votre prochain message ; Iris la lit avec `Read`. PNG de 10 Mo au plus, copiée dans `~/.local/share/qs-assistant/attachments/` (droits `0600`) et supprimée au bout de 7 jours. Le collage de texte ne change pas.
+
+**Rappels.** « Rappelle-moi dans 20 min d'appeler Alex » : Iris lance `iris-remind add` (une carte Autoriser / Refuser montre le rappel) et `iris-watch` vous prévient à l'heure, dans le panneau et par notification. Rappels uniques, un an au plus, 50 en attente au plus, stockés dans `~/.local/share/qs-assistant/reminders.json`. Un rappel manqué parce que le PC était éteint part au prochain démarrage, avec l'heure prévue. Pour en annuler un, demandez-le à Iris.
+
 **Rangement.** Demandez à Iris de ranger un dossier : elle l'analyse (`organize.py scan`), propose un plan, l'applique en une seule validation, et `organize.py undo` annule le dernier rangement. Rien n'est écrasé, la corbeille passe par `gio trash`.
 
 ## Alertes et résumé du matin
@@ -118,6 +122,7 @@ Iris reçoit la liste (nom et description) et lit la recette quand votre demande
 | Agenda | `remind_minutes` avant chaque événement |
 | Santé du PC | Disque presque plein, batterie faible, services en échec, mises à jour en attente |
 | Mise à jour d'Iris | Toutes les 6 h ; bouton **Mettre à jour** |
+| Rappel | À l'heure demandée (`iris-remind`), vérifié toutes les 30 s |
 | Résumé du matin | Une fois par jour à partir de `morning_hour` : agenda du jour et travail git resté en plan |
 
 | Clé | Rôle |
@@ -230,7 +235,7 @@ Aucun assistant qui lit du contenu externe n'est à l'abri d'une injection de pr
 - Conçu et testé sur Arch Linux + Hyprland + Quickshell ; ailleurs, l'installateur et `iris-doctor` indiquent ce qui manque, mais le bouton de barre, le flou et les raccourcis sont à adapter.
 - Chaque message consomme le quota de votre abonnement Claude.
 - Agenda, mails, Notion et Drive passent par les connecteurs de votre compte Claude ; sans eux, Iris ne les voit pas (l'agenda peut aussi venir d'une adresse iCal).
-- Le panneau n'envoie que du texte (pas d'images ni de voix pour l'instant).
+- Le panneau envoie du texte et des images collées (PNG, `wl-clipboard` requis), pas de voix pour l'instant. Les images ne passent qu'avec l'agent `claude`.
 
 ## Développement
 

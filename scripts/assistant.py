@@ -61,7 +61,12 @@ CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
 MEMORY_FILE = os.path.join(DATA_DIR, "memory.md")
 ORGANIZE = os.path.join(SCRIPT_DIR, "organize.py")
 UPDATE = os.path.join(SCRIPT_DIR, "iris-update")
+REMIND = os.path.join(SCRIPT_DIR, "iris-remind")
+REMINDERS_FILE = os.path.join(DATA_DIR, "reminders.json")
 SKILLS_DIR = os.path.join(DATA_DIR, "skills")      # your own recipes, one .md each
+IMAGES_DIR = os.path.join(DATA_DIR, "attachments")   # pasted images, purged after IMAGE_KEEP
+IMAGE_KEEP = 7 * 86400
+IMAGE_MAX = 10 * 1024 * 1024
 UPDATE_LOG = os.path.join(DATA_DIR, "update.log")
 UPDATE_RESULT = os.path.join(DATA_DIR, "update-result")   # exit code of the last button update
 UPDATE_RUNNING = os.path.join(DATA_DIR, "update-running")  # exists while it runs
@@ -448,6 +453,7 @@ def load_skills():
 def system_prompt(connectors=True):
     with open(PROMPT_FILE) as f:
         text = f.read().replace("{ORGANIZE}", ORGANIZE).replace("{UPDATE}", UPDATE)
+        text = text.replace("{REMIND}", REMIND).replace("{REMINDERS}", REMINDERS_FILE)
     if not connectors:
         text += pick(
             "\n\nPour économiser le quota, les outils Google Calendar, Gmail, Notion et "
@@ -565,6 +571,30 @@ def search_history(query):
             if len(out) == SEARCH_MAX:
                 break
     return out
+
+
+def purge_images():
+    cut = time.time() - IMAGE_KEEP
+    try:
+        names = os.listdir(IMAGES_DIR)
+    except OSError:
+        return
+    for name in names:
+        path = os.path.join(IMAGES_DIR, name)
+        try:
+            if name.endswith(".png") and os.path.getmtime(path) < cut:
+                os.remove(path)
+        except OSError:
+            pass
+
+
+def clipboard_png():
+    """The PNG in the Wayland clipboard (a screenshot, say), or None."""
+    try:
+        r = subprocess.run(["wl-paste", "--type", "image/png"], capture_output=True, timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return r.stdout if r.returncode == 0 and r.stdout.startswith(b"\x89PNG\r\n\x1a\n") else None
 
 
 # ── Claude process ───────────────────────────────────────────────────────
@@ -894,6 +924,8 @@ class Daemon:
                 self._new()
             elif c == "list":
                 emit("history", v=list_history())
+            elif c == "paste_image":
+                threading.Thread(target=self._paste_image, daemon=True).start()
             elif c == "search":
                 emit("history", v=search_history(cmd.get("q")))
             elif c == "load":
@@ -927,6 +959,25 @@ class Daemon:
                 self._run_action(cmd.get("id"), cmd.get("arg"))
             elif c == "hello":
                 self._show_conversation()
+
+    def _paste_image(self):
+        """Ctrl+V in the panel: keep the clipboard image, if there is one, for the next message."""
+        data = clipboard_png()
+        if data is None:
+            return                                   # text paste: nothing to do
+        # AGENT only exists when the custom-agent backend is installed; only Claude sees images.
+        if globals().get("AGENT", "claude") != "claude":
+            emit("error", v=pick("Cet agent ne gère pas les images.", "This agent does not handle images."))
+            return
+        if len(data) > IMAGE_MAX:
+            emit("error", v=pick("Image trop grosse (10 Mo au plus).", "Image too large (10 MB at most)."))
+            return
+        os.makedirs(IMAGES_DIR, mode=0o700, exist_ok=True)
+        purge_images()
+        path = os.path.join(IMAGES_DIR, uuid.uuid4().hex[:12] + ".png")
+        with os.fdopen(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as f:
+            f.write(data)
+        emit("image", path=path)
 
     def _nudge(self, text, kind="", action=None):
         """Iris speaks first: an alert from the watcher joins the chat."""
@@ -1244,6 +1295,8 @@ def ui_strings():
         "writing": pick("J'écris…", "Writing…"),
         "online": pick("En ligne", "Online"),
         "no_history": pick("Aucune conversation pour l'instant", "No conversations yet"),
+        "no_match": pick("Aucun résultat", "No results"),
+        "search_placeholder": pick("Rechercher une conversation…", "Search conversations…"),
         "chip1": pick("Qu'est-ce que j'ai aujourd'hui ?", "What's on my agenda today?"),
         "chip2": pick("Aide-moi à planifier ma semaine", "Help me plan my week"),
         "chip3": pick("Où est mon dernier PDF téléchargé ?", "Where is my last downloaded PDF?"),
@@ -1259,6 +1312,9 @@ def ui_strings():
         "done_state": pick("Fait", "Done"),
         "attached": pick("Texte joint", "Attached text"),
         "chars": pick("car.", "chars"),
+        "image_attached": pick("Image jointe", "Attached image"),
+        "image_default": pick("Regarde cette image :", "Have a look at this image:"),
+        "image_line": pick("[Image jointe : {path}]", "[Attached image: {path}]"),
         "attached_default": pick("Voici le texte que j'ai sélectionné :", "Here is the text I selected:"),
         "updating_msg": pick("Mise à jour en cours… le panneau peut se recharger.", "Updating… the panel may reload."),
         "allowed": pick("Autorisé", "Allowed"),
@@ -1277,6 +1333,7 @@ def main():
     os.makedirs(HIST_DIR, exist_ok=True)
     os.chmod(DATA_DIR, 0o700)   # history holds mail/file contents
     daemon = Daemon()
+    purge_images()
     emit("ui", lang=LANG, s=ui_strings())
     daemon.handle({"cmd": "hello"})
     # An update from the "Update" button may have finished (or still run)

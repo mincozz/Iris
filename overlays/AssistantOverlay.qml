@@ -57,6 +57,7 @@ PanelWindow {
     property string modelName:   ""      // "haiku" | "sonnet" (last reply)
     property string mode:        "auto"  // auto | fast | power
     property bool   showHistory: false
+    property string searchQuery: ""      // text typed in the history search field
     // Subscription usage (0..1) reported by Claude Code; -1 = unknown yet.
     property real   usage5h:     -1
     property real   usageWeek:   -1
@@ -121,13 +122,21 @@ PanelWindow {
         Qt.callLater(() => input.forceActiveFocus())
     }
 
+    // Image pasted with Ctrl+V (a file the daemon saved), sent with the next message.
+    property string image: ""
+
     function send() {
         const typed = input.text.trim()
-        if ((!typed && attached === "") || busy) return
-        const msg = attached === "" ? typed
+        if ((!typed && attached === "" && image === "") || busy) return
+        let msg = attached === "" ? typed
             : (typed !== "" ? typed : tr("attached_default", "Voici le texte que j'ai sélectionné :"))
               + "\n\n```\n" + attached + "\n```"
+        if (image !== "") {
+            if (msg === "") msg = tr("image_default", "Regarde cette image :")
+            msg += "\n\n" + tr("image_line", "[Image jointe : {path}]").replace("{path}", image)
+        }
         attached = ""
+        image = ""
         input.text  = ""
         showHistory = false
         _push("user", msg)
@@ -137,7 +146,7 @@ PanelWindow {
     }
     function ask(text) { input.text = text; send() }
     function stop()    { if (busy) cmd({ cmd: "stop" }) }
-    function newChat() { showHistory = false; cmd({ cmd: "new" }) }
+    function newChat() { showHistory = false; image = ""; cmd({ cmd: "new" }) }
     function answer(index, allow) {
         const it = messages.get(index)
         if (it.askState !== "pending") return
@@ -341,9 +350,12 @@ PanelWindow {
             }
             if (list.stick) Qt.callLater(() => list.positionViewAtEnd())
             break
+        case "image":
+            image = d.path
+            break
         case "history":
             history.clear()
-            for (const h of d.v) history.append({ cid: h.id, title: h.title, updated: h.updated })
+            for (const h of d.v) history.append({ cid: h.id, title: h.title, updated: h.updated, snippet: h.snippet || "" })
             break
         }
     }
@@ -633,19 +645,48 @@ PanelWindow {
             model: history
             boundsBehavior: Flickable.StopAtBounds
 
-            header: Text {
-                width: historyList.width; height: 28
-                text: "Conversations"
-                color: overlay.theme.outline
-                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
-                font.weight: Font.DemiBold; font.letterSpacing: 1
-                font.capitalization: Font.AllUppercase
+            header: Item {
+                width: historyList.width; height: 44
+                Rectangle {
+                    anchors { left: parent.left; right: parent.right; top: parent.top }
+                    height: 36; radius: 18
+                    color: overlay.wellFill
+                    border.color: searchInput.activeFocus ? overlay.alpha(overlay.theme.primary, 0.6) : overlay.cardStroke
+                    border.width: 1
+                    TextInput {
+                        id: searchInput
+                        anchors { left: parent.left; right: parent.right; leftMargin: 16; rightMargin: 16
+                                  verticalCenter: parent.verticalCenter }
+                        color: overlay.theme.fg
+                        selectionColor: overlay.alpha(overlay.theme.primary, 0.45)
+                        selectedTextColor: overlay.theme.fg
+                        font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                        clip: true
+                        onTextChanged: { overlay.searchQuery = text; overlay.cmd({ cmd: "search", q: text }) }
+                        Connections {
+                            target: overlay
+                            function onShowHistoryChanged() {
+                                if (!overlay.showHistory) return
+                                searchInput.text = ""
+                                searchInput.forceActiveFocus()
+                            }
+                        }
+                        Text {
+                            visible: searchInput.text === ""
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: overlay.tr("search_placeholder", "Rechercher une conversation…")
+                            color: overlay.theme.outline
+                            font: searchInput.font
+                        }
+                    }
+                }
             }
 
             Text {
                 visible: history.count === 0
                 anchors.centerIn: parent
-                text: overlay.tr("no_history", "Aucune conversation pour l'instant")
+                text: overlay.searchQuery.trim() !== "" ? overlay.tr("no_match", "Aucun résultat")
+                    : overlay.tr("no_history", "Aucune conversation pour l'instant")
                 color: overlay.theme.outline
                 font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs
             }
@@ -655,7 +696,8 @@ PanelWindow {
                 required property string cid
                 required property string title
                 required property real   updated
-                width: historyList.width; height: 48
+                required property string snippet
+                width: historyList.width; height: snippet !== "" ? 64 : 48
                 radius: 14
                 color: hHover.hovered ? overlay.cardHover : overlay.cardFill
                 border.color: overlay.cardStroke; border.width: 1
@@ -674,12 +716,23 @@ PanelWindow {
                     font.family: overlay.theme.ff; font.pixelSize: 15
                 }
                 Text {
+                    id: hTitle
                     anchors { left: hIcon.right; leftMargin: 10; right: hDate.left; rightMargin: 10
-                              verticalCenter: parent.verticalCenter }
+                              verticalCenter: parent.verticalCenter
+                              verticalCenterOffset: hrow.snippet !== "" ? -10 : 0 }
                     text: hrow.title
                     elide: Text.ElideRight
                     color: overlay.theme.fg
                     font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                }
+                Text {
+                    visible: hrow.snippet !== ""
+                    anchors { left: hTitle.left; right: hTitle.right; top: hTitle.bottom; topMargin: 2 }
+                    text: hrow.snippet
+                    textFormat: Text.PlainText
+                    elide: Text.ElideRight
+                    color: overlay.theme.outline
+                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
                 }
                 Text {
                     id: hDate
@@ -1084,6 +1137,7 @@ PanelWindow {
 
         // Attached-text pill (iris-ask --edit): type an instruction, send both.
         Rectangle {
+            id: attachedPill
             visible: overlay.attached !== ""
             anchors { left: inputBox.left; bottom: inputBox.top; bottomMargin: 6 }
             height: 26; radius: 13
@@ -1105,6 +1159,37 @@ PanelWindow {
                     font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                     TapHandler { onTapped: overlay.attached = "" }
+                }
+            }
+        }
+
+        // Pasted-image pill (Ctrl+V), next to the attached-text one when both exist.
+        Rectangle {
+            visible: overlay.image !== ""
+            anchors {
+                left: overlay.attached !== "" ? attachedPill.right : inputBox.left
+                leftMargin: overlay.attached !== "" ? 6 : 0
+                bottom: inputBox.top; bottomMargin: 6
+            }
+            height: 26; radius: 13
+            width: imageRow.implicitWidth + 20
+            color: overlay.alpha(overlay.theme.primary, 0.14)
+            border.color: overlay.alpha(overlay.theme.primary, 0.45); border.width: 1
+            Row {
+                id: imageRow
+                anchors.centerIn: parent
+                spacing: 8
+                Text {
+                    text: "\uf03e  " + overlay.tr("image_attached", "Image jointe")
+                    color: overlay.theme.fg
+                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                }
+                Text {
+                    text: "\uf00d"
+                    color: overlay.theme.txt2
+                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    TapHandler { onTapped: overlay.image = "" }
                 }
             }
         }
@@ -1133,6 +1218,8 @@ PanelWindow {
                 selectedTextColor: overlay.theme.fg
                 font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs
                 clip: true
+                // Ctrl+V still pastes text; if the clipboard holds an image the daemon picks it up.
+                Keys.onPressed: e => { if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_V) overlay.cmd({ cmd: "paste_image" }) }
                 Keys.onReturnPressed: overlay.send()
                 Keys.onEnterPressed:  overlay.send()
 
@@ -1148,7 +1235,7 @@ PanelWindow {
             // Send / stop
             Rectangle {
                 id: sendBtn
-                readonly property bool ready: input.text.trim() !== "" || overlay.attached !== ""
+                readonly property bool ready: input.text.trim() !== "" || overlay.attached !== "" || overlay.image !== ""
                 anchors { right: parent.right; rightMargin: 7; verticalCenter: parent.verticalCenter }
                 width: 36; height: 36; radius: 18
                 color: overlay.busy ? overlay.theme.error
