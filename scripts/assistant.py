@@ -43,6 +43,7 @@ import subprocess
 import sys
 import threading
 import time
+import unicodedata
 import uuid
 import re
 
@@ -483,6 +484,39 @@ def list_history():
     return out
 
 
+def fold(text):
+    """Lower case without accents, same length as `text` (so an index found in
+    the folded copy points at the same place in the original)."""
+    return "".join(unicodedata.normalize("NFD", c.lower())[:1] for c in text)
+
+
+SEARCH_MAX = 30
+
+
+def search_history(query):
+    """Conversations whose title or messages contain `query` (accents and case
+    ignored), newest first, each with a short excerpt of the first matching message."""
+    q = fold(query.strip()[:100]) if isinstance(query, str) else ""
+    if not q:
+        return list_history()
+    out = []
+    for item in list_history():
+        c = Conversation.load(item["id"])
+        snippet = ""
+        for m in c.messages:
+            text = " ".join(str(m.get("text", "")).split())
+            i = fold(text).find(q)
+            if i >= 0:
+                start = max(0, i - 30)
+                snippet = ("…" if start else "") + text[start:i + len(q) + 50]
+                break
+        if snippet or q in fold(c.title):
+            out.append({**item, "snippet": snippet})
+            if len(out) == SEARCH_MAX:
+                break
+    return out
+
+
 # ── Claude process ───────────────────────────────────────────────────────
 class Claude:
     """One streaming `claude -p` process bound to a conversation."""
@@ -655,6 +689,8 @@ class Daemon:
                 self._new()
             elif c == "list":
                 emit("history", v=list_history())
+            elif c == "search":
+                emit("history", v=search_history(cmd.get("q")))
             elif c == "load":
                 conv = Conversation.load(cmd.get("id", ""))
                 if conv:
