@@ -85,13 +85,17 @@ ev = d.agents()
 check(ev and ev["current"] == "echo" and ev["switched"] is True, "changement vers echo annoncé")
 check(open(state).read() == "echo", "choix mémorisé dans le fichier agent")
 d.send({"cmd": "send", "text": "ping-123", "mode": "fast"})
-text = ""
+text, badge = "", None
 while True:
-    e = d.until(lambda e: e["t"] in ("text", "done", "error"))
-    if not e or e["t"] != "text":
+    e = d.until(lambda e: e["t"] in ("text", "done", "error", "model"))
+    if e and e["t"] == "model":
+        badge = e["v"]
+    if not e or e["t"] in ("done", "error"):
         break
-    text += e["v"]
+    if e["t"] == "text":
+        text += e["v"]
 check("ping-123" in text, "le message part vers le nouvel agent")
+check(badge == "", "pas de pastille Haiku/Sonnet pour un agent qui n'est pas Claude")
 
 d.send({"cmd": "agent", "name": "rm -rf /"})
 ev = d.agents()

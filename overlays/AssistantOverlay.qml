@@ -57,6 +57,9 @@ PanelWindow {
     property string modelName:   ""      // "haiku" | "sonnet" (last reply)
     property string mode:        "auto"  // auto | fast | power
     property bool   showHistory: false
+    property var    agentList:  ["claude"]   // agents the daemon accepts (claude + config.json's "agents")
+    property string agent:      "claude"
+    property bool   agentMenu:  false
     property string searchQuery: ""      // text typed in the history search field
     // Subscription usage (0..1) reported by Claude Code; -1 = unknown yet.
     property real   usage5h:     -1
@@ -350,6 +353,10 @@ PanelWindow {
             }
             if (list.stick) Qt.callLater(() => list.positionViewAtEnd())
             break
+        case "agents":
+            agentList = d.v; agent = d.current; agentMenu = false
+            if (d.switched) _push("nudge", tr("agent_switched", "Agent : ") + d.current)
+            break
         case "image":
             image = d.path
             break
@@ -528,6 +535,29 @@ PanelWindow {
                 id: actions
                 anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
                 spacing: 6
+                // Agent picker: shows the current agent, opens a small menu.
+                Rectangle {
+                    visible: overlay.agentList.length > 1
+                    height: 34; radius: 17
+                    width: Math.min(110, agentLabel.implicitWidth + 24)
+                    opacity: overlay.busy ? 0.5 : 1
+                    color: overlay.agentMenu ? overlay.alpha(overlay.theme.primary, 0.18)
+                         : agentHover.hovered ? overlay.cardHover : overlay.cardFill
+                    border.color: overlay.agentMenu ? overlay.alpha(overlay.theme.primary, 0.4) : overlay.cardStroke
+                    border.width: 1
+                    Text {
+                        id: agentLabel
+                        anchors.centerIn: parent
+                        width: parent.width - 24
+                        horizontalAlignment: Text.AlignHCenter
+                        elide: Text.ElideRight
+                        text: overlay.agent
+                        color: overlay.agentMenu ? overlay.theme.primary : overlay.theme.txt2
+                        font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                    }
+                    HoverHandler { id: agentHover; cursorShape: Qt.PointingHandCursor }
+                    TapHandler { enabled: !overlay.busy; onTapped: overlay.agentMenu = !overlay.agentMenu }
+                }
                 Repeater {
                     model: [
                         { icon: "", tip: "history" },
@@ -1161,6 +1191,39 @@ PanelWindow {
                     font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                     TapHandler { onTapped: overlay.attached = "" }
+                }
+            }
+        }
+
+        // Agent menu, under the header's picker.
+        Rectangle {
+            visible: overlay.agentMenu
+            z: 20
+            anchors { right: parent.right; rightMargin: 14; top: header.bottom; topMargin: -8 }
+            width: 150; height: agentCol.implicitHeight + 12; radius: 14
+            color: overlay.theme.bg
+            border.color: overlay.cardStroke; border.width: 1
+            Column {
+                id: agentCol
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 6 }
+                Repeater {
+                    model: overlay.agentList
+                    delegate: Rectangle {
+                        required property string modelData
+                        width: agentCol.width; height: 30; radius: 10
+                        color: modelData === overlay.agent ? overlay.alpha(overlay.theme.primary, 0.18)
+                             : rowHover.hovered ? overlay.cardHover : "transparent"
+                        Text {
+                            anchors { left: parent.left; right: parent.right; leftMargin: 10; rightMargin: 10
+                                      verticalCenter: parent.verticalCenter }
+                            text: modelData
+                            elide: Text.ElideRight
+                            color: modelData === overlay.agent ? overlay.theme.primary : overlay.theme.fg
+                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                        }
+                        HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler { onTapped: { overlay.agentMenu = false; overlay.cmd({ cmd: "agent", name: modelData }) } }
+                    }
                 }
             }
         }

@@ -13,6 +13,7 @@ Les versions suivent les commits de `main` ; Iris se met à jour avec `scripts/i
 
 ### Ajouté
 - Agent au choix : `agent` / `agents` dans `config.json` branchent n'importe quelle CLI (Gemini, Ollama, Codex…) à la place de `claude -p`, sans outils ni cartes d'autorisation.
+- Changer d'agent depuis le panneau : pastille dans l'en-tête, choix mémorisé à part (`config.json` n'est jamais réécrit).
 - Panneau de chat Quickshell piloté par `claude -p` (Haiku par défaut, Sonnet pour le code), avec cartes Autoriser / Refuser montrant ce qui serait écrit.
 - `install.sh` interactif ou scriptable (`--language`, `--name`, `--deny-read`, …), idempotent, avec désinstallation, et `iris-doctor` (diagnostic en lecture seule).
 - `iris-update` et bouton ⬇ dans le panneau (mise à jour détectée par `iris-watch`, y compris quand le clone est plus récent que l'installation).

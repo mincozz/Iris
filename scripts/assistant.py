@@ -986,6 +986,7 @@ class Daemon:
                 f.write(name)
             os.replace(tmp, AGENT_FILE)
             self._drop_claude()          # the next message starts the new agent
+            emit("model", v="")          # clear the badge of the previous agent's last reply
         emit("agents", v=agent_names(), current=AGENT, switched=switched)
 
     def _paste_image(self):
@@ -1121,7 +1122,8 @@ class Daemon:
             # than answering a small message with Sonnet.
             on_sonnet = self.claude and self.claude.alive() and self.claude.model == MODELS["power"]
             mode = "power" if on_sonnet or POWER_RE.search(text) else "fast"
-        emit("model", v="sonnet" if mode == "power" else "haiku")
+        # The Haiku/Sonnet badge only means something for Claude.
+        emit("model", v=("sonnet" if mode == "power" else "haiku") if AGENT == "claude" else "")
         prefix = ""
         if self.last_ctx > CONTEXT_MAX and self.conv.messages:
             prefix = self._recap()
@@ -1339,6 +1341,7 @@ def ui_strings():
         "done_state": pick("Fait", "Done"),
         "attached": pick("Texte joint", "Attached text"),
         "chars": pick("car.", "chars"),
+        "agent_switched": pick("Agent : ", "Agent: "),
         "image_attached": pick("Image jointe", "Attached image"),
         "image_default": pick("Regarde cette image :", "Have a look at this image:"),
         "image_line": pick("[Image jointe : {path}]", "[Attached image: {path}]"),

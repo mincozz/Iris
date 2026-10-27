@@ -179,6 +179,8 @@ The button does not go through Claude (no quota); the panel may reload at the en
 
 `{prompt}` and `{model}` are substituted; without `{prompt}` the prompt goes to stdin. The command runs once per message with the recent history (`history`, default 8). The prompt is short by default (the full one describes tools the agent lacks and slows a local model down): `prompt_file` in the agent replaces it. Limits: no Allow / Deny cards, none of Iris's tools (calendar, mail, files) and no quota gauge, and any tools the agent has follow its own rules, not Iris's. An unknown name falls back to `claude`.
 
+**Switching agent from the panel.** As soon as `agents` has an entry, a pill with the agent's name shows in the header: click it to open the list (`claude` and your agents). The choice is kept in `~/.local/share/qs-assistant/agent` and wins over `agent` in `config.json`, which is never modified. Switching is refused while Iris is replying; the conversation goes on (the new agent receives the recent history as text).
+
 **Memory.** Iris reads `~/.local/share/qs-assistant/memory.md` and updates it when you ask her to remember something, with an authorisation request. An empty template is in [`integration/memory.example.md`](../integration/memory.example.md). History, memory and calendar stay in `~/.local/share/qs-assistant/` and are never versioned.
 
 **Prompts.** [`assistant-prompt.md`](../scripts/assistant-prompt.md) (French) and [`assistant-prompt.en.md`](../scripts/assistant-prompt.en.md) are yours to adapt, or replace them with `prompt_file`.

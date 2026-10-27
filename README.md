@@ -179,6 +179,8 @@ Le bouton ne passe pas par Claude (aucun quota) ; le panneau peut se recharger �
 
 `{prompt}` et `{model}` sont remplacés ; sans `{prompt}`, le prompt arrive sur stdin. La commande est lancée une fois par message, avec l'historique récent (`history`, 8 par défaut). Le prompt est court par défaut (le prompt complet décrit des outils que l'agent n'a pas et ralentit un modèle local) : `prompt_file` dans l'agent le remplace. Limites : pas de cartes Autoriser / Refuser, pas d'outils d'Iris (agenda, mails, fichiers) ni de jauge de quota, et les outils éventuels de l'agent suivent ses propres règles, pas celles d'Iris. Si le nom est inconnu, Iris retombe sur `claude`.
 
+**Changer d'agent depuis le panneau.** Dès que `agents` contient une entrée, une pastille avec le nom de l'agent apparaît dans l'en-tête : un clic ouvre la liste (`claude` et vos agents). Le choix est mémorisé dans `~/.local/share/qs-assistant/agent` et l'emporte sur `agent` de `config.json`, qui n'est jamais modifié. Changement refusé pendant qu'Iris répond ; la conversation continue (le nouvel agent reçoit l'historique récent en texte).
+
 **Mémoire.** Iris lit `~/.local/share/qs-assistant/memory.md` et le met à jour quand vous lui demandez de retenir quelque chose, avec une demande d'autorisation. Un modèle vide est fourni dans [`integration/memory.example.md`](integration/memory.example.md). Historique, mémoire et agenda restent dans `~/.local/share/qs-assistant/` et ne sont jamais versionnés.
 
 **Prompts.** [`assistant-prompt.md`](scripts/assistant-prompt.md) (français) et [`assistant-prompt.en.md`](scripts/assistant-prompt.en.md) sont à adapter à votre goût, ou remplacez-les via `prompt_file`.
