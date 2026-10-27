@@ -105,6 +105,8 @@ description: Prépare mon rapport hebdo (« rapport de la semaine »)
 
 Iris reçoit la liste (nom et description) et lit la recette quand votre demande y correspond, ou quand vous écrivez `/nom`. Noms de fichier simples (lettres, chiffres, `-`, `_`, `.`), 30 recettes au plus. Des exemples dans votre langue sont copiés à l'installation, sans jamais écraser les vôtres. La liste est lue au début d'une conversation : ouvrez une nouvelle conversation après avoir ajouté une recette. Une recette n'a aucun droit supplémentaire : les actions qui modifient demandent toujours votre clic.
 
+**Rappels.** « Rappelle-moi dans 20 min d'appeler Alex » : Iris lance `iris-remind add` (une carte Autoriser / Refuser montre le rappel) et `iris-watch` vous prévient à l'heure, dans le panneau et par notification. Rappels uniques, un an au plus, 50 en attente au plus, stockés dans `~/.local/share/qs-assistant/reminders.json`. Un rappel manqué parce que le PC était éteint part au prochain démarrage, avec l'heure prévue. Pour en annuler un, demandez-le à Iris.
+
 **Rangement.** Demandez à Iris de ranger un dossier : elle l'analyse (`organize.py scan`), propose un plan, l'applique en une seule validation, et `organize.py undo` annule le dernier rangement. Rien n'est écrasé, la corbeille passe par `gio trash`.
 
 ## Alertes et résumé du matin
@@ -118,6 +120,7 @@ Iris reçoit la liste (nom et description) et lit la recette quand votre demande
 | Agenda | `remind_minutes` avant chaque événement |
 | Santé du PC | Disque presque plein, batterie faible, services en échec, mises à jour en attente |
 | Mise à jour d'Iris | Toutes les 6 h ; bouton **Mettre à jour** |
+| Rappel | À l'heure demandée (`iris-remind`), vérifié toutes les 30 s |
 | Résumé du matin | Une fois par jour à partir de `morning_hour` : agenda du jour et travail git resté en plan |
 
 | Clé | Rôle |

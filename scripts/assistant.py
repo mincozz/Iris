@@ -60,6 +60,8 @@ CONFIG_FILE = os.path.join(DATA_DIR, "config.json")
 MEMORY_FILE = os.path.join(DATA_DIR, "memory.md")
 ORGANIZE = os.path.join(SCRIPT_DIR, "organize.py")
 UPDATE = os.path.join(SCRIPT_DIR, "iris-update")
+REMIND = os.path.join(SCRIPT_DIR, "iris-remind")
+REMINDERS_FILE = os.path.join(DATA_DIR, "reminders.json")
 SKILLS_DIR = os.path.join(DATA_DIR, "skills")      # your own recipes, one .md each
 UPDATE_LOG = os.path.join(DATA_DIR, "update.log")
 UPDATE_RESULT = os.path.join(DATA_DIR, "update-result")   # exit code of the last button update
@@ -405,6 +407,7 @@ def load_skills():
 def system_prompt(connectors=True):
     with open(PROMPT_FILE) as f:
         text = f.read().replace("{ORGANIZE}", ORGANIZE).replace("{UPDATE}", UPDATE)
+        text = text.replace("{REMIND}", REMIND).replace("{REMINDERS}", REMINDERS_FILE)
     if not connectors:
         text += pick(
             "\n\nPour économiser le quota, les outils Google Calendar, Gmail, Notion et "

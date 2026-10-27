@@ -105,6 +105,8 @@ description: Prepare my weekly report ("weekly report")
 
 Iris gets the list (name and description) and reads a recipe when your request matches it, or when you type `/name`. Plain file names (letters, digits, `-`, `_`, `.`), 30 recipes at most. Examples in your language are copied at install time, never overwriting yours. The list is read when a conversation starts: open a new conversation after adding a recipe. A recipe gets no extra permissions: actions that change something still ask for your click.
 
+**Reminders.** "Remind me in 20 min to call Alex": Iris runs `iris-remind add` (an Allow / Deny card shows the reminder) and `iris-watch` alerts you on time, in the panel and by notification. One-shot reminders, one year ahead at most, 50 pending at most, stored in `~/.local/share/qs-assistant/reminders.json`. A reminder missed while the PC was off is sent at the next start, with its due time. Ask Iris to cancel one.
+
 **Tidying.** Ask Iris to tidy a folder: she analyses it (`organize.py scan`), proposes a plan, applies it with a single approval, and `organize.py undo` reverts the last tidy-up. Nothing is overwritten, and the trash goes through `gio trash`.
 
 ## Alerts and morning brief
@@ -118,6 +120,7 @@ Iris gets the list (name and description) and reads a recipe when your request m
 | Calendar | `remind_minutes` before each event |
 | PC health | Disk almost full, low battery, failed services, pending updates |
 | Iris update | Every 6 hours; **Update now** button |
+| Reminder | At the requested time (`iris-remind`), checked every 30 s |
 | Morning brief | Once a day from `morning_hour`: today's agenda and git work left unsaved |
 
 | Key | Purpose |

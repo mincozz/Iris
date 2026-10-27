@@ -11,14 +11,14 @@ Vérification commune : `python3 -I -m py_compile <fichiers touchés>` et `test/
   - Critères : champ en haut de la vue, filtre à chaque lettre, extrait affiché, placeholder via `tr()`, README FR/EN + CHANGELOG.
   - Vérif : `test/test-e2e.sh` ; manuel : taper « reunion » trouve « Réunion ».
   - Dépend de : T1. Fichiers : `overlays/AssistantOverlay.qml`, `scripts/assistant.py` (`ui_strings`), `README.md`, `docs/README.en.md`, `docs/CHANGELOG.md`.
-- [ ] **Checkpoint 1** : CI verte, recherche fluide avec ~200 conversations, relecture (`ponytail-review`) puis commit.
+- [x] **Checkpoint 1** : CI verte, recherche fluide avec ~200 conversations, relecture (`ponytail-review`) puis commit.
 
 ## Phase 2 : reminders
 - [x] **T3 `iris-remind` (add / cancel) + install** (M)
   - Critères : formats `+20m|h|d` et `YYYY-MM-DD HH:MM` ; refus passé, > 1 an, texte vide ou > 200, > 50 rappels ; écriture atomique `0600`.
   - Vérif : `python3 -I test/test-remind.py`.
   - Fichiers : `scripts/iris-remind`, `test/test-remind.py`, `install.sh`, `.github/workflows/ci.yml`.
-- [ ] **T4 Déclenchement par `iris-watch` + prompts + docs** (M)
+- [x] **T4 Déclenchement par `iris-watch` + prompts + docs** (M)
   - Critères : `check_reminders` (30 s) émet une alerte `reminder` une seule fois puis supprime ; rappel manqué envoyé au démarrage ; texte échappé ; prompts FR/EN expliquent l'usage ; README FR/EN + CHANGELOG.
   - Vérif : `test-remind.py` (cas échéance) ; manuel : « rappelle-moi dans 2 min » → carte → alerte.
   - Dépend de : T3. Fichiers : `scripts/iris-watch.py`, `scripts/assistant-prompt.md`, `scripts/assistant-prompt.en.md`, `README.md`, `docs/CHANGELOG.md`.

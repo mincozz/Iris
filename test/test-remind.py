@@ -65,4 +65,27 @@ code, out = remind("due")
 check(code == 0 and [x["id"] for x in json.loads(out)] == [data[0]["id"]], "due rend les rappels échus")
 check(len(stored()) == 49 and remind("due")[1] == "[]", "due les supprime : une seule fois")
 
+# iris-watch : un rappel échu devient une alerte, une seule fois
+os.remove(FILE)
+remind("add", "+5m", "pay *rent* <b>now</b>")
+remind("add", "+5m", "late one")
+data = stored()
+data[0]["due"] = time.time() - 5
+data[1]["due"] = time.time() - 3600
+with open(FILE, "w") as f:
+    json.dump(data, f)
+
+
+def watch():
+    r = subprocess.run(["python3", "-I", os.path.join(ROOT, "iris-watch.py"), "--once", "reminders"], capture_output=True,
+                       text=True, env=dict(os.environ, HOME=home, IRIS_LANG="en"))
+    return [json.loads(ln) for ln in r.stdout.splitlines() if ln.strip()]
+
+
+alerts = watch()
+check(len(alerts) == 2 and all(a["kind"] == "reminder" for a in alerts), "iris-watch : deux rappels échus → deux alertes")
+check("<b>" not in alerts[0]["text"] and "\\*rent\\*" in alerts[0]["text"], "le texte du rappel est neutralisé (HTML, Markdown)")
+check("due at" in alerts[1]["text"] and "due at" not in alerts[0]["text"], "un rappel en retard indique son heure prévue")
+check(watch() == [] and stored() == [], "pas de doublon, fichier vidé")
+
 sys.exit(1 if fails else 0)
