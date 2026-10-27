@@ -46,9 +46,21 @@ while [ $# -gt 0 ]; do
   esac; shift
 done
 
-say()  { printf '\033[1;35m▸\033[0m %s\n' "$*"; }
-warn() { printf '\033[1;33m!\033[0m %s\n' "$*"; }
-run()  { if [ "$DRY" = 1 ]; then echo "  [dry-run] $*"; else "$@"; fi; }
+# Couleurs seulement dans un terminal (et sans NO_COLOR) : sobres, une seule teinte d'accent.
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  C_ACC=$'\033[1;35m'; C_OK=$'\033[32m'; C_WARN=$'\033[33m'; C_ERR=$'\033[31m'; C_DIM=$'\033[2m'; C_B=$'\033[1m'; C_R=$'\033[0m'
+else
+  C_ACC=""; C_OK=""; C_WARN=""; C_ERR=""; C_DIM=""; C_B=""; C_R=""
+fi
+STEP=0
+step() { STEP=$((STEP + 1)); printf '\n%s▸ %s%s\n' "$C_ACC" "$*" "$C_R"; }
+say()  { printf '%s·%s %s\n' "$C_ACC" "$C_R" "$*"; }
+warn() { printf '%s!%s %s\n' "$C_WARN" "$C_R" "$*"; }
+good() { printf '  %s✓%s %s\n' "$C_OK" "$C_R" "$*"; }
+bad()  { printf '  %s✗%s %s\n' "$C_ERR" "$C_R" "$*"; }
+run()  { if [ "$DRY" = 1 ]; then printf '  %s[dry-run] %s%s\n' "$C_DIM" "$*" "$C_R"; else "$@"; fi; }
+printf '\n%s╭────────────────────────────────╮\n│  Iris · installation           │\n╰────────────────────────────────╯%s\n' "$C_ACC" "$C_R"
+[ "$DRY" = 1 ] && printf '%s  simulation : rien ne sera modifié%s\n' "$C_DIM" "$C_R"
 
 FILES=(
   "overlays/AssistantOverlay.qml" "overlays/AssistantAvatar.qml"
@@ -62,7 +74,7 @@ backup() { [ -e "$1" ] && [ ! -e "$1.iris-bak" ] && run cp -p "$1" "$1.iris-bak"
 
 # ── Désinstallation ───────────────────────────────────────────────────────
 if [ "$UNINSTALL" = 1 ]; then
-  say "Désinstallation depuis $PREFIX"
+  step "Désinstallation depuis $PREFIX"
   for f in "${FILES[@]}"; do run rm -f "$PREFIX/$f"; done
   if [ -f "$PREFIX/shell.qml" ] && grep -qF "$BEGIN" "$PREFIX/shell.qml"; then
     say "Retrait du bloc Iris de shell.qml"
@@ -80,27 +92,32 @@ PY
 fi
 
 # ── Prérequis ─────────────────────────────────────────────────────────────
-say "Vérification des prérequis"
+step "Vérification des prérequis"
 missing=0
-need() { command -v "$1" >/dev/null 2>&1 && echo "  ✓ $1" || { echo "  ✗ $1 — $2"; missing=1; }; }
+need() { command -v "$1" >/dev/null 2>&1 && good "$1" || { bad "$1 — $2"; missing=1; }; }
 need python3 "requis (daemon)"
 need claude  "CLI Claude Code, connectée (claude login)"
 need qs      "Quickshell"
 need git     "alertes git"
-command -v gio >/dev/null 2>&1 && echo "  ✓ gio" || warn "gio absent : le rangement ne pourra pas mettre à la corbeille (paquet glib2)"
+command -v gio >/dev/null 2>&1 && good "gio" || warn "gio absent : le rangement ne pourra pas mettre à la corbeille (paquet glib2)"
 [ "$missing" = 0 ] || { warn "Prérequis manquants (voir ci-dessus)."; [ "$YES" = 1 ] || { read -r -p "Continuer quand même ? [o/N] " a; [[ "$a" =~ ^[oOyY]$ ]] || exit 1; }; }
 [ -d "$PREFIX" ] || { warn "$PREFIX n'existe pas : crée ton shell Quickshell d'abord (ou utilise --prefix)."; exit 1; }
 
 # ── Copie des fichiers ────────────────────────────────────────────────────
-say "Copie vers $PREFIX"
+step "Copie vers $PREFIX"
 for f in "${FILES[@]}"; do
+  if [ "$DRY" = 1 ]; then
+    note=""; [ -e "$PREFIX/$f" ] && ! cmp -s "$SRC/$f" "$PREFIX/$f" && note=" (remplace, sauvegarde .iris-bak)"
+    [ -e "$PREFIX/$f" ] || note=" (nouveau)"
+    printf '  %s[dry-run] %s%s%s\n' "$C_DIM" "$f" "$note" "$C_R"; continue
+  fi
   run mkdir -p "$PREFIX/$(dirname "$f")"
   if [ -e "$PREFIX/$f" ] && ! cmp -s "$SRC/$f" "$PREFIX/$f"; then backup "$PREFIX/$f"; fi
   run install -m "$([[ $f == scripts/*.py || $f == scripts/iris-ask || $f == scripts/iris-doctor || $f == scripts/iris-update || $f == scripts/iris-remind ]] && echo 755 || echo 644)" "$SRC/$f" "$PREFIX/$f"
 done
 
 # ── État utilisateur (jamais écrasé) ──────────────────────────────────────
-say "Données dans $DATA"
+step "Données dans $DATA"
 run mkdir -p "$DATA"; run chmod 700 "$DATA"
 # Où est le clone et où Iris est installée : iris-update s'en sert pour se mettre à jour.
 if [ "$DRY" = 0 ]; then
@@ -115,10 +132,11 @@ fi
 # Créée à la première installation, ou refaite avec --reconfigure. Un fichier
 # existant n'est jamais écrasé sans --reconfigure.
 if [ -e "$DATA/config.json" ] && [ "$RECONF" = 0 ]; then
-  say "config.json existe déjà : conservé (--reconfigure pour le refaire)"
+  step "Configuration"
+  good "config.json existe déjà : conservé (--reconfigure pour le refaire)"
 else
   if [ "$CFG_SET" = 0 ] && [ "$YES" = 0 ] && [ -t 0 ]; then
-    say "Configuration (Entrée = garder la valeur par défaut)"
+    step "Configuration (Entrée = garder la valeur par défaut)"
     case "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}" in en*) dl=en ;; *) dl=fr ;; esac
     read -r -p "  Langue d'Iris (fr / en) [$dl] : " CFG_LANG
     CFG_LANG="${CFG_LANG:-$dl}"
@@ -178,7 +196,7 @@ fi
 # Fonctionne aussi sur un config.json existant : seules les clés `agents` sont
 # fusionnées (sauvegarde .iris-bak) ; un agent déjà déclaré est conservé.
 if [ ${#OLLAMA_MODELS[@]} -gt 0 ] || [ ${#ADD_AGENTS[@]} -gt 0 ]; then
-  say "Agents et modèles"
+  step "Agents et modèles"
   for m in "${OLLAMA_MODELS[@]}"; do
     [[ "$m" =~ ^[A-Za-z0-9._:/-]+$ ]] || { echo "modèle invalide : $m" >&2; exit 2; }
   done
@@ -186,7 +204,7 @@ if [ ${#OLLAMA_MODELS[@]} -gt 0 ] || [ ${#ADD_AGENTS[@]} -gt 0 ]; then
     if command -v ollama >/dev/null 2>&1; then
       have="$(ollama list 2>/dev/null | awk 'NR>1 {print $1}' || true)"
       for m in "${OLLAMA_MODELS[@]}"; do
-        if grep -qxF -e "$m" -e "$m:latest" <<< "$have"; then echo "  ✓ $m déjà téléchargé"
+        if grep -qxF -e "$m" -e "$m:latest" <<< "$have"; then good "$m déjà téléchargé"
         else run ollama pull "$m" || warn "téléchargement de $m impossible (Ollama est-il lancé ?) : relance \`ollama pull $m\`"; fi
       done
     else
@@ -361,14 +379,14 @@ PY
   add_bind "$ASK_EDIT_KEY" "$ASK --edit" "joindre la sélection et taper une consigne" "--ask-edit-key"
 fi
 
-echo
-say "Terminé. Il reste 2 étapes à la main (spécifiques à ton shell) :"
-echo "  1. Bouton dans la barre : integration/Bar.qml.snippet  (optionnel : le panneau marche sans)"
-echo "  2. Clic sur une alerte « Iris » ouvre le panneau : integration/NotificationToast.qml.snippet (optionnel)"
-echo "Puis relance Quickshell et teste :  qs ipc call assistant toggle"
+baks="$(find "$PREFIX" "$DATA" -name '*.iris-bak' 2>/dev/null | wc -l | tr -d ' ' || true)"
+printf '\n%s%s%s\n' "$C_B" "$([ "$DRY" = 1 ] && echo "Simulation terminée : rien n'a été modifié." || echo "Iris est installée.")" "$C_R"
+printf '  Fichiers     %s\n  Données      %s\n  Sauvegardes  %s\n' "$PREFIX" "$DATA" "$baks fichier(s) *.iris-bak"
+printf '\n%sÀ faire à la main (spécifique à ton shell, optionnel) :%s\n' "$C_B" "$C_R"
+echo "  1. Bouton dans la barre : integration/Bar.qml.snippet"
+echo "  2. Clic sur une alerte « Iris » ouvre le panneau : integration/NotificationToast.qml.snippet"
+printf '\nPuis relance Quickshell et teste : %sqs ipc call assistant toggle%s\n' "$C_B" "$C_R"
 if [ "$DRY" = 0 ]; then
-  echo
-  say "Mises à jour : $PREFIX/scripts/iris-update  (ou dis « mets-toi à jour » à Iris)"
-  say "Diagnostic (relance-le quand tu veux : $PREFIX/scripts/iris-doctor)"
+  printf '\n%sMises à jour : %s/scripts/iris-update  (ou dis « mets-toi à jour » à Iris)\nDiagnostic    : %s/scripts/iris-doctor%s\n' "$C_DIM" "$PREFIX" "$PREFIX" "$C_R"
   python3 -I "$PREFIX/scripts/iris-doctor" --prefix "$PREFIX" || true
 fi
