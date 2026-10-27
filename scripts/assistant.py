@@ -1036,6 +1036,8 @@ def ui_strings():
         "writing": pick("J'écris…", "Writing…"),
         "online": pick("En ligne", "Online"),
         "no_history": pick("Aucune conversation pour l'instant", "No conversations yet"),
+        "no_match": pick("Aucun résultat", "No results"),
+        "search_placeholder": pick("Rechercher une conversation…", "Search conversations…"),
         "chip1": pick("Qu'est-ce que j'ai aujourd'hui ?", "What's on my agenda today?"),
         "chip2": pick("Aide-moi à planifier ma semaine", "Help me plan my week"),
         "chip3": pick("Où est mon dernier PDF téléchargé ?", "Where is my last downloaded PDF?"),

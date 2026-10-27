@@ -7,7 +7,7 @@ Vérification commune : `python3 -I -m py_compile <fichiers touchés>` et `test/
   - Critères : `{cmd:"search", q}` renvoie `history` avec `snippet` ; sans accents/casse ; 30 résultats ; q vide = liste ; q tronquée à 100.
   - Vérif : `python3 -I test/test-search.py`.
   - Fichiers : `scripts/assistant.py`, `test/test-search.py`, `.github/workflows/ci.yml`.
-- [ ] **T2 Champ de recherche dans l'historique + docs** (S)
+- [x] **T2 Champ de recherche dans l'historique + docs** (S)
   - Critères : champ en haut de la vue, filtre à chaque lettre, extrait affiché, placeholder via `tr()`, README FR/EN + CHANGELOG.
   - Vérif : `test/test-e2e.sh` ; manuel : taper « reunion » trouve « Réunion ».
   - Dépend de : T1. Fichiers : `overlays/AssistantOverlay.qml`, `scripts/assistant.py` (`ui_strings`), `README.md`, `docs/README.en.md`, `docs/CHANGELOG.md`.

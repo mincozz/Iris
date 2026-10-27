@@ -89,7 +89,7 @@ In a terminal the installer asks four questions: the language, your first name, 
 
 ## Usage
 
-**Panel.** `qs ipc call assistant toggle|open|close` opens and closes it; `qs ipc call assistant ask "…"` sends a message. Header: history, new conversation and the update button. The Auto / Fast / Powerful selector picks the model.
+**Panel.** `qs ipc call assistant toggle|open|close` opens and closes it; `qs ipc call assistant ask "…"` sends a message. Header: history (with a search field that filters as you type, ignoring accents and case), new conversation and the update button. The Auto / Fast / Powerful selector picks the model.
 
 **Shortcuts.** `scripts/iris-ask` sends the selection (the clipboard if nothing is selected); with `--edit` it **attaches** it to the panel (an "Attached text" pill, removable) and you type your instruction before sending. `IRIS_ASK_DRY=1` shows what would be sent without sending anything. The text goes to Claude as is: don't use it on a password.
 
