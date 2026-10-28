@@ -4,6 +4,13 @@ Les versions suivent les commits de `main` ; Iris se met à jour avec `scripts/i
 
 ## Non publié
 
+### Interface
+- Avatar : deux humeurs en plus (content après une réponse, endormi après 5 min d'inactivité) et un halo pendant qu'Iris travaille ; le contrat avec le shell hôte (`idle|thinking|talking`) ne change pas.
+- Textes plus chaleureux (« Coucou, je suis là », « Et voilà ! ») et une personnalité de mascotte dans les prompts FR/EN.
+
+### Docs
+- README refondu (en-tête centré, badges, « Pourquoi », fonctionnalités à puces) ; `CHANGELOG.md` et `CONTRIBUTING.md` remontés à la racine ; dossier `docs/media/` pour l'icône, la démo et les captures.
+
 ### Sécurité
 - La carte Autoriser/Refuser montre toute la commande : un `organize.py apply` collé après une autre commande ne masque plus celle-ci.
 - `WebSearch` demande désormais un accord (une requête peut faire sortir des données) ; `deny_read_paths` protège par défaut `~/.ssh`, `~/.gnupg`, `~/.aws` et refuse toute commande qui cite ces chemins.

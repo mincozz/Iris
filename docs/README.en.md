@@ -1,42 +1,59 @@
-# Iris
+<!-- Icon: drop media/icon.png next to this file, then uncomment
+<p align="center"><img src="media/icon.png" alt="Iris" width="160"></p>
+-->
 
-**A personal assistant for Quickshell, powered by Claude Code.**
+<h1 align="center">Iris</h1>
 
-[![CI](https://github.com/mincozz/Iris/actions/workflows/ci.yml/badge.svg)](https://github.com/mincozz/Iris/actions/workflows/ci.yml)
-[![MIT License](https://img.shields.io/github/license/mincozz/Iris)](../LICENSE)
-![Platform](https://img.shields.io/badge/platform-Linux%20%C2%B7%20Wayland%20%C2%B7%20Quickshell-informational)
+<p align="center"><b>A tiny pixel-art assistant that lives in your Quickshell bar and drives Claude Code. She says hi, tidies up, reminds you.</b></p>
 
-[Français](../README.md) · English
+<p align="center">
+<a href="https://github.com/mincozz/Iris/actions/workflows/ci.yml"><img src="https://github.com/mincozz/Iris/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+<img src="https://img.shields.io/badge/Linux-Wayland-informational" alt="Linux Wayland">
+<img src="https://img.shields.io/badge/Quickshell-QML-blueviolet" alt="Quickshell">
+<img src="https://img.shields.io/badge/Python-3.9%2B-blue" alt="Python 3.9+">
+<a href="../LICENSE"><img src="https://img.shields.io/github/license/mincozz/Iris" alt="MIT"></a>
+<img src="https://img.shields.io/github/stars/mincozz/Iris?style=flat" alt="Stars">
+</p>
 
-Iris is a chat panel built into the bar of your [Quickshell](https://quickshell.org) shell. By default it drives the [Claude Code](https://claude.com/claude-code) CLI on **your** Claude account (every user uses their own subscription), or another CLI of your choice such as Ollama. No data goes through a project server.
+<p align="center"><a href="../README.md">Français</a> · English</p>
+
+<!-- Demo: drop media/iris-demo.gif next to this file, then uncomment
+<p align="center"><a href="media/iris-demo.gif"><img src="media/iris-demo.gif" alt="Iris demo" width="720"></a></p>
+-->
 
 > Independent project, not affiliated with Anthropic. "Claude" is a trademark of Anthropic.
 
-<!-- Screenshot: drop screenshot.png next to this file, then uncomment the following lines.
-<p align="center"><img src="screenshot.png" alt="The Iris panel" width="420"></p>
--->
+[Why](#why) · [Features](#features) · [Quick start](#quick-start) · [Requirements](#requirements) · [Installation](#installation) · [Usage](#usage) · [Alerts](#alerts-and-morning-brief) · [Updating](#updating) · [Configuration](#configuration) · [Architecture](#architecture) · [Security](#security) · [Known limits](#known-limits) · [Development](#development) · [License](#license)
 
-## Contents
+---
 
-[Overview](#overview) · [Quick start](#quick-start) · [Requirements](#requirements) · [Installation](#installation) · [Usage](#usage) · [Alerts](#alerts-and-morning-brief) · [Updating](#updating) · [Configuration](#configuration) · [Architecture](#architecture) · [Security](#security) · [Known limits](#known-limits) · [Development](#development) · [License](#license)
+## Why
 
-## Overview
+Because an assistant should be *right there*, not one more browser tab. Iris is a chat panel built into your [Quickshell](https://quickshell.org) shell: one shortcut and she answers. She uses the [Claude Code](https://claude.com/claude-code) CLI on **your** account (your subscription, not ours), or another CLI such as Ollama.
 
-| | |
-|---|---|
-| **Conversation** | Chat in the bar, with access to your PC (files, read-only commands, system info) and, if you enabled the Claude connectors, your calendar, mail, Notion and Drive. Fast replies by default, a more powerful model for code. |
-| **Agents** | Claude by default; you can add Ollama, Gemini or any CLI and switch between them with one click in the panel. The installer downloads your Ollama models. |
-| **Search** | Find an old conversation by typing a few letters (accents and case ignored). |
-| **Reminders** | "Remind me in 20 min…": an alert on time, even if the PC was off at that moment. |
-| **Images** | Paste a screenshot with Ctrl+V: Iris reads it. |
-| **Permissions** | Reading is free. Anything that changes something shows an **Allow / Deny** card with the exact content that would be written. |
-| **Alerts** | No Claude quota: `git pull` to do (with a button), unpushed work, calendar reminders, disk, battery, failed services, Iris updates, plus a **morning brief**. |
-| **Shortcuts** | `SUPER + I` sends the selected text to Iris; `SUPER + SHIFT + I` attaches it so you type an instruction ("translate", "explain"…). |
-| **Tidying** | Analyses a folder, proposes a plan, applies it with one approval, and everything can be undone. |
-| **Skills** | Your own Markdown recipes for recurring tasks. |
-| **Memory** | What Iris knows about you stays in a local file you can read and edit. |
-| **Languages** | French and English (interface, prompt, alerts). |
-| **Maintenance** | One-click update (⬇ button) and a read-only diagnostic (`iris-doctor`). |
+- 🔒 **Local first**: no project server, no telemetry. Your memory and history stay in a file on your machine.
+- ✋ **She asks before touching anything**: reading is free, everything else goes through an Allow / Deny card.
+- 🪶 **Light**: a Python daemon and a QML overlay, nothing else.
+
+---
+
+## Features
+
+- 💬 **Conversation**: chat in the bar, with access to your PC (files, read-only commands, system info) and, with the Claude connectors, your calendar, mail, Notion and Drive. Fast by default, a stronger model for code.
+- 🤖 **Agents**: Claude by default; add Ollama, Gemini or any CLI and switch with one click. The installer downloads your Ollama models.
+- 🔎 **Search**: find an old conversation by typing a few letters (accents and case ignored).
+- ⏰ **Reminders**: "Remind me in 20 min…": an alert on time, even if the PC was off.
+- 🖼️ **Images**: paste a screenshot with Ctrl+V, Iris reads it.
+- ✅ **Permissions**: an **Allow / Deny** card shows the exact content that would be written.
+- 🔔 **Alerts** *(no Claude quota)*: `git pull` to do (with a button), unpushed work, calendar, disk, battery, failed services, Iris updates, plus a **morning brief**.
+- ⌨️ **Shortcuts**: `SUPER + I` sends the selection to Iris; `SUPER + SHIFT + I` attaches it so you type an instruction ("translate", "explain"…).
+- 🗂️ **Tidying**: she analyses a folder, proposes a plan, applies it with one approval, and everything can be undone.
+- 📚 **Skills**: your own Markdown recipes for recurring tasks.
+- 🧠 **Memory**: what she knows about you stays in a local file, readable and editable.
+- 🌍 **Languages**: French and English (interface, prompt, alerts).
+- 🩺 **Maintenance**: one-click update (⬇) and a read-only diagnostic (`iris-doctor`).
+
+---
 
 ## Quick start
 
@@ -55,6 +72,8 @@ qs ipc call assistant toggle
 
 You can also let a coding assistant do the install: run it in the repository and ask "install Iris" ([AGENTS.md](../AGENTS.md), in French, describes the procedure).
 
+---
+
 ## Requirements
 
 | | Required | Purpose |
@@ -64,6 +83,8 @@ You can also let a coding assistant do the install: run it in the repository and
 | Account | The `claude` CLI, **logged in** | Run `claude` once to sign in. |
 | Optional | `wl-clipboard`, `libnotify`, `glib2` (`gio`), Nautilus (otherwise `xdg-open`) | Shortcuts, notifications, trash for tidying, opening files. |
 | Theme | A `theme` object in your `shell.qml` | Expected fields: `bg, fg, ff, fs, primary, secondary, tertiary, lavender, light, outline, txt2, error, warn`. [`test/shell.qml`](../test/shell.qml) provides a minimal one. |
+
+---
 
 ## Installation
 
@@ -94,6 +115,8 @@ In a terminal the installer asks a few questions: the language, your first name,
 
 **Left to do by hand**, because they depend on your shell (optional): the avatar button in the bar ([`integration/Bar.qml.snippet`](../integration/Bar.qml.snippet)) and clicking an alert to open the panel ([`integration/NotificationToast.qml.snippet`](../integration/NotificationToast.qml.snippet)).
 
+---
+
 ## Usage
 
 **Panel.** `qs ipc call assistant toggle|open|close` opens and closes it; `qs ipc call assistant ask "…"` sends a message. Header: an agent pill (shown once you have declared a second agent), history (grouped by day, with a search field that filters as you type, ignoring accents and case), new conversation and the update button. The Auto / Fast / Powerful selector picks the model. Three animated dots show that Iris has not started answering yet.
@@ -117,6 +140,8 @@ Iris gets the list (name and description) and reads a recipe when your request m
 **Reminders.** "Remind me in 20 min to call Alex": Iris runs `iris-remind add` (an Allow / Deny card shows the reminder) and `iris-watch` alerts you on time, in the panel and by notification. One-shot reminders, one year ahead at most, 50 pending at most, stored in `~/.local/share/qs-assistant/reminders.json`. A reminder missed while the PC was off is sent at the next start, with its due time. Ask Iris to cancel one.
 
 **Tidying.** Ask Iris to tidy a folder: she analyses it (`organize.py scan`), proposes a plan, applies it with a single approval, and `organize.py undo` reverts the last tidy-up. Nothing is overwritten, and the trash goes through `gio trash`.
+
+---
 
 ## Alerts and morning brief
 
@@ -143,6 +168,8 @@ Iris gets the list (name and description) and reads a recipe when your request m
 
 Test: `python3 scripts/iris-watch.py --once morning`.
 
+---
+
 ## Updating
 
 ```bash
@@ -153,6 +180,8 @@ Test: `python3 scripts/iris-watch.py --once morning`.
 The installer remembers where your clone is and which version it installed. `iris-update` covers two cases: the remote moved (it runs `git pull --ff-only` in the clone) or the clone is newer than the installation (pulled by hand, or pushed from that clone). Either way it re-runs the installation with your config, which is kept. A modified clone only blocks the `git pull`. Keep the clone in place; installed files are replaced, so customise through `config.json` or `prompt_file`.
 
 The button does not go through Claude (no quota); the panel may reload at the end, and a message confirms the result.
+
+---
 
 ## Configuration
 
@@ -192,6 +221,8 @@ The button does not go through Claude (no quota); the panel may reload at the en
 
 **Prompts.** [`assistant-prompt.md`](../scripts/assistant-prompt.md) (French) and [`assistant-prompt.en.md`](../scripts/assistant-prompt.en.md) are yours to adapt, or replace them with `prompt_file`.
 
+---
+
 ## Architecture
 
 ```mermaid
@@ -229,6 +260,8 @@ The overlay starts the daemon and the alert watcher as child processes. The daem
 | `specs/`, `tasks/` | Feature specifications and plans (method: spec, plan, tasks, code) |
 | `docs/` | English README and changelog |
 
+---
+
 ## Security
 
 Iris runs `claude` with your rights.
@@ -244,6 +277,8 @@ Iris runs `claude` with your rights.
 
 No assistant that reads external content is immune to prompt injection: keep an eye on the permission cards. Full model and how to report a vulnerability: [SECURITY.md](../.github/SECURITY.md) (French).
 
+---
+
 ## Known limits
 
 - Built and tested on Arch Linux + Hyprland + Quickshell; elsewhere the installer and `iris-doctor` tell you what is missing, but the bar button, blur and shortcuts need adapting.
@@ -251,13 +286,17 @@ No assistant that reads external content is immune to prompt injection: keep an 
 - Calendar, mail, Notion and Drive come through your Claude account's connectors; without them Iris can't see them (the calendar can also come from an iCal address).
 - The panel sends text and pasted images (PNG, needs `wl-clipboard`), no voice yet. Images only work with the `claude` agent.
 
+---
+
 ## Development
 
 ```bash
 test/test-e2e.sh --no-gui    # installs into /tmp, checks, uninstalls; leaves your config alone
 ```
 
-This test touches neither your shell, nor your data, nor your Claude account (`--with-claude` explicitly allows it for one tiny message). CI runs ShellCheck, Python compilation, the daemon tests (`test-agent`, `test-agent-switch`, `test-security`, `test-search`, `test-remind`, `test-image`, none needing a Claude account), this test and Gitleaks. Conventions (strings through `pick()` / `overlay.tr()`, no personal data, a test per change) and the pull-request process are in [CONTRIBUTING.md](../.github/CONTRIBUTING.md); the history of changes is in [CHANGELOG.md](CHANGELOG.md).
+This test touches neither your shell, nor your data, nor your Claude account (`--with-claude` explicitly allows it for one tiny message). CI runs ShellCheck, Python compilation, the daemon tests (`test-agent`, `test-agent-switch`, `test-security`, `test-search`, `test-remind`, `test-image`, none needing a Claude account), this test and Gitleaks. Conventions (strings through `pick()` / `overlay.tr()`, no personal data, a test per change) and the pull-request process are in [CONTRIBUTING.md](../CONTRIBUTING.md); the history of changes is in [CHANGELOG.md](../CHANGELOG.md).
+
+---
 
 ## License
 

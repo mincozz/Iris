@@ -80,6 +80,22 @@ PanelWindow {
         !busy ? "idle" : (toolStatus !== "" || !replying) ? "thinking" : "talking"
     onMoodChanged: shellRoot.assistantMood = mood
 
+    // Cosmetic faces on top of the three host moods: a happy hop right after
+    // a reply, sleepy after a long idle. shellRoot only ever sees `mood`.
+    property bool celebrating: false
+    property bool drowsy: false
+    readonly property string faceMood:
+        mood !== "idle" ? mood : celebrating ? "happy" : drowsy ? "sleepy" : "idle"
+    onBusyChanged: {
+        drowsy = false
+        drowsyTimer.restart()
+        if (busy) celebrating = false
+        else { celebrating = true; celebrateTimer.restart() }
+    }
+    onVisibleChanged: { drowsy = false; drowsyTimer.restart() }
+    Timer { id: celebrateTimer; interval: 2600; onTriggered: overlay.celebrating = false }
+    Timer { id: drowsyTimer; interval: 300000; running: true; onTriggered: overlay.drowsy = true }
+
     // Wall clock, refreshed every 30 s (greeting, date, reset countdown).
     property date now: new Date()
     Timer { interval: 30000; repeat: true; running: overlay.visible; triggeredOnStart: true
@@ -467,14 +483,29 @@ PanelWindow {
             Rectangle {
                 id: avatarDisc
                 anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
-                width: 52; height: 52; radius: 26
+                width: 56; height: 56; radius: 28
                 color: overlay.cardFill
-                border.color: overlay.cardStroke; border.width: 1
+                border.color: overlay.busy ? overlay.alpha(overlay.theme.primary, 0.55) : overlay.cardStroke
+                border.width: 1
+                Behavior on border.color { ColorAnimation { duration: 250 } }
+                // Soft halo that breathes while she works.
+                Rectangle {
+                    anchors.fill: parent; anchors.margins: -4; radius: width / 2
+                    color: "transparent"
+                    border.color: overlay.theme.primary; border.width: 2
+                    opacity: 0
+                    SequentialAnimation on opacity {
+                        running: overlay.busy; loops: Animation.Infinite
+                        onRunningChanged: if (!running) parent.opacity = 0
+                        NumberAnimation { to: 0.35; duration: 700; easing.type: Easing.InOutSine }
+                        NumberAnimation { to: 0.05; duration: 700; easing.type: Easing.InOutSine }
+                    }
+                }
                 AssistantAvatar {
                     anchors.centerIn: parent
                     theme: overlay.theme
-                    mood: overlay.mood
-                    size: 36
+                    mood: overlay.faceMood
+                    size: 40
                 }
             }
 
@@ -530,6 +561,8 @@ PanelWindow {
                         text: overlay.toolStatus !== "" ? overlay.toolStatus
                             : overlay.mood === "thinking" ? overlay.tr("thinking", "Je réfléchis…")
                             : overlay.mood === "talking"  ? overlay.tr("writing", "J'écris…")
+                            : overlay.faceMood === "happy" ? overlay.tr("happy", "Et voilà !")
+                            : overlay.faceMood === "sleepy" ? overlay.tr("sleepy", "Zzz…")
                             : overlay.tr("online", "En ligne")
                         color: overlay.busy ? overlay.theme.primary : overlay.theme.txt2
                         opacity: overlay.busy ? 1 : 0.75

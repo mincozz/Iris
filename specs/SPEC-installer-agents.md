@@ -45,7 +45,7 @@ Retouches visuelles, sans changer le comportement. Proposition (à confirmer) :
 Tests : `test-e2e.sh` (aucune erreur QML) + vérification visuelle par vous.
 
 ## 3. docs (avant le merge sur main)
-Mettre à jour tous les `.md` : `README.md`, `docs/README.en.md`, `docs/CHANGELOG.md`, `AGENTS.md` (carte du dépôt, procédure d'installation avec les nouvelles options, règles), `.github/CONTRIBUTING.md` (liste des tests), `SECURITY.md` (pièces jointes d'images, rappels, agents CLI), modèle de PR, `integration/*.md` et exemples. Vérifier que chaque option d'`install.sh --help` y est décrite et que FR et EN restent alignés.
+Mettre à jour tous les `.md` : `README.md`, `docs/README.en.md`, `CHANGELOG.md`, `AGENTS.md` (carte du dépôt, procédure d'installation avec les nouvelles options, règles), `CONTRIBUTING.md` (liste des tests), `SECURITY.md` (pièces jointes d'images, rappels, agents CLI), modèle de PR, `integration/*.md` et exemples. Vérifier que chaque option d'`install.sh --help` y est décrite et que FR et EN restent alignés.
 
 ## Questions ouvertes
 1. Panneau : les 4 retouches proposées vous conviennent-elles, ou voulez-vous en retirer / ajouter ?
