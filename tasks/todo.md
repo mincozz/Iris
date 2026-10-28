@@ -10,7 +10,7 @@ Vérification commune : `python3 -I -m py_compile <fichiers touchés>` et `test/
 - [x] **T2 Champ de recherche dans l'historique + docs** (S)
   - Critères : champ en haut de la vue, filtre à chaque lettre, extrait affiché, placeholder via `tr()`, README FR/EN + CHANGELOG.
   - Vérif : `test/test-e2e.sh` ; manuel : taper « reunion » trouve « Réunion ».
-  - Dépend de : T1. Fichiers : `overlays/AssistantOverlay.qml`, `scripts/assistant.py` (`ui_strings`), `README.md`, `docs/README.en.md`, `docs/CHANGELOG.md`.
+  - Dépend de : T1. Fichiers : `overlays/AssistantOverlay.qml`, `scripts/assistant.py` (`ui_strings`), `README.md`, `docs/README.en.md`, `CHANGELOG.md`.
 - [x] **Checkpoint 1** : CI verte, recherche fluide avec ~200 conversations, relecture (`ponytail-review`) puis commit.
 
 ## Phase 2 : reminders
@@ -21,7 +21,7 @@ Vérification commune : `python3 -I -m py_compile <fichiers touchés>` et `test/
 - [x] **T4 Déclenchement par `iris-watch` + prompts + docs** (M)
   - Critères : `check_reminders` (30 s) émet une alerte `reminder` une seule fois puis supprime ; rappel manqué envoyé au démarrage ; texte échappé ; prompts FR/EN expliquent l'usage ; README FR/EN + CHANGELOG.
   - Vérif : `test-remind.py` (cas échéance) ; manuel : « rappelle-moi dans 2 min » → carte → alerte.
-  - Dépend de : T3. Fichiers : `scripts/iris-watch.py`, `scripts/assistant-prompt.md`, `scripts/assistant-prompt.en.md`, `README.md`, `docs/CHANGELOG.md`.
+  - Dépend de : T3. Fichiers : `scripts/iris-watch.py`, `scripts/assistant-prompt.md`, `scripts/assistant-prompt.en.md`, `README.md`, `CHANGELOG.md`.
 - [x] **Checkpoint 2** : CI verte, rappel de bout en bout, revue de sécurité (texte = donnée, `READONLY_BASH` inchangé), commit.
 
 ## Phase 3 : image-input
@@ -35,7 +35,7 @@ Vérification commune : `python3 -I -m py_compile <fichiers touchés>` et `test/
 - [x] **T7 Overlay : Ctrl+V, pastille, envoi + docs** (M)
   - Critères : Ctrl+V déclenche `paste_image` sans casser le collage texte ; pastille « Image jointe » retirable ; message `[Image jointe : chemin]` ; prompts FR/EN ; README FR/EN + CHANGELOG.
   - Vérif : `test-e2e.sh` ; manuel : capture → Ctrl+V → question → Iris décrit l'image.
-  - Dépend de : T6. Fichiers : `overlays/AssistantOverlay.qml`, `scripts/assistant.py` (`ui_strings`), prompts FR/EN, `README.md`, `docs/CHANGELOG.md`.
+  - Dépend de : T6. Fichiers : `overlays/AssistantOverlay.qml`, `scripts/assistant.py` (`ui_strings`), prompts FR/EN, `README.md`, `CHANGELOG.md`.
 - [x] **Checkpoint 3** : CI verte, aucun fichier > 7 jours après collage, `ponytail-review`, commit, puis `scripts/iris-update` sur votre PC.
 
 ## Lot 2 : agents, installeur, finitions (specs/SPEC-agent-switch.md, specs/SPEC-installer-agents.md)
