@@ -26,7 +26,8 @@ Vous êtes une IA qui aide un utilisateur à installer **Iris**, un assistant en
 | `test/` | `test-e2e.sh` (installation jetable) et `test-agent.py`, `test-agent-switch.py`, `test-security.py`, `test-search.py`, `test-remind.py`, `test-image.py`, tous sans compte Claude |
 | `specs/`, `tasks/` | Spécifications et plan des fonctionnalités (spec, plan, tâches, puis code) |
 | `integration/` | Extraits à greffer à la main, exemples de config |
-| `docs/`, `.github/` | README anglais, journal des changements, politique de sécurité, guide de contribution |
+| `CHANGELOG.md`, `CONTRIBUTING.md` | Journal des changements et guide de contribution |
+| `docs/`, `.github/` | README anglais, médias (`docs/media/`), politique de sécurité, modèles de PR et d'issues |
 
 ## Procédure d'installation
 1. **Prérequis** : `qs` (Quickshell), `python3`, `claude` connecté (`claude` doit déjà fonctionner), `git`. Optionnels : `gio` (corbeille), `wl-copy`, `nautilus` (ouverture des fichiers), `notify-send`. Si `claude` n'est pas connecté, dites-le à l'utilisateur : il doit lancer `claude` lui-même (connexion interactive).

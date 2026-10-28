@@ -7,5 +7,5 @@
 ## Checklist
 - [ ] Textes visibles via `pick()` / `overlay.tr()`
 - [ ] Aucune donnée personnelle ni secret
-- [ ] Docs mises à jour (`README.md`, `docs/README.en.md`, `AGENTS.md`, `docs/CHANGELOG.md`) si le comportement visible change
+- [ ] Docs mises à jour (`README.md`, `docs/README.en.md`, `AGENTS.md`, `CHANGELOG.md`) si le comportement visible change
 - [ ] Spécification dans `specs/` si la fonctionnalité n'est pas triviale

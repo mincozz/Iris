@@ -5,6 +5,9 @@ import QtQuick
 //   "idle"     — soft float, blinks
 //   "thinking" — sparkles orbit around her
 //   "talking"  — the mouth opens and closes, with a small bounce
+//   "happy"    — ^ ^ eyes, a grin, a little hop (after a finished reply)
+//   "sleepy"   — eyes shut, slow float, floating "z" (long idle)
+// Any other value behaves like "idle", so an older host never breaks.
 Item {
     id: av
 
@@ -50,8 +53,19 @@ Item {
     property real floatY: 0
     SequentialAnimation on floatY {
         loops: Animation.Infinite
-        NumberAnimation { to: -av.size * 0.03; duration: av.mood === "thinking" ? 450 : 1600; easing.type: Easing.InOutSine }
-        NumberAnimation { to:  av.size * 0.01; duration: av.mood === "thinking" ? 450 : 1600; easing.type: Easing.InOutSine }
+        NumberAnimation { to: -av.size * 0.03; duration: av.mood === "thinking" ? 450 : av.mood === "sleepy" ? 2600 : 1600; easing.type: Easing.InOutSine }
+        NumberAnimation { to:  av.size * 0.01; duration: av.mood === "thinking" ? 450 : av.mood === "sleepy" ? 2600 : 1600; easing.type: Easing.InOutSine }
+    }
+
+    // ── Hop when happy ───────────────────────────────────────────────
+    property real hopY: 0
+    SequentialAnimation on hopY {
+        running: av.mood === "happy"
+        loops: Animation.Infinite
+        onRunningChanged: if (!running) av.hopY = 0
+        NumberAnimation { to: -av.size * 0.12; duration: 170; easing.type: Easing.OutQuad }
+        NumberAnimation { to: 0;               duration: 170; easing.type: Easing.InQuad }
+        PauseAnimation  { duration: 140 }
     }
 
     // ── Blob ─────────────────────────────────────────────────────────
@@ -60,7 +74,7 @@ Item {
         width: av.size
         height: av.implicitHeight
         x: (av.width - width) / 2
-        y: (av.height - height) / 2 + av.floatY
+        y: (av.height - height) / 2 + av.floatY + av.hopY
 
         transformOrigin: Item.Bottom
         SequentialAnimation on scale {
@@ -81,8 +95,11 @@ Item {
                     if (ch === ".") continue
 
                     const eye = c === 2 || c === 3 || c === 12 || c === 13
-                    if (eye && blink.closed) ch = r === 5 ? "b" : (r === 6 ? "k" : ch)
-                    if (av.mood === "talking" && av.talkOpen && (r === 8 || r === 9) && c >= 6 && c <= 9)
+                    if (eye && (blink.closed || av.mood === "sleepy")) ch = r === 5 ? "b" : (r === 6 ? "k" : ch)
+                    if (eye && av.mood === "happy") ch = r === 5 ? "k" : (r === 6 ? "b" : ch)   // ^ ^
+                    if (av.mood === "happy" && r === 7 && (c === 1 || c === 14)) ch = "p"       // blush
+                    if (((av.mood === "talking" && av.talkOpen) || av.mood === "happy")
+                            && (r === 8 || r === 9) && c >= 6 && c <= 9)
                         ch = "m"
 
                     const x0 = Math.round(c * p), x1 = Math.round((c + 1) * p)
@@ -124,6 +141,27 @@ Item {
                 color: index === 1 ? av.theme.secondary : "#ffffff"
                 x: av.width / 2 + Math.cos(a) * av.size * 0.5 - width / 2
                 y: av.implicitHeight / 2 + Math.sin(a) * av.size * 0.3 - height / 2
+            }
+        }
+    }
+
+    // ── Floating z while sleepy ──────────────────────────────────────
+    Repeater {
+        model: av.mood === "sleepy" ? 2 : 0
+        delegate: Text {
+            required property int index
+            text: "z"
+            color: av.theme.txt2
+            font.family: av.theme.ff; font.weight: Font.Bold
+            font.pixelSize: Math.max(7, av.size * (0.2 - index * 0.04))
+            x: av.width * 0.68 + index * av.size * 0.12
+            property real rise: 0
+            y: av.height * 0.2 - rise
+            opacity: 1 - rise / (av.size * 0.4)
+            SequentialAnimation on rise {
+                loops: Animation.Infinite
+                PauseAnimation { duration: index * 900 }
+                NumberAnimation { from: 0; to: av.size * 0.4; duration: 1800; easing.type: Easing.OutSine }
             }
         }
     }

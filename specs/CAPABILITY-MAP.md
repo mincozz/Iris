@@ -15,7 +15,7 @@ Ordre de construction : `history-search` → `reminders` → `image-input`
 1. **history-search** : recherche insensible à la casse et aux accents, sur le titre et le texte des messages (pas les cartes d'outils). Un scan des fichiers JSON suffit (pas d'index) tant que l'historique reste modeste.
 2. **reminders** : les rappels sont créés par Iris (langage naturel), pas par un formulaire. Pour que ça reste dans la règle « tout ce qui modifie passe par Autoriser / Refuser », un petit script `scripts/iris-remind` (`add`, `list`, `cancel`, dates validées) est appelé via Bash et affiche sa carte d'accord. Le texte du rappel est de la donnée, jamais une instruction. Rappel unique d'abord, pas de récurrence.
 3. **image-input** : seul l'agent `claude -p` voit les images (les agents `CommandAgent` génériques les ignorent, avec un message clair). Formats png/jpg/webp, taille plafonnée, fichiers stockés en `0700` sous `DATA_DIR` et purgés après N jours. Le collage d'image passe par `wl-paste --type image/*` (Quickshell ne lit pas le presse-papiers image nativement).
-4. Tout texte visible passe par `pick(fr, en)` / `overlay.tr(...)`, chaque capacité ajoute ses tests dans `test/`, et README FR/EN + `docs/CHANGELOG.md` sont mis à jour.
+4. Tout texte visible passe par `pick(fr, en)` / `overlay.tr(...)`, chaque capacité ajoute ses tests dans `test/`, et README FR/EN + `CHANGELOG.md` sont mis à jour.
 5. Aucun changement à `READONLY_BASH`, `BILLING_ENV` ni aux commandes interdites.
 
 ## Questions ouvertes

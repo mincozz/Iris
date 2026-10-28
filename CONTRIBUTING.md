@@ -34,7 +34,7 @@ La CI (`.github/workflows/ci.yml`) lance ShellCheck (`--severity=warning`), la c
 2. Décrivez ce qui change et pourquoi, et comment vous l'avez testé (surtout ce qui est visuel et que la CI ne peut pas voir).
 3. Mettez à jour `README.md`, `docs/README.en.md` et `AGENTS.md` si le comportement visible change.
 
-Les contributions sont acceptées sous la licence du projet ([MIT](../LICENSE)).
+Les contributions sont acceptées sous la licence du projet ([MIT](LICENSE)).
 
 ## English summary
 

@@ -1322,12 +1322,14 @@ def ui_strings():
     French when it receives nothing, e.g. with an older daemon)."""
     return {
         "reset": pick("réinit. ", "resets in "),
-        "greet_night": pick("Encore debout ?", "Still up?"),
-        "greet_day": pick("Bonjour", "Good morning"),
-        "greet_evening": pick("Bonsoir", "Good evening"),
+        "greet_night": pick("Encore debout ? Coucou", "Still up? Hi"),
+        "greet_day": pick("Coucou", "Hi there"),
+        "greet_evening": pick("Coucou, bonne soirée", "Hi, good evening"),
         "thinking": pick("Je réfléchis…", "Thinking…"),
         "writing": pick("J'écris…", "Writing…"),
-        "online": pick("En ligne", "Online"),
+        "online": pick("Coucou, je suis là", "Hi, I'm here"),
+        "happy": pick("Et voilà !", "All done!"),
+        "sleepy": pick("Zzz…", "Zzz…"),
         "no_history": pick("Aucune conversation pour l'instant", "No conversations yet"),
         "no_match": pick("Aucun résultat", "No results"),
         "search_placeholder": pick("Rechercher une conversation…", "Search conversations…"),
