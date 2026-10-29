@@ -58,7 +58,7 @@ Commits sans mention de l'assistant.
   - Files : `overlays/*.qml`.
   - Scope : S.
 
-- [ ] **T9 : Docs, installateur, CI**
+- [x] **T9 : Docs, installateur, CI**
   - Acceptance : README FR / EN (section d'aperçu, raccourcis `Ctrl+1/2`), `CHANGELOG.md`, `AGENTS.md` (carte du dépôt) ; `FILES` à jour partout ; `SPEC-buddy.md` marquée remplacée par `SPEC-island.md`.
   - Verify : `test-e2e.sh --no-gui`, `shellcheck`, CI complète en local.
   - Files : `README.md`, `docs/README.en.md`, `CHANGELOG.md`, `AGENTS.md`, `specs/SPEC-buddy.md`.

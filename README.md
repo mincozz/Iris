@@ -123,6 +123,8 @@ Dans un terminal, l'installateur pose quelques questions : la langue, votre pré
 
 **Panneau.** `qs ipc call assistant toggle|open|close` l'ouvre et le ferme ; `qs ipc call assistant ask "…"` envoie un message. En-tête : une pastille d'agent (visible dès que vous en avez déclaré un second), l'historique (groupé par jour, avec un champ de recherche qui filtre à chaque lettre, sans tenir compte des accents ni de la casse), nouvelle conversation et bouton de mise à jour. Le sélecteur Auto / Rapide / Puissant choisit le modèle. Trois points animés indiquent qu'Iris n'a pas encore commencé à répondre.
 
+**Îlot et onglets.** Fermée, Iris est un îlot noir collé au bord haut de l'écran. Ouverte, elle se déplie en carte de 640 px avec deux onglets : **Accueil** (`Ctrl+1` : mascotte, agent et modèle actifs, étapes du tour en cours, alertes récentes, prochain rappel) et **Chat** (`Ctrl+2`). `Échap`, un clic dehors ou un clic sur l'îlot referme la carte. Dans le chat, Entrée envoie et Maj+Entrée saute une ligne ; le trombone ouvre le sélecteur de fichiers du bureau (`scripts/iris-pick`).
+
 **Raccourcis.** `scripts/iris-ask` envoie la sélection (à défaut le presse-papiers) ; avec `--edit`, il la **joint** au panneau (pastille « Texte joint », retirable) et vous tapez votre consigne avant d'envoyer. `IRIS_ASK_DRY=1` montre ce qui partirait, sans rien envoyer. Le texte part tel quel à Claude : ne l'utilisez pas sur un mot de passe.
 
 **Skills.** Une recette est un fichier `~/.local/share/qs-assistant/skills/nom.md` :

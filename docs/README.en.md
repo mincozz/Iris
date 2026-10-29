@@ -123,6 +123,8 @@ In a terminal the installer asks a few questions: the language, your first name,
 
 **Panel.** `qs ipc call assistant toggle|open|close` opens and closes it; `qs ipc call assistant ask "…"` sends a message. Header: an agent pill (shown once you have declared a second agent), history (grouped by day, with a search field that filters as you type, ignoring accents and case), new conversation and the update button. The Auto / Fast / Powerful selector picks the model. Three animated dots show that Iris has not started answering yet.
 
+**Island and tabs.** Closed, Iris is a black island at the top edge of the screen. Open, it unfolds into a 640 px card with two tabs: **Home** (`Ctrl+1`: mascot, active agent and model, steps of the current turn, recent alerts, next reminder) and **Chat** (`Ctrl+2`). `Esc`, a click outside or a click on the island closes it. In the chat, Enter sends and Shift+Enter adds a line; the paperclip opens the desktop file picker (`scripts/iris-pick`).
+
 **Shortcuts.** `scripts/iris-ask` sends the selection (the clipboard if nothing is selected); with `--edit` it **attaches** it to the panel (an "Attached text" pill, removable) and you type your instruction before sending. `IRIS_ASK_DRY=1` shows what would be sent without sending anything. The text goes to Claude as is: don't use it on a password.
 
 **Skills.** A recipe is a file `~/.local/share/qs-assistant/skills/name.md`:

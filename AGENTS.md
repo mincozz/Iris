@@ -14,6 +14,7 @@ Vous êtes une IA qui aide un utilisateur à installer **Iris**, un assistant en
 | `install.sh` | Installateur idempotent (`--dry-run`, `--prefix`, `--no-hypr`, `--uninstall`, `-y`, `--ollama-model`, `--add-agent`, `--add-openai`, `--no-pull`) |
 | `overlays/AssistantOverlay.qml` | Panneau de chat |
 | `overlays/AssistantAvatar.qml` | Avatar animé |
+| `overlays/AssistantTabs.qml`, `AssistantHome.qml` | Rangée d'onglets ; onglet Accueil (étapes, alertes, rappel lu dans `reminders.json`) |
 | `scripts/assistant.py` | Daemon : pont QML ↔ `claude -p`, permissions, historique |
 | `scripts/assistant-prompt.md`, `assistant-prompt.en.md` | Prompt système (français, anglais) |
 | `scripts/i18n.py` | Langue (`fr`/`en`) partagée par les scripts : `pick("texte fr", "text en")` |

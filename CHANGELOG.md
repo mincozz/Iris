@@ -5,6 +5,7 @@ Les versions suivent les commits de `main` ; Iris se met à jour avec `scripts/i
 ## Non publié
 
 ### Interface
+- Îlot Iris : îlot noir au repos (mascotte et ligne d'état), qui grossit quand elle travaille et se déplie en carte de 640 px ; onglets Accueil / Chat (`Ctrl+1/2`) ; Accueil avec grande mascotte, agent et modèle, étapes du tour, alertes et prochain rappel (`reminders.json` en lecture seule) ; chat restylé (puce d'agent, saisie multi-ligne avec Maj+Entrée, « Continue… ») ; texte d'au moins 14 px et textes atténués lisibles (contraste ≥ 4,5:1). Nouveau composant `overlays/AssistantHome.qml`.
 - Pastille permanente en haut au centre qui se déplie en panneau (une seule animation), avec glisser-déposer de fichiers (≤ 5, joints en `[Fichier joint : chemin]`, lus par `Read`). La fenêtre reste plein écran mais n'accepte les clics que sur la pastille quand elle est fermée.
 - Avatar : deux humeurs en plus (content après une réponse, endormi après 5 min d'inactivité) et un halo pendant qu'Iris travaille ; le contrat avec le shell hôte (`idle|thinking|talking`) ne change pas.
 - Textes plus chaleureux (« Coucou, je suis là », « Et voilà ! ») et une personnalité de mascotte dans les prompts FR/EN.

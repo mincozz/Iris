@@ -1,3 +1,5 @@
+> **Remplacée par `specs/SPEC-island.md`** (îlot, carte à onglets). Conservée pour l'historique.
+
 # SPEC — Pastille Iris (présence permanente, drag & drop, fluidité)
 
 ## Objectif
