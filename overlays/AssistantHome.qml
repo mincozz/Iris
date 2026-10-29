@@ -22,6 +22,7 @@ Item {
     FileView {
         path: home.remindersPath
         watchChanges: true
+        printErrors: false
         onFileChanged: reload()
         onLoaded: {
             let next = null
@@ -36,7 +37,7 @@ Item {
 
     component Section: Text {
         color: home.theme.txt2
-        font.family: home.theme.ff; font.pixelSize: 13
+        font.family: home.theme.ff; font.pixelSize: 14
         font.weight: Font.DemiBold
         font.capitalization: Font.AllUppercase
     }
@@ -92,7 +93,7 @@ Item {
                 Text {
                     visible: home.steps.length === 0
                     text: home.tr("home_no_steps", "Rien en cours.")
-                    color: home.theme.outline
+                    color: home.theme.txt2
                     font.family: home.theme.ff; font.pixelSize: 14
                 }
                 Repeater {

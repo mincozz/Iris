@@ -37,12 +37,12 @@ PanelWindow {
     readonly property int panelWidth: 640
 
     // ── Glass tokens (derived from the active theme) ──────────────────
-    readonly property bool  light:       false   // the island is always black: dark tokens whatever the host theme
-    readonly property color glassStroke: light ? Qt.rgba(1, 1, 1, 0.75) : Qt.rgba(1, 1, 1, 0.11)
-    readonly property color cardFill:    light ? Qt.rgba(1, 1, 1, 0.6)  : Qt.rgba(1, 1, 1, 0.055)
-    readonly property color cardStroke:  light ? Qt.rgba(0, 0, 0, 0.06) : Qt.rgba(1, 1, 1, 0.08)
-    readonly property color cardHover:   light ? Qt.rgba(1, 1, 1, 0.85) : Qt.rgba(1, 1, 1, 0.10)
-    readonly property color wellFill:    light ? Qt.rgba(1, 1, 1, 0.7)  : Qt.rgba(1, 1, 1, 0.07)   // a well must show on black
+    // The island is always black: dark tokens whatever the host theme.
+    readonly property color glassStroke: Qt.rgba(1, 1, 1, 0.11)
+    readonly property color cardFill:    Qt.rgba(1, 1, 1, 0.055)
+    readonly property color cardStroke:  Qt.rgba(1, 1, 1, 0.08)
+    readonly property color cardHover:   Qt.rgba(1, 1, 1, 0.10)
+    readonly property color wellFill:    Qt.rgba(1, 1, 1, 0.07)   // a well must show on black
     function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
 
     // Chat items: role = "user" | "assistant" | "error" | "ask" | "nudge"
@@ -570,7 +570,7 @@ PanelWindow {
                 elide: Text.ElideRight
                 text: overlay.dropHover ? overlay.tr("drop_here", "Lâche ici") : overlay.statusText
                 color: overlay.busy || overlay.dropHover ? overlay.theme.primary : overlay.islandInk
-                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 1)
             }
             Text {           // which agent is working, once the island has grown
                 anchors { left: pillText.left; top: pillText.bottom; topMargin: 1 }
@@ -580,7 +580,7 @@ PanelWindow {
                 text: overlay.agent + (overlay.agentRemote ? " · " + overlay.tr("agent_remote", "distant") : "")
                       + (overlay.modelName !== "" ? " · " + overlay.modelName : "")
                 color: Qt.rgba(1, 1, 1, 0.55)
-                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 3)
             }
             Item {           // a light bar sweeps along the bottom while she works
                 anchors { left: parent.left; right: parent.right; bottom: parent.bottom
@@ -685,14 +685,14 @@ PanelWindow {
                             elide: Text.ElideRight
                             text: overlay.agent
                             color: overlay.agentMenu ? overlay.theme.primary : overlay.theme.txt2
-                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                            font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 3)
                         }
                         Text {               // data leaves this machine
                             visible: overlay.agentRemote
                             anchors.verticalCenter: parent.verticalCenter
                             text: overlay.tr("agent_remote", "distant")
                             color: overlay.theme.warn
-                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 4
+                            font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 4)
                         }
                     }
                     HoverHandler { id: agentHover; cursorShape: Qt.PointingHandCursor }
@@ -776,14 +776,14 @@ PanelWindow {
                             text: modelData
                             elide: Text.ElideRight
                             color: modelData === overlay.agent ? overlay.theme.primary : overlay.theme.fg
-                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                            font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 1)
                         }
                         Text {
                             visible: modelData === overlay.agent
                             anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
                             text: "\u2713"
                             color: overlay.theme.primary
-                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 2
+                            font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 2)
                         }
                         HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
                         TapHandler { onTapped: { overlay.agentMenu = false; overlay.cmd({ cmd: "agent", name: modelData }) } }
@@ -814,8 +814,8 @@ PanelWindow {
             Rectangle {
                 x: 3 + modeBar.idx * modeBar.segW; y: 3
                 width: modeBar.segW; height: parent.height - 6; radius: height / 2
-                color: overlay.light ? "#ffffff" : Qt.rgba(1, 1, 1, 0.12)
-                border.color: overlay.light ? Qt.rgba(0, 0, 0, 0.05) : Qt.rgba(1, 1, 1, 0.14)
+                color: overlay.Qt.rgba(1, 1, 1, 0.12)
+                border.color: overlay.Qt.rgba(1, 1, 1, 0.14)
                 border.width: 1
                 Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
             }
@@ -832,17 +832,17 @@ PanelWindow {
                             spacing: 6
                             Text {
                                 text: modelData.icon
-                                color: !parent.parent.on ? overlay.theme.outline
+                                color: !parent.parent.on ? overlay.theme.txt2
                                      : modelData.key === "power" ? overlay.theme.secondary
                                      : modelData.key === "fast"  ? overlay.theme.tertiary
                                      : overlay.theme.primary
-                                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                                font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 1)
                             }
                             Text {
                                 text: modelData.label
                                 color: parent.parent.on ? overlay.theme.fg : overlay.theme.txt2
                                 opacity: parent.parent.on ? 1 : 0.7
-                                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 2
+                                font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 2)
                                 font.weight: parent.parent.on ? Font.DemiBold : Font.Normal
                             }
                         }
@@ -872,7 +872,7 @@ PanelWindow {
                 color: overlay.theme.fg
                 selectionColor: overlay.alpha(overlay.theme.primary, 0.45)
                 selectedTextColor: overlay.theme.fg
-                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 1)
                 clip: true
                 onTextChanged: { overlay.searchQuery = text; overlay.cmd({ cmd: "search", q: text }) }
                 Connections {
@@ -887,7 +887,7 @@ PanelWindow {
                     visible: searchInput.text === ""
                     anchors.verticalCenter: parent.verticalCenter
                     text: overlay.tr("search_placeholder", "Rechercher une conversation…")
-                    color: overlay.theme.outline
+                    color: overlay.theme.txt2
                     font: searchInput.font
                 }
             }
@@ -916,8 +916,8 @@ PanelWindow {
                 text: section === "today" ? overlay.tr("group_today", "Aujourd'hui")
                     : section === "yesterday" ? overlay.tr("group_yesterday", "Hier")
                     : overlay.tr("group_older", "Plus ancien")
-                color: overlay.theme.outline
-                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                color: overlay.theme.txt2
+                font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 3)
                 font.weight: Font.DemiBold; font.letterSpacing: 1
                 font.capitalization: Font.AllUppercase
             }
@@ -927,8 +927,8 @@ PanelWindow {
                 anchors.centerIn: parent
                 text: overlay.searchQuery.trim() !== "" ? overlay.tr("no_match", "Aucun résultat")
                     : overlay.tr("no_history", "Aucune conversation pour l'instant")
-                color: overlay.theme.outline
-                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs
+                color: overlay.theme.txt2
+                font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs)
             }
 
             delegate: Rectangle {
@@ -964,7 +964,7 @@ PanelWindow {
                     text: hrow.title
                     elide: Text.ElideRight
                     color: overlay.theme.fg
-                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                    font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 1)
                 }
                 Text {
                     visible: hrow.snippet !== ""
@@ -972,22 +972,22 @@ PanelWindow {
                     text: hrow.snippet
                     textFormat: Text.PlainText
                     elide: Text.ElideRight
-                    color: overlay.theme.outline
-                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                    color: overlay.theme.txt2
+                    font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 3)
                 }
                 Text {
                     id: hDate
                     anchors { right: hDel.left; rightMargin: 8; verticalCenter: parent.verticalCenter }
                     text: overlay._relTime(hrow.updated)
-                    color: overlay.theme.outline
-                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                    color: overlay.theme.txt2
+                    font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 3)
                 }
                 Text {
                     id: hDel
                     anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
                     text: ""                       // trash
                     opacity: hHover.hovered ? 1 : 0
-                    color: delHover.hovered ? overlay.theme.error : overlay.theme.outline
+                    color: delHover.hovered ? overlay.theme.error : overlay.theme.txt2
                     font.family: overlay.theme.ff; font.pixelSize: 14
                     Behavior on opacity { NumberAnimation { duration: 120 } }
                     HoverHandler { id: delHover }
@@ -1088,7 +1088,7 @@ PanelWindow {
                         return d.charAt(0).toUpperCase() + d.slice(1)
                     }
                     color: overlay.theme.txt2; opacity: 0.7
-                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                    font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 1)
                 }
                 Item { width: 1; height: 16 }
                 Repeater {
@@ -1112,13 +1112,13 @@ PanelWindow {
                             anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
                             text: modelData.icon
                             color: overlay.theme.primary
-                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs
+                            font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs)
                         }
                         Text {
                             anchors { left: sugIcon.right; leftMargin: 10; verticalCenter: parent.verticalCenter }
                             text: modelData.text
                             color: overlay.theme.fg
-                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                            font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 1)
                         }
                         HoverHandler { id: sugHover; cursorShape: Qt.PointingHandCursor }
                         TapHandler { onTapped: overlay.ask(modelData.text) }
@@ -1206,7 +1206,7 @@ PanelWindow {
                         selectionColor: msg.mine ? overlay.alpha(overlay.theme.bg, 0.35)
                                                  : overlay.alpha(overlay.theme.primary, 0.4)
                         selectedTextColor: color
-                        font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs
+                        font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs)
                         // Click on a link (TapHandler: also fires when the
                         // pointer moved a hair, which cancels linkActivated).
                         TapHandler {
@@ -1248,7 +1248,7 @@ PanelWindow {
                                 ? "\uf00c  " + (msg.action === "update" ? overlay.tr("updated_state", "À jour") : overlay.tr("done_state", "Fait"))
                             : msg.actionLabel !== "" ? msg.actionLabel : overlay.tr("update_btn", "Mettre à jour")
                         color: parent.idle ? overlay.theme.bg : overlay.theme.txt2
-                        font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                        font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 1)
                         font.weight: Font.DemiBold
                     }
                     HoverHandler { id: actHover; enabled: parent.idle; cursorShape: Qt.PointingHandCursor }
@@ -1319,7 +1319,7 @@ PanelWindow {
                                 text: overlay.tr("wants", "Iris veut utiliser") + " <b>" + msg.askTool.replace(/^mcp__claude_ai_/, "").replace(/__/g, " · ").replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</b>"
                                 textFormat: Text.StyledText
                                 color: overlay.theme.fg
-                                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                                font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 1)
                                 elide: Text.ElideRight
                             }
                         }
@@ -1337,7 +1337,7 @@ PanelWindow {
                                 wrapMode: TextEdit.WrapAnywhere
                                 color: overlay.theme.fg
                                 selectionColor: overlay.alpha(overlay.theme.primary, 0.4)
-                                font.family: "JetBrainsMono Nerd Font Mono"; font.pixelSize: overlay.theme.fs - 2
+                                font.family: "JetBrainsMono Nerd Font Mono"; font.pixelSize: Math.max(14, overlay.theme.fs - 2)
                             }
                         }
                         Row {
@@ -1362,7 +1362,7 @@ PanelWindow {
                                         anchors.centerIn: parent
                                         text: modelData.label
                                         color: modelData.allow ? overlay.theme.bg : overlay.theme.fg
-                                        font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                                        font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 1)
                                         font.weight: Font.DemiBold
                                     }
                                     HoverHandler { id: bHover; cursorShape: Qt.PointingHandCursor }
@@ -1373,8 +1373,8 @@ PanelWindow {
                         Text {
                             visible: msg.askState !== "pending"
                             text: msg.askState === "allowed" ? "  " + overlay.tr("allowed", "Autorisé") : "  " + overlay.tr("denied", "Refusé")
-                            color: msg.askState === "allowed" ? overlay.theme.tertiary : overlay.theme.outline
-                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 2
+                            color: msg.askState === "allowed" ? overlay.theme.tertiary : overlay.theme.txt2
+                            font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 2)
                         }
                     }
                 }
@@ -1403,7 +1403,7 @@ PanelWindow {
             height: Math.max(24, list.height * ratio)
             y: list.y + (list.contentY - list.originY) / Math.max(1, list.contentHeight - list.height)
                         * (list.height - height)
-            color: overlay.theme.outline
+            color: overlay.theme.txt2
             opacity: scrollFade.running || list.moving || scrollAnim.running ? 0.6 : 0.18
             Behavior on opacity { NumberAnimation { duration: 300 } }
             Timer { id: scrollFade; interval: 800 }
@@ -1443,12 +1443,12 @@ PanelWindow {
                 Text {
                     text: "\uf0c6  " + overlay.tr("attached", "Texte joint") + " · " + overlay.attached.length + " " + overlay.tr("chars", "car.")
                     color: overlay.theme.fg
-                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                    font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 3)
                 }
                 Text {
                     text: "\uf00d"
                     color: overlay.theme.txt2
-                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                    font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 3)
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                     TapHandler { onTapped: overlay.attached = "" }
                 }
@@ -1474,12 +1474,12 @@ PanelWindow {
                 Text {
                     text: "\uf03e  " + overlay.tr("image_attached", "Image jointe")
                     color: overlay.theme.fg
-                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                    font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 3)
                 }
                 Text {
                     text: "\uf00d"
                     color: overlay.theme.txt2
-                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                    font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 3)
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                     TapHandler { onTapped: overlay.image = "" }
                 }
@@ -1507,7 +1507,7 @@ PanelWindow {
                         elide: Text.ElideMiddle
                         text: "\uf15b  " + modelData.split("/").pop()
                         color: overlay.theme.primary
-                        font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                        font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 3)
                     }
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                     TapHandler { onTapped: overlay.files = overlay.files.filter(f => f !== modelData) }
@@ -1537,7 +1537,7 @@ PanelWindow {
                 color: overlay.theme.fg
                 selectionColor: overlay.alpha(overlay.theme.primary, 0.45)
                 selectedTextColor: overlay.theme.fg
-                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs
+                font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs)
                 wrapMode: TextEdit.Wrap
                 clip: true
                 // Ctrl+V still pastes text; if the clipboard holds an image the daemon picks it up.
@@ -1555,7 +1555,7 @@ PanelWindow {
                     text: overlay.busy ? overlay.tr("replying", "Iris répond…")
                          : messages.count > 0 ? overlay.tr("placeholder_more", "Continue…")
                          : overlay.tr("placeholder", "Demande-moi quelque chose…")
-                    color: overlay.theme.outline
+                    color: overlay.theme.txt2
                     font: input.font
                 }
             }
@@ -1594,7 +1594,7 @@ PanelWindow {
                 Text {
                     anchors.centerIn: parent
                     text: overlay.busy ? "" : ""
-                    color: overlay.busy || sendBtn.ready ? overlay.theme.bg : overlay.theme.outline
+                    color: overlay.busy || sendBtn.ready ? overlay.theme.bg : overlay.theme.txt2
                     font.family: overlay.theme.ff; font.pixelSize: 14
                 }
                 HoverHandler { id: sendHover; cursorShape: Qt.PointingHandCursor }
@@ -1626,8 +1626,8 @@ PanelWindow {
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             text: modelData.label
-                            color: overlay.theme.outline
-                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 4
+                            color: overlay.theme.txt2
+                            font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 4)
                         }
                         Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
@@ -1644,7 +1644,7 @@ PanelWindow {
                             anchors.verticalCenter: parent.verticalCenter
                             text: modelData.v < 0 ? "—" : Math.round(modelData.v * 100) + " %"
                             color: modelData.v > 0.6 ? parent.tone : overlay.theme.txt2
-                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 4
+                            font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 4)
                         }
                     }
                 }
@@ -1653,8 +1653,8 @@ PanelWindow {
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
                 text: overlay._resetLabel() !== "" ? "󰑓 " + overlay._resetLabel()
                                                    : Qt.formatTime(overlay.now, "HH:mm")
-                color: overlay.theme.outline
-                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 4
+                color: overlay.theme.txt2
+                font.family: overlay.theme.ff; font.pixelSize: Math.max(14, overlay.theme.fs - 4)
             }
         }
         }   // chatView

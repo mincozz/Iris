@@ -52,7 +52,7 @@ Commits sans mention de l'assistant.
   - Files : `scripts/iris-pick`, `overlays/AssistantOverlay.qml`, `install.sh`, `scripts/iris-doctor`, `test/test-pick.py`.
   - Scope : M.
 
-- [ ] **T8 : Finitions d'ergonomie**
+- [x] **T8 : Finitions d'ergonomie**
   - Acceptance : cibles ≥ 32 px, texte courant ≥ 14 px, contraste ≥ 4,5:1 (mesuré sur les couleurs), historique et recherche dans la carte, animation fluide à l'ouverture et à la fermeture répétées, aucune erreur dans `qs log` après 20 ouvertures / fermetures.
   - Verify : script de contraste sur les paires de couleurs ; 20 bascules via `qs ipc call assistant toggle` ; relecture de la liste de la spec.
   - Files : `overlays/*.qml`.
