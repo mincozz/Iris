@@ -947,7 +947,7 @@ class OpenAIAgent(CommandAgent):
         if resp.status != 200:
             self._result(self._http_error(resp.status))
             return
-        got = 0
+        got = pieces = 0
         while not self.stopped and got < self.MAX_BYTES:
             line = resp.readline(65536)
             got += len(line)
@@ -964,15 +964,33 @@ class OpenAIAgent(CommandAgent):
             except (ValueError, KeyError, IndexError, TypeError, AttributeError):
                 continue
             if piece:
+                pieces += 1
                 self.daemon.on_event(self, {"type": "stream_event", "event": {
                     "type": "content_block_delta", "delta": {"type": "text_delta", "text": piece}}})
-        self._result(None)
+        silent = not (pieces or self.stopped)
+        self._result(pick("Le serveur n'a rien renvoyé d'exploitable (API compatible OpenAI ?).",
+                          "The server sent nothing usable (is it OpenAI-compatible?).") if silent else None)
 
+    # Messages never quote the server's body or the key: both can echo secrets.
     def _http_error(self, status):
+        if status in (401, 403):
+            return pick("Clé refusée par le serveur.", "The server rejected the key.")
+        if status == 404:
+            return pick("Modèle ou adresse inconnus du serveur (404).", "Unknown model or address (404).")
+        if status == 429:
+            return pick("Limite de requêtes atteinte (429), réessaie plus tard.", "Rate limit reached (429), try again later.")
+        if status >= 500:
+            return pick(f"Erreur du serveur ({status}).", f"Server error ({status}).")
         return pick(f"Le serveur a répondu {status}.", f"The server answered {status}.")
 
     def _net_error(self, e):
-        return pick(f"Connexion impossible : {e}", f"Connection failed: {e}")
+        host = urllib.parse.urlsplit(self.spec["base_url"]).netloc
+        if isinstance(e, TimeoutError):
+            n = self.spec.get("timeout", 60)
+            return pick(f"{host} n'a rien envoyé depuis {n} s.", f"{host} sent nothing for {n} s.")
+        if isinstance(e, ConnectionRefusedError):
+            return pick(f"Connexion refusée par {host} : le serveur est-il lancé ?", f"{host} refused the connection: is the server running?")
+        return pick(f"Connexion impossible à {host}.", f"Cannot connect to {host}.")
 
     def interrupt(self):
         self.stopped = True

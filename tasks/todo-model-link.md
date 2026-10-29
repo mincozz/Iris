@@ -21,15 +21,15 @@ Commits sans co-auteur.
   - Files : `scripts/assistant.py`, `test/test-model-link.py`.
   - Scope : M.
 
-- [ ] **T3 : Erreurs lisibles et délai**
+- [x] **T3 : Erreurs lisibles et délai**
   - Acceptance : connexion refusée, 401/403, 404, 429, 5xx, JSON illisible et délai sans octet (`timeout`) donnent chacun un message `pick(fr, en)` ; la clé n'apparaît ni dans le message, ni dans stderr, ni dans l'historique.
   - Verify : un test par cas ; test qui cherche la clé dans toute la sortie (stdout + stderr + fichiers `history/`).
   - Files : `scripts/assistant.py`, `test/test-model-link.py`.
   - Scope : S.
 
 ### Checkpoint : daemon complet
-- [ ] Tous les tests existants + `test-model-link.py` passent ; `py_compile` propre.
-- [ ] Essai réel avec Ollama si disponible (`claude` ↔ `ollama`, réponse streamée, stop).
+- [x] Tous les tests existants + `test-model-link.py` passent ; `py_compile` propre.
+- [x] Essai réel avec Ollama si disponible (`claude` ↔ `ollama`, réponse streamée, stop).
 - [ ] Revue avec toi avant l'interface et les outils.
 
 - [ ] **T4 : Mémoire, pastille « distant » (interface)**

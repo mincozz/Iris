@@ -209,6 +209,32 @@ check(d.text() == "Hi" and d.result() and not d.result()["is_error"] and dt < 3,
 d, *_ = ask("redirect")
 check(d.result() and d.result()["is_error"] and "evil" not in str(d.result()), "redirection refusée")
 
+# ── T3 : erreurs lisibles, délai, pas de fuite de la clé ──────────────────
+def error_of(d):
+    r = d.result()
+    return r["result"] if r and r["is_error"] else None
+
+
+for mode, want in [("401", "key"), ("404", "model"), ("429", "limit"), ("500", "server error"),
+                   ("garbage", "usable")]:
+    d, *_ = ask(mode, spec={"key_file": key})
+    e = error_of(d)
+    check(e is not None and want in e.lower(), f"erreur {mode} lisible : {e}")
+    check("sk-test-key" not in str(d.events) and "secret-detail" not in str(d.events),
+          f"erreur {mode} : ni clé ni corps du serveur")
+
+d, _, dt = ask("hang", spec={"timeout": 1})
+check(error_of(d) and "1" in error_of(d) and dt < 4, f"délai dépassé signalé ({dt:.1f}s) : {error_of(d)}")
+
+d, _, dt = ask("hang", stop_after=1)
+check(d.result() and not d.result()["is_error"] and dt < 3, f"stop avant la moindre réponse ({dt:.1f}s)")
+
+d, *_ = ask("chunks", spec={"base_url": "http://127.0.0.1:1/v1"})
+check(error_of(d) and "127.0.0.1" in error_of(d), f"connexion refusée : {error_of(d)}")
+
+d, *_ = ask("chunks", spec={"key_file": os.path.join(HOME, "absente")})
+check(error_of(d) and "absente" in error_of(d), f"clé illisible : {error_of(d)}")
+
 if fails:
     print(f"\n{len(fails)} échec(s)")
     sys.exit(1)
