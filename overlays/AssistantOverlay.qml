@@ -55,6 +55,7 @@ PanelWindow {
     property bool   streaming:   false   // last item is the reply being streamed
     property bool   replying:    false   // text is flowing right now
     property string toolStatus:  ""
+    property var    steps:       []      // [{ label, done }] of the current / last turn, 6 at most
     property string modelName:   ""      // "haiku" | "sonnet" (last reply)
     property string mode:        "auto"  // auto | fast | power
     property bool   showHistory: false
@@ -212,9 +213,16 @@ PanelWindow {
         input.text  = ""
         showHistory = false
         _push("user", msg)
-        busy = true; streaming = false; replying = false; toolStatus = ""
+        busy = true; streaming = false; replying = false; toolStatus = ""; steps = []
         cmd({ cmd: "send", text: msg, mode: mode })
         list.stick = true; list.positionViewAtEnd()
+    }
+    // First line of the last 3 alerts (home tab).
+    function unreadAlerts() {
+        const out = []
+        for (let k = messages.count - 1; k >= 0 && out.length < 3; k--)
+            if (messages.get(k).role === "nudge") out.unshift(_plain(messages.get(k).text).split("\n")[0].slice(0, 90))
+        return out
     }
     function ask(text) { input.text = text; send() }
     function stop()    { if (busy) cmd({ cmd: "stop" }) }
@@ -371,6 +379,7 @@ PanelWindow {
         }
         case "tool":
             toolStatus = d.v
+            steps = steps.map(x => ({ label: x.label, done: true })).concat([{ label: d.v, done: false }]).slice(-6)
             replying   = false
             break
         case "ask":
@@ -386,6 +395,8 @@ PanelWindow {
             break
         case "done":
             busy = false; streaming = false; replying = false; toolStatus = ""
+            if (steps.length > 0)
+                steps = steps.map(x => ({ label: x.label, done: true })).concat([{ label: tr("home_done", "Terminé"), done: true }]).slice(-6)
             for (let k = 0; k < messages.count; k++)
                 if (messages.get(k).askState === "pending")
                     messages.setProperty(k, "askState", "denied")
@@ -1648,12 +1659,19 @@ PanelWindow {
         }
         }   // chatView
 
-        // Accueil: placeholder until T6.
-        Item {
+        AssistantHome {
             anchors { fill: parent; topMargin: overlay.headerH }
             visible: overlay.tab === 0
-            Text { anchors.centerIn: parent; text: overlay.tr("tab_home", "Accueil"); color: overlay.theme.txt2
-                   font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs }
+            theme: overlay.theme
+            tr: overlay.tr
+            mood: overlay.mood
+            agent: overlay.agent
+            agentRemote: overlay.agentRemote
+            modelName: overlay.modelName
+            steps: overlay.steps
+            busy: overlay.busy
+            alerts: overlay.unreadAlerts()
+            remindersPath: overlay.shellRoot.homeDir + "/.local/share/qs-assistant/reminders.json"
         }
 
     }

@@ -40,7 +40,7 @@ Commits sans mention de l'assistant.
 ### Point d'arrêt : carte, onglets, chat
 - [ ] Installé chez toi et validé. Revue avant l'Accueil.
 
-- [ ] **T6 : Onglet Accueil**
+- [x] **T6 : Onglet Accueil**
   - Acceptance : grande mascotte à gauche (taille variable d'`AssistantAvatar`) ; nom d'Iris, agent et modèle actifs, étiquette « distant » si besoin ; liste des étapes du tour en cours ou du dernier (`Read ✓`, `Edit ⟳`, `Bash`, `Terminé`, 6 lignes au plus) ; alertes non lues ; prochain rappel lu dans `reminders.json` (section masquée si absent).
   - Verify : captures avant / pendant / après un message ; rappel créé avec `iris-remind add` dans un `HOME` d'essai (sans toucher ton `reminders.json`) ; fichier absent : pas d'erreur.
   - Files : `overlays/AssistantHome.qml`, `overlays/AssistantAvatar.qml`, `overlays/AssistantOverlay.qml`, `install.sh`, `scripts/iris-doctor`.
