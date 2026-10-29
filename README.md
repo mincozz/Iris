@@ -103,6 +103,7 @@ Vous pouvez aussi laisser un assistant de code faire l'installation : lancez-le 
 | `--fast-model ID` / `--power-model ID` | Modèles Claude utilisés |
 | `--ollama-model ID` | Déclare l'agent `ollama` avec ce modèle et télécharge ce qui manque (`ollama pull`). Répétable : le 1er est le modèle rapide, le 2e le puissant |
 | `--add-agent "nom=commande"` | Déclare une autre CLI (ex. `"gemini=gemini -p {prompt}"`) ; la commande n'est pas exécutée par l'installeur. Répétable |
+| `--add-openai "nom=base_url,fast=ID[,power=ID][,key_file=CHEMIN]"` | Déclare un serveur compatible OpenAI (Ollama, LM Studio, DeepSeek…) ; rien n'est exécuté ni téléchargé. Répétable |
 | `--no-pull` | Déclare les modèles Ollama sans les télécharger |
 | `--ask-key` / `--ask-edit-key` | Touches des deux raccourcis (défaut `SUPER + I` / `SUPER + SHIFT + I`) |
 | `--no-hypr` | Ne touche pas à la configuration Hyprland |
@@ -215,6 +216,20 @@ Le bouton ne passe pas par Claude (aucun quota) ; le panneau peut se recharger �
 
 `{prompt}` et `{model}` sont remplacés ; sans `{prompt}`, le prompt arrive sur stdin. La commande est lancée une fois par message, avec l'historique récent (`history`, 8 par défaut). Le prompt est court par défaut (le prompt complet décrit des outils que l'agent n'a pas et ralentit un modèle local) : `prompt_file` dans l'agent le remplace. Limites : pas de cartes Autoriser / Refuser, pas d'outils d'Iris (agenda, mails, fichiers) ni de jauge de quota, et les outils éventuels de l'agent suivent ses propres règles, pas celles d'Iris. Si le nom est inconnu, Iris retombe sur `claude`.
 
+**Un modèle par API (Ollama, LM Studio, DeepSeek, Qwen, OpenRouter…).** Tout serveur compatible OpenAI se relie sans CLI, avec la réponse en streaming :
+
+```json
+"agents": {
+  "ollama":   { "type": "openai", "base_url": "http://localhost:11434/v1",
+                "models": { "fast": "qwen3:4b", "power": "qwen3:14b" } },
+  "deepseek": { "type": "openai", "base_url": "https://api.deepseek.com/v1",
+                "key_file": "~/.config/iris/deepseek.key",
+                "models": { "fast": "deepseek-chat", "power": "deepseek-reasoner" } }
+}
+```
+
+Ou en une commande : `./install.sh --add-openai "deepseek=https://api.deepseek.com/v1,fast=deepseek-chat,key_file=~/.config/iris/deepseek.key"`. Réglages : `history` (messages rejoués, 8), `timeout` (secondes sans octet, 60), `prompt_file`, `send_memory`. Sécurité : la clé vit dans `key_file` (refusé s'il est lisible par d'autres : `chmod 600`), jamais dans `config.json` ni dans l'environnement ; `http://` n'est accepté que vers `localhost`, `127.0.0.1`, `::1` ou `*.local` (sinon `https://`, ou un tunnel pour un Ollama sur un autre PC) ; aucune redirection n'est suivie. **Vers un hôte distant, `memory.md` n'est pas envoyée** sauf `"send_memory": true`, et une pastille « distant » s'affiche à côté du nom de l'agent. Comme pour une CLI : pas d'outils d'Iris, pas de cartes Autoriser / Refuser, pas d'images. `scripts/iris-doctor` vérifie l'adresse, la clé et les modèles.
+
 **Changer d'agent depuis le panneau.** Dès que `agents` contient une entrée, une pastille avec le nom de l'agent apparaît dans l'en-tête : un clic ouvre la liste (`claude` et vos agents). Le choix est mémorisé dans `~/.local/share/qs-assistant/agent` et l'emporte sur `agent` de `config.json`, qui n'est jamais modifié. Changement refusé pendant qu'Iris répond ; la conversation continue (le nouvel agent reçoit l'historique récent en texte).
 
 **Mémoire.** Iris lit `~/.local/share/qs-assistant/memory.md` et le met à jour quand vous lui demandez de retenir quelque chose, avec une demande d'autorisation. Un modèle vide est fourni dans [`integration/memory.example.md`](integration/memory.example.md). Historique, mémoire et agenda restent dans `~/.local/share/qs-assistant/` et ne sont jamais versionnés.
@@ -294,7 +309,7 @@ Aucun assistant qui lit du contenu externe n'est à l'abri d'une injection de pr
 test/test-e2e.sh --no-gui    # installe dans /tmp, vérifie, désinstalle ; ne touche pas à votre config
 ```
 
-Ce test ne touche ni votre shell, ni vos données, ni votre compte Claude (`--with-claude` l'autorise explicitement pour un message minuscule). La CI lance ShellCheck, la compilation Python, les tests du daemon (`test-agent`, `test-agent-switch`, `test-security`, `test-search`, `test-remind`, `test-image`, chacun sans compte Claude), ce test et Gitleaks. Les conventions (textes via `pick()` / `overlay.tr()`, aucune donnée personnelle, un test par changement) et la procédure de pull request sont dans [CONTRIBUTING.md](CONTRIBUTING.md) ; l'historique des changements dans [CHANGELOG.md](CHANGELOG.md).
+Ce test ne touche ni votre shell, ni vos données, ni votre compte Claude (`--with-claude` l'autorise explicitement pour un message minuscule). La CI lance ShellCheck, la compilation Python, les tests du daemon (`test-agent`, `test-agent-switch`, `test-security`, `test-search`, `test-remind`, `test-image`, `test-model-link`, chacun sans compte Claude), ce test et Gitleaks. Les conventions (textes via `pick()` / `overlay.tr()`, aucune donnée personnelle, un test par changement) et la procédure de pull request sont dans [CONTRIBUTING.md](CONTRIBUTING.md) ; l'historique des changements dans [CHANGELOG.md](CHANGELOG.md).
 
 ---
 

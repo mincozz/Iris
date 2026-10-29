@@ -50,14 +50,14 @@ Commits sans co-auteur.
   - Files : `install.sh`, `test/test-e2e.sh`.
   - Scope : S.
 
-- [ ] **T7 : Docs, exemple, CI**
+- [x] **T7 : Docs, exemple, CI**
   - Acceptance : `integration/config.example.json` et le commentaire `AGENTS_HELP` documentent `type: "openai"` ; README FR + `docs/README.en.md` (section « Autre modèle ») ; `AGENTS.md` (carte du dépôt, règles) ; `CHANGELOG.md` ; étapes `test-model-link.py` ajoutées à `.github/workflows` (compile + test).
   - Verify : relecture ; la CI complète tourne en local (liste des commandes du workflow).
   - Files : `integration/config.example.json`, `README.md`, `docs/README.en.md`, `AGENTS.md`, `CHANGELOG.md`, `.github/workflows/*.yml`.
   - Scope : M.
 
 ### Checkpoint : module terminé
-- [ ] Tous les critères de réussite de la spec sont cochés.
-- [ ] `READONLY_BASH`, `BILLING_ENV`, commandes interdites : `git diff main -- scripts/assistant.py` ne les touche pas.
-- [ ] `ponytail-review` passé sur le diff avant tout commit final / PR.
+- [x] Tous les critères de réussite de la spec sont cochés.
+- [x] `READONLY_BASH`, `BILLING_ENV`, commandes interdites : `git diff main -- scripts/assistant.py` ne les touche pas.
+- [x] `ponytail-review` passé sur le diff avant tout commit final / PR.
 - [ ] PR `feat/model-link` → `main` ouverte seulement si tu le demandes (description sans attribution).

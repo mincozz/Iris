@@ -16,7 +16,7 @@ test/test-e2e.sh --no-gui      # installe dans un dossier jetable (/tmp), vérif
 
 Ce test ne touche ni votre shell, ni votre `~/.local/share/qs-assistant`, ni votre compte Claude. Avec `--with-claude`, il utilise **votre** compte pour un message minuscule ; sans `--no-gui`, il ouvre une instance Quickshell de test.
 
-La CI (`.github/workflows/ci.yml`) lance ShellCheck (`--severity=warning`), la compilation Python, les tests du daemon (`python3 -I test/test-agent.py`, `test-agent-switch.py`, `test-security.py`, `test-search.py`, `test-remind.py`, `test-image.py`, tous sans compte Claude), ce test et Gitleaks.
+La CI (`.github/workflows/ci.yml`) lance ShellCheck (`--severity=warning`), la compilation Python, les tests du daemon (`python3 -I test/test-agent.py`, `test-agent-switch.py`, `test-security.py`, `test-search.py`, `test-remind.py`, `test-image.py`, `test-model-link.py`, tous sans compte Claude), ce test et Gitleaks.
 
 ## Conventions
 

@@ -19,6 +19,7 @@ Les versions suivent les commits de `main` ; Iris se met à jour avec `scripts/i
 - Ids d'historique validés (plus de `../`) ; les cartes montrent la taille du texte coupé et plus de champs des connecteurs.
 
 ### Ajouté
+- Modèle par API : une entrée `agents` de `type: "openai"` relie Ollama, LM Studio, DeepSeek, Qwen, OpenRouter… avec réponse en streaming, clé dans `key_file` (0600), `http://` limité à l'hôte local, aucune redirection suivie, `memory.md` non envoyée à un hôte distant sauf `send_memory`, pastille « distant ». `install.sh --add-openai` et `iris-doctor` (adresse, clé, modèles) suivent.
 - Agent au choix : `agent` / `agents` dans `config.json` branchent n'importe quelle CLI (Gemini, Ollama, Codex…) à la place de `claude -p`, sans outils ni cartes d'autorisation.
 - Changer d'agent depuis le panneau : pastille dans l'en-tête, choix mémorisé à part (`config.json` n'est jamais réécrit).
 - Installateur : `--ollama-model` (déclare l'agent `ollama` et télécharge les modèles manquants), `--add-agent "nom=commande"` (autre CLI, jamais exécutée) et `--no-pull` ; fonctionne sur un `config.json` existant. `iris-doctor` vérifie les agents déclarés et les modèles Ollama.

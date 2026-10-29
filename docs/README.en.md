@@ -103,6 +103,7 @@ You can also let a coding assistant do the install: run it in the repository and
 | `--fast-model ID` / `--power-model ID` | Claude models used |
 | `--ollama-model ID` | Declares the `ollama` agent with this model and downloads what is missing (`ollama pull`). Repeatable: the 1st is the fast model, the 2nd the powerful one |
 | `--add-agent "name=command"` | Declares another CLI (e.g. `"gemini=gemini -p {prompt}"`); the installer never runs the command. Repeatable |
+| `--add-openai "name=base_url,fast=ID[,power=ID][,key_file=PATH]"` | Declares an OpenAI-compatible server (Ollama, LM Studio, DeepSeek…); nothing is run or downloaded. Repeatable |
 | `--no-pull` | Declares Ollama models without downloading them |
 | `--ask-key` / `--ask-edit-key` | Keys of the two shortcuts (default `SUPER + I` / `SUPER + SHIFT + I`) |
 | `--no-hypr` | Leaves the Hyprland configuration alone |
@@ -215,6 +216,20 @@ The button does not go through Claude (no quota); the panel may reload at the en
 
 `{prompt}` and `{model}` are substituted; without `{prompt}` the prompt goes to stdin. The command runs once per message with the recent history (`history`, default 8). The prompt is short by default (the full one describes tools the agent lacks and slows a local model down): `prompt_file` in the agent replaces it. Limits: no Allow / Deny cards, none of Iris's tools (calendar, mail, files) and no quota gauge, and any tools the agent has follow its own rules, not Iris's. An unknown name falls back to `claude`.
 
+**A model over an API (Ollama, LM Studio, DeepSeek, Qwen, OpenRouter…).** Any OpenAI-compatible server connects without a CLI, with the reply streamed:
+
+```json
+"agents": {
+  "ollama":   { "type": "openai", "base_url": "http://localhost:11434/v1",
+                "models": { "fast": "qwen3:4b", "power": "qwen3:14b" } },
+  "deepseek": { "type": "openai", "base_url": "https://api.deepseek.com/v1",
+                "key_file": "~/.config/iris/deepseek.key",
+                "models": { "fast": "deepseek-chat", "power": "deepseek-reasoner" } }
+}
+```
+
+Or in one command: `./install.sh --add-openai "deepseek=https://api.deepseek.com/v1,fast=deepseek-chat,key_file=~/.config/iris/deepseek.key"`. Settings: `history` (messages replayed, 8), `timeout` (seconds without a byte, 60), `prompt_file`, `send_memory`. Security: the key lives in `key_file` (refused if others can read it: `chmod 600`), never in `config.json` or the environment; `http://` is only accepted towards `localhost`, `127.0.0.1`, `::1` or `*.local` (otherwise `https://`, or a tunnel for an Ollama on another PC); no redirect is followed. **`memory.md` is not sent to a remote host** unless `"send_memory": true`, and a "remote" tag shows next to the agent's name. As with a CLI: none of Iris's tools, no Allow / Deny cards, no images. `scripts/iris-doctor` checks the address, the key and the models.
+
 **Switching agent from the panel.** As soon as `agents` has an entry, a pill with the agent's name shows in the header: click it to open the list (`claude` and your agents). The choice is kept in `~/.local/share/qs-assistant/agent` and wins over `agent` in `config.json`, which is never modified. Switching is refused while Iris is replying; the conversation goes on (the new agent receives the recent history as text).
 
 **Memory.** Iris reads `~/.local/share/qs-assistant/memory.md` and updates it when you ask her to remember something, with an authorisation request. An empty template is in [`integration/memory.example.md`](../integration/memory.example.md). History, memory and calendar stay in `~/.local/share/qs-assistant/` and are never versioned.
@@ -294,7 +309,7 @@ No assistant that reads external content is immune to prompt injection: keep an 
 test/test-e2e.sh --no-gui    # installs into /tmp, checks, uninstalls; leaves your config alone
 ```
 
-This test touches neither your shell, nor your data, nor your Claude account (`--with-claude` explicitly allows it for one tiny message). CI runs ShellCheck, Python compilation, the daemon tests (`test-agent`, `test-agent-switch`, `test-security`, `test-search`, `test-remind`, `test-image`, none needing a Claude account), this test and Gitleaks. Conventions (strings through `pick()` / `overlay.tr()`, no personal data, a test per change) and the pull-request process are in [CONTRIBUTING.md](../CONTRIBUTING.md); the history of changes is in [CHANGELOG.md](../CHANGELOG.md).
+This test touches neither your shell, nor your data, nor your Claude account (`--with-claude` explicitly allows it for one tiny message). CI runs ShellCheck, Python compilation, the daemon tests (`test-agent`, `test-agent-switch`, `test-security`, `test-search`, `test-remind`, `test-image`, `test-model-link`, none needing a Claude account), this test and Gitleaks. Conventions (strings through `pick()` / `overlay.tr()`, no personal data, a test per change) and the pull-request process are in [CONTRIBUTING.md](../CONTRIBUTING.md); the history of changes is in [CHANGELOG.md](../CHANGELOG.md).
 
 ---
 

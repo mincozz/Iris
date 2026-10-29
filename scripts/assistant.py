@@ -100,6 +100,12 @@ DEFAULT_CONFIG = {
 }
 
 # "agents": {"gemini": {"command": ["gemini", "-p", "{prompt}"]}, ...}
+# An OpenAI-compatible server (Ollama, LM Studio, DeepSeek…) instead of a CLI:
+# "agents": {"deepseek": {"type": "openai", "base_url": "https://api.deepseek.com/v1",
+#            "key_file": "~/.config/iris/deepseek.key", "models": {"fast": "...", "power": "..."}}}
+#   key_file  file (mode 0600) holding the API key; http:// only towards this machine
+#   timeout   seconds without a byte before giving up (default 60)
+#   send_memory  send memory.md: default yes for a local server, no for a remote one
 #   command  argv of the CLI; {prompt} and {model} are replaced. Without
 #            {prompt} the prompt is written to stdin.
 #   models   optional {"fast": "...", "power": "..."} substituted for {model}
@@ -918,7 +924,7 @@ class OpenAIAgent(CommandAgent):
 
     def __init__(self, daemon, conv, model, connectors=False):
         super().__init__(daemon, conv, model, connectors)
-        self.conn = self.sock = None
+        self.sock = None
 
     def user(self, text):
         self.stopped = False
@@ -930,9 +936,10 @@ class OpenAIAgent(CommandAgent):
 
     def _messages(self, text):
         n = self.spec.get("history", 8)
-        past = self.conv.messages[:-1][-n:] if n else []
+        # Alerts ("nudge") hold text from outside (commits, calendar): never give them the assistant role.
+        past = [m for m in self.conv.messages[:-1] if m["role"] in ("user", "assistant") and m.get("text")]
         return [{"role": "system", "content": self._system()},
-                *({"role": "user" if m["role"] == "user" else "assistant", "content": m["text"]} for m in past),
+                *({"role": m["role"], "content": m["text"]} for m in (past[-n:] if n else [])),
                 {"role": "user", "content": text}]
 
     def _chat(self, text):
@@ -942,9 +949,6 @@ class OpenAIAgent(CommandAgent):
             self._result(str(e))
         except (OSError, http.client.HTTPException) as e:
             self._result(None if self.stopped else self._net_error(e))
-        finally:
-            if self.conn:
-                self.conn.close()
 
     def _stream(self, text):
         spec = self.spec
@@ -953,14 +957,20 @@ class OpenAIAgent(CommandAgent):
         if spec.get("key_file"):
             headers["Authorization"] = "Bearer " + read_key(spec["key_file"])
         cls = http.client.HTTPSConnection if u.scheme == "https" else http.client.HTTPConnection
-        self.conn = cls(u.hostname, u.port, timeout=spec.get("timeout", 60))
-        body = json.dumps({"model": self._role_model(), "stream": True, "messages": self._messages(text)})
-        self.conn.request("POST", u.path.rstrip("/") + "/chat/completions", body, headers)
-        self.sock = self.conn.sock               # getresponse() hands it over and sets conn.sock to None
-        resp = self.conn.getresponse()
-        if resp.status != 200:
-            self._result(self._http_error(resp.status))
-            return
+        conn = cls(u.hostname, u.port, timeout=spec.get("timeout", 60))
+        try:
+            body = json.dumps({"model": self._role_model(), "stream": True, "messages": self._messages(text)})
+            conn.request("POST", u.path.rstrip("/") + "/chat/completions", body, headers)
+            self.sock = conn.sock                # getresponse() hands it over and sets conn.sock to None
+            resp = conn.getresponse()
+            if resp.status != 200:
+                self._result(self._http_error(resp.status))
+                return
+            self._read(resp)
+        finally:
+            conn.close()
+
+    def _read(self, resp):
         got = pieces = 0
         while not self.stopped and got < self.MAX_BYTES:
             line = resp.readline(65536)

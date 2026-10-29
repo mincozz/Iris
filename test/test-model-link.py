@@ -70,13 +70,13 @@ def keyfile(content, mode):
 
 
 check(A.read_key(keyfile("sk-123\n", 0o600)) == "sk-123", "clé 0600 lue et nettoyée")
-for label, path in [("0644", keyfile("sk", 0o644)), ("0660", keyfile("sk", 0o660)),
+for label, path in [("0644", keyfile("KEYCONTENT", 0o644)), ("0660", keyfile("KEYCONTENT", 0o660)),
                     ("vide", keyfile("\n", 0o600)), ("absente", os.path.join(HOME, "nope"))]:
     try:
         A.read_key(path)
         check(False, "clé refusée : " + label)
     except ValueError as e:
-        check("sk" not in str(e) or label == "absente", "clé refusée : " + label)
+        check("KEYCONTENT" not in str(e), "clé refusée : " + label)
 
 # ── T2 : streaming, arrêt, redirection (faux serveur local) ──────────────
 def sse(*deltas, done=True):
@@ -199,6 +199,12 @@ msgs = req["body"]["messages"]
 check([m["role"] for m in msgs] == ["system", "user", "assistant", "user"] and msgs[-1]["content"] == "Salut",
       "système + historique + message")
 check(req["auth"] is None, "pas de clé déclarée : pas d'en-tête Authorization")
+
+d, *_ = ask("chunks", history=[{"role": "user", "text": "u1"}, {"role": "nudge", "text": "ALERT-TEXT"},
+                               {"role": "assistant", "text": "a1"}, {"role": "assistant", "text": ""}])
+sent = Fake.log[0]["body"]["messages"]
+check("ALERT-TEXT" not in str(sent) and [m["role"] for m in sent] == ["system", "user", "assistant", "user"],
+      "les alertes et messages vides ne partent pas vers le modèle")
 
 d, *_ = ask("chunks", model=A.MODELS["power"])
 check(Fake.log[0]["body"]["model"] == "m-power", "modèle power")
