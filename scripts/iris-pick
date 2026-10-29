@@ -1,0 +1,13 @@
+#!/bin/sh
+# iris-pick [DOSSIER] : ouvre le sélecteur de fichiers du bureau et écrit les chemins choisis
+# sur stdout, un par ligne. Code 1 si l'utilisateur annule, 127 si ni kdialog ni zenity n'est installé.
+start="${1:-$HOME}"
+if command -v kdialog >/dev/null 2>&1; then
+  exec kdialog --getopenfilename "$start/" --multiple --separate-output
+elif command -v zenity >/dev/null 2>&1; then
+  # shortcut: zenity ne sépare que par un caractère, donc un nom contenant "|" serait coupé en deux ; kdialog n'a pas ce défaut.
+  out=$(zenity --file-selection --multiple --separator='|' --filename="$start/") || exit 1
+  printf '%s\n' "$out" | tr '|' '\n'
+else
+  exit 127
+fi

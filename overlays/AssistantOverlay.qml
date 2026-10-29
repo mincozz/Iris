@@ -152,19 +152,43 @@ PanelWindow {
     // path goes into the message, Iris reads them with Read (deny_read_paths applies).
     property var  files: []
     property bool dropHover: false
-    function addFiles(urls) {
-        let list = files.slice()
+    function addFiles(urls) {          // dropped file:// URLs
+        const paths = []
         for (const u of urls) {
             const s = u.toString()
             if (!s.startsWith("file:///")) continue
-            let path
-            try { path = decodeURIComponent(s.slice(7)) } catch (e) { continue }
-            if (path.length > 1024 || /[\x00-\x1f\x7f]/.test(path) || list.indexOf(path) >= 0 || list.length >= 5) continue
+            try { paths.push(decodeURIComponent(s.slice(7))) } catch (e) { }
+        }
+        addPaths(paths)
+    }
+    function addPaths(paths) {         // absolute paths, from a drop or from the file picker
+        let list = files.slice()
+        for (const path of paths) {
+            if (path[0] !== "/" || path.length > 1024 || /[\x00-\x1f\x7f]/.test(path)
+                || list.indexOf(path) >= 0 || list.length >= 5) continue
             list.push(path)
         }
         files = list
         showHistory = false
         Qt.callLater(() => input.forceActiveFocus())
+    }
+
+    // The paperclip: the card closes while the desktop's file dialog is open (its full-screen
+    // backdrop would otherwise swallow the clicks meant for the dialog), then comes back.
+    function pickFiles() {
+        if (picker.running) return
+        close()
+        picker.running = true
+    }
+    Process {
+        id: picker
+        command: [overlay.shellRoot.configDir + "/scripts/iris-pick", overlay.shellRoot.homeDir]
+        stdout: StdioCollector { id: pickOut }
+        onExited: (code, status) => {
+            if (!overlay._open) overlay.toggle()
+            if (code === 0) { overlay.addPaths(pickOut.text.split("\n").filter(l => l !== "")); overlay.tab = 1 }
+            else if (code === 127) overlay._push("nudge", overlay.tr("no_picker", "Aucun sélecteur de fichiers : installe kdialog ou zenity."))
+        }
     }
 
     function send() {
@@ -1477,7 +1501,7 @@ PanelWindow {
             TextInput {
                 id: input
                 anchors {
-                    left: parent.left; leftMargin: 20
+                    left: attachBtn.right; leftMargin: 10
                     right: sendBtn.left; rightMargin: 10
                     verticalCenter: parent.verticalCenter
                 }
@@ -1498,6 +1522,23 @@ PanelWindow {
                     color: overlay.theme.outline
                     font: input.font
                 }
+            }
+
+            // Paperclip: pick files in the desktop's file dialog
+            Rectangle {
+                id: attachBtn
+                anchors { left: parent.left; leftMargin: 7; verticalCenter: parent.verticalCenter }
+                width: 36; height: 36; radius: 18
+                color: attachHover.hovered ? overlay.cardHover : "transparent"
+                Behavior on color { ColorAnimation { duration: 140 } }
+                Text {
+                    anchors.centerIn: parent
+                    text: "\uf0c6"
+                    color: overlay.files.length > 0 ? overlay.theme.primary : overlay.theme.txt2
+                    font.family: overlay.theme.ff; font.pixelSize: 15
+                }
+                HoverHandler { id: attachHover; cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: overlay.pickFiles() }
             }
 
             // Send / stop

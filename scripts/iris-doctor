@@ -27,7 +27,7 @@ XDG = os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config")
 FILES = ["overlays/AssistantOverlay.qml", "overlays/AssistantAvatar.qml", "overlays/AssistantTabs.qml",
          "scripts/assistant.py", "scripts/assistant-prompt.md",
          "scripts/iris-watch.py", "scripts/organize.py", "scripts/iris-ask",
-         "scripts/i18n.py", "scripts/assistant-prompt.en.md", "scripts/iris-update", "scripts/iris-remind"]
+         "scripts/i18n.py", "scripts/assistant-prompt.en.md", "scripts/iris-update", "scripts/iris-remind", "scripts/iris-pick"]
 THEME_TOKENS = ["bg", "fg", "ff", "fs", "primary", "secondary", "tertiary",
                 "lavender", "light", "outline", "txt2", "error", "warn"]
 

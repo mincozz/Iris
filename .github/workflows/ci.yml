@@ -22,10 +22,10 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: ShellCheck
-        run: shellcheck --severity=warning install.sh test/test-e2e.sh scripts/iris-ask scripts/iris-update
+        run: shellcheck --severity=warning install.sh test/test-e2e.sh scripts/iris-ask scripts/iris-update scripts/iris-pick
 
       - name: Python (compilation)
-        run: python3 -I -m py_compile scripts/assistant.py scripts/iris-watch.py scripts/organize.py scripts/iris-doctor scripts/i18n.py test/test-update-button.py test/test-actions.py test/test-agent.py test/test-security.py test/test-search.py scripts/iris-remind test/test-remind.py test/test-image.py test/test-agent-switch.py test/test-model-link.py test/test-usage.py
+        run: python3 -I -m py_compile scripts/assistant.py scripts/iris-watch.py scripts/organize.py scripts/iris-doctor scripts/i18n.py test/test-update-button.py test/test-actions.py test/test-agent.py test/test-security.py test/test-search.py scripts/iris-remind test/test-remind.py test/test-image.py test/test-agent-switch.py test/test-model-link.py test/test-usage.py test/test-pick.py
 
       - name: Test du backend « agent au choix »
         run: python3 -I test/test-agent.py
@@ -50,6 +50,9 @@ jobs:
 
       - name: Jauges de quota
         run: python3 -I test/test-usage.py
+
+      - name: Sélecteur de fichiers
+        run: python3 -I test/test-pick.py
 
       - name: Test de bout en bout (sans fenêtre, sans compte Claude)
         run: test/test-e2e.sh --no-gui

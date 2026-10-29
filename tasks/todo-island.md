@@ -46,11 +46,11 @@ Commits sans mention de l'assistant.
   - Files : `overlays/AssistantHome.qml`, `overlays/AssistantAvatar.qml`, `overlays/AssistantOverlay.qml`, `install.sh`, `scripts/iris-doctor`.
   - Scope : M.
 
-- [ ] **T7 : Dépôt de fichiers dans le Chat** (remplace l'onglet Fichiers)
-  - Acceptance : la zone « Lâche ici » de la carte ouverte et le survol de l'îlot fermé gardent leur effet avec le nouveau style noir ; fichiers joints en pastilles retirables au-dessus de la saisie (≤ 5) ; image collée avec `Ctrl+V` ; déposer sur l'îlot fermé attache et ouvre le Chat ; mêmes contrôles de chemin qu'aujourd'hui (`file://`, caractères de contrôle refusés, 1 024 caractères).
-  - Verify : dépôt de 1 puis 6 fichiers (le 6ᵉ refusé) ; dépôt sur l'îlot fermé ; chemin avec espaces et accents ; retirer une pastille ; captures recadrées de la zone de dépôt.
-  - Files : `overlays/AssistantOverlay.qml`.
-  - Scope : S.
+- [x] **T7 : Fichiers dans le Chat : trombone, dépôt, Ctrl+V** (remplace l'onglet Fichiers)
+  - Acceptance : un trombone à gauche de la saisie ouvre le sélecteur de fichiers du bureau (`scripts/iris-pick`) ; le panneau se referme pendant le choix puis revient avec les fichiers en pastilles retirables (≤ 5) ; le dépôt sur l'îlot ou la carte et `Ctrl+V` fonctionnent toujours ; mêmes contrôles de chemin pour les trois (absolu, 1 024 caractères au plus, pas de caractère de contrôle, pas de doublon).
+  - Verify : `test/test-pick.py` (faux kdialog / zenity : sortie, annulation, absence) ; capture recadrée du trombone ; à la main : trombone → choisir 2 fichiers, annuler, dépôt depuis ton gestionnaire de fichiers.
+  - Files : `scripts/iris-pick`, `overlays/AssistantOverlay.qml`, `install.sh`, `scripts/iris-doctor`, `test/test-pick.py`.
+  - Scope : M.
 
 - [ ] **T8 : Finitions d'ergonomie**
   - Acceptance : cibles ≥ 32 px, texte courant ≥ 14 px, contraste ≥ 4,5:1 (mesuré sur les couleurs), historique et recherche dans la carte, animation fluide à l'ouverture et à la fermeture répétées, aucune erreur dans `qs log` après 20 ouvertures / fermetures.

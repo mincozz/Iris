@@ -1590,6 +1590,8 @@ def ui_strings():
         "agent_remote": pick("distant", "remote"),
         "tab_home": pick("Accueil", "Home"),
         "tab_chat": pick("Chat", "Chat"),
+        "no_picker": pick("Aucun sélecteur de fichiers : installe kdialog ou zenity.",
+                          "No file picker: install kdialog or zenity."),
         "drop_here": pick("Lâche ici", "Drop here"),
         "file_default": pick("Regarde ce fichier :", "Have a look at this file:"),
         "file_line": pick("[Fichier joint : {path}]", "[Attached file: {path}]"),

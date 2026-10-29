@@ -20,6 +20,7 @@ Les versions suivent les commits de `main` ; Iris se met à jour avec `scripts/i
 - Ids d'historique validés (plus de `../`) ; les cartes montrent la taille du texte coupé et plus de champs des connecteurs.
 
 ### Ajouté
+- Joindre des fichiers : un trombone dans la saisie ouvre le sélecteur de fichiers du bureau (`scripts/iris-pick`, kdialog ou zenity), en plus du dépôt sur l'îlot ; le panneau se referme pendant le choix puis revient avec les fichiers en pastilles.
 - Jauges de quota : lues avec `claude -p /usage` à l'ouverture du panneau (au plus une fois par minute, sans appel au modèle ni session enregistrée), au lieu d'attendre une réponse ; elles ne retombent plus à « inconnu » après un redémarrage.
 - Modèle par API : une entrée `agents` de `type: "openai"` relie Ollama, LM Studio, DeepSeek, Qwen, OpenRouter… avec réponse en streaming, clé dans `key_file` (0600), `http://` limité à l'hôte local, aucune redirection suivie, `memory.md` non envoyée à un hôte distant sauf `send_memory`, pastille « distant ». `install.sh --add-openai` et `iris-doctor` (adresse, clé, modèles) suivent.
 - Agent au choix : `agent` / `agents` dans `config.json` branchent n'importe quelle CLI (Gemini, Ollama, Codex…) à la place de `claude -p`, sans outils ni cartes d'autorisation.
