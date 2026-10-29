@@ -814,8 +814,8 @@ PanelWindow {
             Rectangle {
                 x: 3 + modeBar.idx * modeBar.segW; y: 3
                 width: modeBar.segW; height: parent.height - 6; radius: height / 2
-                color: overlay.Qt.rgba(1, 1, 1, 0.12)
-                border.color: overlay.Qt.rgba(1, 1, 1, 0.14)
+                color: Qt.rgba(1, 1, 1, 0.12)
+                border.color: Qt.rgba(1, 1, 1, 0.14)
                 border.width: 1
                 Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
             }
