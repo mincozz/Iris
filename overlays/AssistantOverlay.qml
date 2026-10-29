@@ -34,18 +34,15 @@ PanelWindow {
     mask: Region { item: overlay._open ? backdrop : glass }
     color: "transparent"
 
-    readonly property int panelWidth: 460
+    readonly property int panelWidth: 640
 
     // ── Glass tokens (derived from the active theme) ──────────────────
-    readonly property bool  light:       theme.light
-    readonly property color glassFill:   light ? Qt.rgba(1, 1, 1, 0.55)
-                                               : Qt.rgba(theme.bg.r, theme.bg.g, theme.bg.b, 0.58)
+    readonly property bool  light:       false   // the island is always black: dark tokens whatever the host theme
     readonly property color glassStroke: light ? Qt.rgba(1, 1, 1, 0.75) : Qt.rgba(1, 1, 1, 0.11)
-    readonly property color glassShine:  light ? Qt.rgba(1, 1, 1, 0.55) : Qt.rgba(1, 1, 1, 0.07)
     readonly property color cardFill:    light ? Qt.rgba(1, 1, 1, 0.6)  : Qt.rgba(1, 1, 1, 0.055)
     readonly property color cardStroke:  light ? Qt.rgba(0, 0, 0, 0.06) : Qt.rgba(1, 1, 1, 0.08)
     readonly property color cardHover:   light ? Qt.rgba(1, 1, 1, 0.85) : Qt.rgba(1, 1, 1, 0.10)
-    readonly property color wellFill:    light ? Qt.rgba(1, 1, 1, 0.7)  : Qt.rgba(0, 0, 0, 0.22)
+    readonly property color wellFill:    light ? Qt.rgba(1, 1, 1, 0.7)  : Qt.rgba(1, 1, 1, 0.07)   // a well must show on black
     function alpha(c, a) { return Qt.rgba(c.r, c.g, c.b, a) }
 
     // Chat items: role = "user" | "assistant" | "error" | "ask" | "nudge"
@@ -442,7 +439,12 @@ PanelWindow {
     Behavior on p { NumberAnimation { duration: overlay._open ? 440 : 300
                                       easing.type: overlay._open ? Easing.OutCubic : Easing.InOutCubic } }
     function ramp(a, b) { return Math.max(0, Math.min(1, (p - a) / (b - a))) }
-    readonly property real openH: Math.max(320, overlay.height - 44 - 10)
+    // The card is as tall as its content, up to 70 % of the screen. 226 = header, mode bar,
+    // input and usage gauges around the message list.
+    readonly property real maxH: Math.round(overlay.height * 0.70)
+    readonly property real wantH: showHistory ? maxH : 226 + list.contentHeight
+    property real openH: Math.max(380, Math.min(maxH, wantH))
+    Behavior on openH { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
     readonly property string statusText:
         toolStatus !== "" ? toolStatus
@@ -480,9 +482,9 @@ PanelWindow {
     // ═════════════════════════════════════════════════════════════════
     // Glass: the pill that stretches into the panel
     // ═════════════════════════════════════════════════════════════════
-    // The island hangs from the top edge: at rest the glass extends `bleed` px above the
-    // screen so only its bottom corners show; the bleed shrinks to 0 as the panel opens.
-    readonly property real bleed: 28 * (1 - p)
+    // The island hangs from the top edge: the glass extends `bleed` px above the screen so
+    // only its bottom corners show, at rest and open.
+    readonly property real bleed: 28
     // 0 = resting island, 1 = Iris is working and the island grows to show the step.
     property real activity: busy && !_open ? 1 : 0
     Behavior on activity { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
@@ -491,46 +493,19 @@ PanelWindow {
 
     Rectangle {
         id: glass
-        anchors { top: parent.top; topMargin: -overlay.bleed + 44 * overlay.p; horizontalCenter: parent.horizontalCenter }
+        anchors { top: parent.top; topMargin: -overlay.bleed; horizontalCenter: parent.horizontalCenter }
         readonly property real restW: Math.max(200, Math.min(420, 14 + 28 + 10 + pillText.implicitWidth + 22))
         property real pillW: overlay.dropHover && !overlay._open ? Math.max(restW, 260)
                            : restW + (Math.max(restW, 340) - restW) * overlay.activity
         Behavior on pillW { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
         width:  pillW + (overlay.panelWidth - pillW) * overlay.p
         height: overlay.bleed + overlay.restH + (overlay.openH - overlay.restH) * overlay.p
-        radius: 20 + 4 * overlay.p
-        // Black island at rest, themed glass once open.
-        color: Qt.rgba(overlay.glassFill.r * overlay.p, overlay.glassFill.g * overlay.p,
-                       overlay.glassFill.b * overlay.p, 1 + (overlay.glassFill.a - 1) * overlay.p)
-        border.color: overlay.p > 0.02 ? overlay.glassStroke : Qt.rgba(1, 1, 1, 0.10); border.width: 1
+        radius: 20 + 6 * overlay.p
+        color: "#000"
+        border.color: Qt.rgba(1, 1, 1, 0.10); border.width: 1
         scale: !overlay._open && pillHover.hovered ? 1.05 : 1
         transformOrigin: Item.Top
         Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-
-        // Sheen: light from the top, a faint accent glow at the bottom.
-        Rectangle {
-            anchors.fill: parent; anchors.margins: 1
-            radius: parent.radius - 1
-            opacity: overlay.p
-            gradient: Gradient {
-                GradientStop { position: 0.0;  color: overlay.glassShine }
-                GradientStop { position: 0.28; color: "transparent" }
-                GradientStop { position: 0.8;  color: "transparent" }
-                GradientStop { position: 1.0;  color: overlay.alpha(overlay.theme.primary, overlay.light ? 0.10 : 0.07) }
-            }
-        }
-        // Specular highlight along the top edge.
-        Rectangle {
-            anchors { top: parent.top; topMargin: 1; horizontalCenter: parent.horizontalCenter }
-            width: parent.width - 2 * parent.radius; height: 1
-            opacity: overlay.p
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
-                GradientStop { position: 0.0; color: "transparent" }
-                GradientStop { position: 0.5; color: Qt.rgba(1, 1, 1, overlay.light ? 0.9 : 0.32) }
-                GradientStop { position: 1.0; color: "transparent" }
-            }
-        }
 
         // ── Pill content (fades out as the panel opens) ───────────────
         Item {

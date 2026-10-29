@@ -19,7 +19,7 @@ Commits sans mention de l'assistant.
 ### Point d'arrêt : repos et actif
 - [ ] Installé chez toi et validé visuellement. Revue avant d'attaquer la carte.
 
-- [ ] **T3 : Carte ouverte (géométrie et animation)**
+- [x] **T3 : Carte ouverte (géométrie et animation)**
   - Acceptance : l'îlot se déplie en une carte noire de 640 px (hauteur selon le contenu, 70 % de l'écran au plus) par un seul progrès `p` ; le contenu actuel (en-tête, historique, messages, saisie) y est placé tel quel ; refermer (clic dehors, `Échap`, clic sur l'îlot) la replie ; plus de panneau latéral pleine hauteur.
   - Verify : captures à `p` ≈ 0, 0,5 et 1 ; envoyer un message ouvert ; clic dehors ferme ; barre toujours cliquable fermé.
   - Files : `overlays/AssistantOverlay.qml`.
