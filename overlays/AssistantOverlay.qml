@@ -62,6 +62,9 @@ PanelWindow {
     property string agent:      "claude"
     property bool   agentRemote: false   // the active agent is an API on another machine
     property bool   agentMenu:  false
+    property int    tab:        1       // 0 Accueil, 1 Chat, 2 Fichiers
+    readonly property int headerH: 52   // the tab row
+    onTabChanged: if (tab === 1 && _open) Qt.callLater(() => input.forceActiveFocus())
     property string searchQuery: ""      // text typed in the history search field
     // Subscription usage (0..1) reported by Claude Code; -1 = unknown yet.
     property real   usage5h:     -1
@@ -167,6 +170,7 @@ PanelWindow {
     function send() {
         const typed = input.text.trim()
         if ((!typed && attached === "" && image === "" && files.length === 0) || busy) return
+        tab = 1
         let msg = attached === "" ? typed
             : (typed !== "" ? typed : tr("attached_default", "Voici le texte que j'ai sélectionné :"))
               + "\n\n```\n" + attached + "\n```"
@@ -199,7 +203,7 @@ PanelWindow {
     }
     function toggleHistory() {
         showHistory = !showHistory
-        if (showHistory) cmd({ cmd: "list" })
+        if (showHistory) { tab = 1; cmd({ cmd: "list" }) }
     }
     function copy(text) { Quickshell.execDetached(["wl-copy", "--", text]) }
 
@@ -417,6 +421,7 @@ PanelWindow {
 
     on_OpenChanged: {
         if (_open) {
+            tab = 1
             drowsy = false; drowsyTimer.restart()
             now = new Date()
             shellRoot.assistantUnread = 0
@@ -439,10 +444,10 @@ PanelWindow {
     Behavior on p { NumberAnimation { duration: overlay._open ? 440 : 300
                                       easing.type: overlay._open ? Easing.OutCubic : Easing.InOutCubic } }
     function ramp(a, b) { return Math.max(0, Math.min(1, (p - a) / (b - a))) }
-    // The card is as tall as its content, up to 70 % of the screen. 226 = header, mode bar,
+    // The card is as tall as its content, up to 70 % of the screen. 200 = tab row, mode bar,
     // input and usage gauges around the message list.
     readonly property real maxH: Math.round(overlay.height * 0.70)
-    readonly property real wantH: showHistory ? maxH : 226 + list.contentHeight
+    readonly property real wantH: showHistory ? maxH : 200 + list.contentHeight
     property real openH: Math.max(380, Math.min(maxH, wantH))
     Behavior on openH { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
@@ -457,6 +462,9 @@ PanelWindow {
     // Window-wide shortcuts (work even while a message has focus for copying).
     Shortcut { sequence: "Escape"; enabled: overlay._open
                onActivated: overlay.showHistory ? overlay.showHistory = false : overlay.close() }
+    Shortcut { sequence: "Ctrl+1"; enabled: overlay._open; onActivated: overlay.tab = 0 }
+    Shortcut { sequence: "Ctrl+2"; enabled: overlay._open; onActivated: overlay.tab = 1 }
+    Shortcut { sequence: "Ctrl+3"; enabled: overlay._open; onActivated: overlay.tab = 2 }
     Shortcut { sequence: "Ctrl+N"; enabled: overlay._open; onActivated: overlay.newChat() }
     Shortcut { sequence: "Ctrl+H"; enabled: overlay._open; onActivated: overlay.toggleHistory() }
 
@@ -475,6 +483,7 @@ PanelWindow {
         onDropped: drop => {
             overlay.dropHover = false
             overlay.addFiles(drop.urls)
+            overlay.tab = 1
             if (!overlay._open) overlay.toggle()
         }
     }
@@ -600,94 +609,18 @@ PanelWindow {
         Item {
             id: header
             anchors { left: parent.left; right: parent.right; top: parent.top }
-            height: 78
+            height: overlay.headerH
 
-            // Avatar sits in a small glass disc.
-            Rectangle {
-                id: avatarDisc
-                anchors { left: parent.left; leftMargin: 16; verticalCenter: parent.verticalCenter }
-                width: 56; height: 56; radius: 28
-                color: overlay.cardFill
-                border.color: overlay.busy ? overlay.alpha(overlay.theme.primary, 0.55) : overlay.cardStroke
-                border.width: 1
-                Behavior on border.color { ColorAnimation { duration: 250 } }
-                // Soft halo that breathes while she works.
-                Rectangle {
-                    id: halo
-                    anchors.fill: parent; anchors.margins: -4; radius: width / 2
-                    color: "transparent"
-                    border.color: overlay.theme.primary; border.width: 2
-                    opacity: 0
-                    SequentialAnimation on opacity {
-                        running: overlay.busy; loops: Animation.Infinite
-                        onRunningChanged: if (!running) halo.opacity = 0
-                        NumberAnimation { to: 0.35; duration: 700; easing.type: Easing.InOutSine }
-                        NumberAnimation { to: 0.05; duration: 700; easing.type: Easing.InOutSine }
-                    }
-                }
-                AssistantAvatar {
-                    anchors.centerIn: parent
-                    theme: overlay.theme
-                    mood: overlay.faceMood
-                    size: 40
-                }
-            }
-
-            Column {
-                anchors {
-                    left: avatarDisc.right; leftMargin: 12
-                    right: actions.left; rightMargin: 8
-                    verticalCenter: parent.verticalCenter
-                }
-                spacing: 3
-                Row {
-                    spacing: 8
-                    Text {
-                        text: "Iris"
-                        color: overlay.theme.fg
-                        font.family: overlay.theme.ff; font.weight: Font.DemiBold
-                        font.pixelSize: overlay.theme.fs + 4
-                    }
-                    Rectangle {
-                        visible: overlay.modelName !== ""
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: modelTxt.implicitWidth + 12; height: 18; radius: 9
-                        color: overlay.alpha(modelTxt.color, 0.14)
-                        Text {
-                            id: modelTxt
-                            anchors.centerIn: parent
-                            text: overlay.modelName === "sonnet" ? "Sonnet" : "Haiku"
-                            color: overlay.modelName === "sonnet" ? overlay.theme.secondary : overlay.theme.tertiary
-                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 4
-                            font.weight: Font.Medium
-                        }
-                    }
-                }
-                Row {
-                    spacing: 6
-                    width: parent.width
-                    // Status dot: steady green when idle, pulsing accent when busy.
-                    Rectangle {
-                        id: statusDot
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 7; height: 7; radius: 3.5
-                        color: overlay.busy ? overlay.theme.primary : overlay.theme.tertiary
-                        SequentialAnimation on opacity {
-                            running: overlay.busy; loops: Animation.Infinite
-                            onRunningChanged: if (!running) statusDot.opacity = 1
-                            NumberAnimation { to: 0.25; duration: 550; easing.type: Easing.InOutSine }
-                            NumberAnimation { to: 1;    duration: 550; easing.type: Easing.InOutSine }
-                        }
-                    }
-                    Text {
-                        width: parent.width - 13
-                        elide: Text.ElideRight
-                        text: overlay.statusText
-                        color: overlay.busy ? overlay.theme.primary : overlay.theme.txt2
-                        opacity: overlay.busy ? 1 : 0.75
-                        font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 2
-                    }
-                }
+            AssistantTabs {
+                anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                theme: overlay.theme
+                current: overlay.tab
+                model: [
+                    { icon: "\uf015", label: overlay.tr("tab_home", "Accueil") },
+                    { icon: "\uf075", label: overlay.tr("tab_chat", "Chat") },
+                    { icon: "\uf0c6", label: overlay.tr("tab_files", "Fichiers") }
+                ]
+                onPicked: i => overlay.tab = i
             }
 
             Row {
@@ -781,10 +714,62 @@ PanelWindow {
             }
         }
 
+        // Agent menu, under the header's picker.
+        Rectangle {
+            visible: opacity > 0
+            opacity: overlay.agentMenu ? 1 : 0
+            scale: overlay.agentMenu ? 1 : 0.96
+            transformOrigin: Item.TopRight
+            Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            Behavior on scale   { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            z: 20
+            anchors { right: parent.right; rightMargin: 14; top: header.bottom; topMargin: -8 }
+            width: 160; height: agentCol.implicitHeight + 12; radius: 16
+            color: overlay.alpha(overlay.theme.bg, 0.94)
+            border.color: overlay.glassStroke; border.width: 1
+            Column {
+                id: agentCol
+                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 6 }
+                Repeater {
+                    model: overlay.agentList
+                    delegate: Rectangle {
+                        required property string modelData
+                        width: agentCol.width; height: 30; radius: 10
+                        color: modelData === overlay.agent ? overlay.alpha(overlay.theme.primary, 0.18)
+                             : rowHover.hovered ? overlay.cardHover : "transparent"
+                        Text {
+                            anchors { left: parent.left; right: parent.right; leftMargin: 10; rightMargin: 28
+                                      verticalCenter: parent.verticalCenter }
+                            text: modelData
+                            elide: Text.ElideRight
+                            color: modelData === overlay.agent ? overlay.theme.primary : overlay.theme.fg
+                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+                        }
+                        Text {
+                            visible: modelData === overlay.agent
+                            anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
+                            text: "\u2713"
+                            color: overlay.theme.primary
+                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 2
+                        }
+                        HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler { onTapped: { overlay.agentMenu = false; overlay.cmd({ cmd: "agent", name: modelData }) } }
+                    }
+                }
+            }
+        }
+
+        // ── Chat view: everything below lives in one item, shown on the Chat tab ──
+        // (children keep their old indentation to keep this diff small)
+        Item {
+            id: chatView
+            anchors.fill: parent
+            visible: overlay.tab === 1
+
         // ── Mode selector (segmented glass control) ───────────────────
         Rectangle {
             id: modeBar
-            anchors { top: header.bottom; horizontalCenter: parent.horizontalCenter }
+            anchors { top: parent.top; topMargin: overlay.headerH; horizontalCenter: parent.horizontalCenter }
             width: parent.width - 32; height: 34; radius: 17
             color: overlay.wellFill
             border.color: overlay.cardStroke; border.width: 1
@@ -1419,51 +1404,6 @@ PanelWindow {
             }
         }
 
-        // Agent menu, under the header's picker.
-        Rectangle {
-            visible: opacity > 0
-            opacity: overlay.agentMenu ? 1 : 0
-            scale: overlay.agentMenu ? 1 : 0.96
-            transformOrigin: Item.TopRight
-            Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-            Behavior on scale   { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-            z: 20
-            anchors { right: parent.right; rightMargin: 14; top: header.bottom; topMargin: -8 }
-            width: 160; height: agentCol.implicitHeight + 12; radius: 16
-            color: overlay.alpha(overlay.theme.bg, 0.94)
-            border.color: overlay.glassStroke; border.width: 1
-            Column {
-                id: agentCol
-                anchors { left: parent.left; right: parent.right; top: parent.top; margins: 6 }
-                Repeater {
-                    model: overlay.agentList
-                    delegate: Rectangle {
-                        required property string modelData
-                        width: agentCol.width; height: 30; radius: 10
-                        color: modelData === overlay.agent ? overlay.alpha(overlay.theme.primary, 0.18)
-                             : rowHover.hovered ? overlay.cardHover : "transparent"
-                        Text {
-                            anchors { left: parent.left; right: parent.right; leftMargin: 10; rightMargin: 28
-                                      verticalCenter: parent.verticalCenter }
-                            text: modelData
-                            elide: Text.ElideRight
-                            color: modelData === overlay.agent ? overlay.theme.primary : overlay.theme.fg
-                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
-                        }
-                        Text {
-                            visible: modelData === overlay.agent
-                            anchors { right: parent.right; rightMargin: 10; verticalCenter: parent.verticalCenter }
-                            text: "\u2713"
-                            color: overlay.theme.primary
-                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 2
-                        }
-                        HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler { onTapped: { overlay.agentMenu = false; overlay.cmd({ cmd: "agent", name: modelData }) } }
-                    }
-                }
-            }
-        }
-
         // Pasted-image pill (Ctrl+V), next to the attached-text one when both exist.
         Rectangle {
             visible: overlay.image !== ""
@@ -1642,6 +1582,22 @@ PanelWindow {
                 font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 4
             }
         }
+        }   // chatView
+
+        // Accueil and Fichiers: placeholders until their own tasks.
+        Item {
+            anchors { fill: parent; topMargin: overlay.headerH }
+            visible: overlay.tab === 0
+            Text { anchors.centerIn: parent; text: overlay.tr("tab_home", "Accueil"); color: overlay.theme.txt2
+                   font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs }
+        }
+        Item {
+            anchors { fill: parent; topMargin: overlay.headerH }
+            visible: overlay.tab === 2
+            Text { anchors.centerIn: parent; text: overlay.tr("tab_files", "Fichiers"); color: overlay.theme.txt2
+                   font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs }
+        }
+
     }
         }
     }

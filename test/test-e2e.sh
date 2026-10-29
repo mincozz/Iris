@@ -53,7 +53,7 @@ step "Installation"
 check "dry-run sans erreur"           "${INST[0]}" "${INST[@]:1}" --dry-run
 check "dry-run n'écrit rien"          test ! -e "$T/qs/overlays"
 check "installation sans erreur"      "${INST[@]}"
-for f in overlays/AssistantOverlay.qml overlays/AssistantAvatar.qml scripts/assistant.py \
+for f in overlays/AssistantOverlay.qml overlays/AssistantAvatar.qml overlays/AssistantTabs.qml scripts/assistant.py \
          scripts/assistant-prompt.md scripts/iris-watch.py scripts/organize.py scripts/iris-ask scripts/iris-doctor scripts/i18n.py scripts/assistant-prompt.en.md scripts/iris-update scripts/iris-remind; do
   check "fichier copié : $f" test -f "$T/qs/$f"
 done
@@ -160,6 +160,10 @@ TXT
 fi
 
 # ── 2b. Mise à jour (repo factice : origin + clone) ───────────────────────
+step "Ordre d'installation"
+check "AssistantOverlay.qml est copié en dernier (le reload de Quickshell a besoin des composants)" \
+  python3 -I -c "import re,sys; f=re.findall(r'\"(overlays/[A-Za-z]+\.qml)\"', re.search(r'FILES=\((.*?)\n\)', open('$SRC/install.sh').read(), re.S).group(1)); assert f[-1]=='overlays/AssistantOverlay.qml', f"
+
 step "Agents et modèles (installeur)"
 # Faux ollama : `list` montre ce qui a été « téléchargé », `pull` l'ajoute et le journalise.
 printf 'NAME ID\nllama3.2:latest abc\n' > "$T/ollama.have"; : > "$T/ollama.log"

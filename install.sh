@@ -66,12 +66,14 @@ run()  { if [ "$DRY" = 1 ]; then printf '  %s[dry-run] %s%s\n' "$C_DIM" "$*" "$C
 printf '\n%s╭────────────────────────────────╮\n│  Iris · installation           │\n╰────────────────────────────────╯%s\n' "$C_ACC" "$C_R"
 [ "$DRY" = 1 ] && printf '%s  simulation : rien ne sera modifié%s\n' "$C_DIM" "$C_R"
 
+# Order matters: Quickshell reloads as soon as a QML file changes, so the components come
+# first and AssistantOverlay.qml (which uses them) last, or the reload fails on a missing type.
 FILES=(
-  "overlays/AssistantOverlay.qml" "overlays/AssistantAvatar.qml"
   "scripts/assistant.py" "scripts/assistant-prompt.md"
   "scripts/iris-watch.py" "scripts/organize.py" "scripts/iris-ask" "scripts/iris-doctor"
   "scripts/i18n.py" "scripts/assistant-prompt.en.md" "scripts/iris-update"
   "scripts/iris-remind"
+  "overlays/AssistantAvatar.qml" "overlays/AssistantTabs.qml" "overlays/AssistantOverlay.qml"
 )
 
 backup() { [ -e "$1" ] && [ ! -e "$1.iris-bak" ] && run cp -p "$1" "$1.iris-bak" || true; }

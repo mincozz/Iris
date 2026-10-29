@@ -25,7 +25,7 @@ Commits sans mention de l'assistant.
   - Files : `overlays/AssistantOverlay.qml`.
   - Scope : M.
 
-- [ ] **T4 : Onglets Accueil / Chat / Fichiers**
+- [x] **T4 : Onglets Accueil / Chat / Fichiers**
   - Acceptance : `AssistantTabs.qml` (rangée d'onglets, gauche) ; à droite : historique, nouvelle conversation, agent, mise à jour (≥ 32 px chacun) ; `Ctrl+1/2/3` change d'onglet, `Échap` ferme, focus sur la saisie à l'ouverture du Chat ; onglets Accueil et Fichiers provisoires (vides) ; `AssistantTabs.qml` ajouté à `FILES` dans `install.sh` et `iris-doctor`.
   - Verify : captures des trois onglets ; raccourcis clavier à la main ; `test-e2e.sh --no-gui` (fichier installé et listé par le doctor).
   - Files : `overlays/AssistantTabs.qml`, `overlays/AssistantOverlay.qml`, `install.sh`, `scripts/iris-doctor`.

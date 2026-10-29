@@ -24,7 +24,7 @@ HOME = os.path.expanduser("~")
 DATA = os.path.join(HOME, ".local/share/qs-assistant")
 XDG = os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config")
 
-FILES = ["overlays/AssistantOverlay.qml", "overlays/AssistantAvatar.qml",
+FILES = ["overlays/AssistantOverlay.qml", "overlays/AssistantAvatar.qml", "overlays/AssistantTabs.qml",
          "scripts/assistant.py", "scripts/assistant-prompt.md",
          "scripts/iris-watch.py", "scripts/organize.py", "scripts/iris-ask",
          "scripts/i18n.py", "scripts/assistant-prompt.en.md", "scripts/iris-update", "scripts/iris-remind"]
