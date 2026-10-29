@@ -38,7 +38,7 @@ Commits sans co-auteur.
   - Files : `scripts/assistant.py`, `overlays/AssistantOverlay.qml`, `test/test-model-link.py`.
   - Scope : M.
 
-- [ ] **T5 : `iris-doctor`**
+- [x] **T5 : `iris-doctor`**
   - Acceptance : une ligne par agent `openai` : point d'accès joignable (`GET /models`, 3 s), clé présente et en `0600`, modèles déclarés présents quand la réponse les liste ; la clé n'est jamais affichée ; l'outil reste en lecture seule.
   - Verify : exécution contre le faux serveur (ajouter le cas dans le test) ; `shellcheck`/`py_compile`.
   - Files : `scripts/iris-doctor`, `test/test-model-link.py`.

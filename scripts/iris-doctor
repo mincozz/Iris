@@ -4,10 +4,11 @@
     iris-doctor [--prefix DIR]
 
 DIR est le dossier de ton shell Quickshell (défaut : celui qui contient ce
-script, sinon ~/.config/quickshell). Ne modifie rien et n'envoie aucun
-message à Claude. Code de sortie 1 s'il y a au moins une erreur (✗).
+script, sinon ~/.config/quickshell). Ne modifie rien (seul un GET /models part vers
+les agents `openai` déclarés) et n'envoie aucun message à Claude. Code de sortie 1 s'il y a au moins une erreur (✗).
 """
 import contextlib
+import http.client
 import importlib.util
 import io
 import json
@@ -17,6 +18,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import urllib.parse
 
 HOME = os.path.expanduser("~")
 DATA = os.path.join(HOME, ".local/share/qs-assistant")
@@ -83,15 +85,68 @@ def configured_agent():
         except OSError:
             pass
         name, spec = cfg["agent"], cfg["agents"][cfg["agent"]]
-        if name != "claude" and isinstance(spec.get("command"), list) and spec["command"]:
+        if name != "claude" and (spec.get("type") == "openai"
+                                 or isinstance(spec.get("command"), list) and spec["command"]):
             return name, spec
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         pass
     return "claude", None
 
 
-def check_agents():
-    """Every agent declared in config.json: program present, Ollama models downloaded."""
+def served_models(mod, spec):
+    """(status, model ids) from GET {base_url}/models; (None, reason) if unreachable. Follows no redirect."""
+    u = urllib.parse.urlsplit(spec["base_url"])
+    headers = {"Authorization": "Bearer " + mod.read_key(spec["key_file"])} if spec.get("key_file") else {}
+    cls = http.client.HTTPSConnection if u.scheme == "https" else http.client.HTTPConnection
+    conn = cls(u.hostname, u.port, timeout=3)
+    try:
+        conn.request("GET", u.path.rstrip("/") + "/models", headers=headers)
+        resp = conn.getresponse()
+        body = resp.read(1_000_000)
+        try:
+            ids = {m["id"] for m in json.loads(body)["data"]}
+        except (ValueError, KeyError, TypeError):
+            ids = set()
+        return resp.status, ids
+    except (OSError, http.client.HTTPException):
+        return None, f"{u.netloc} ne répond pas"
+    finally:
+        conn.close()
+
+
+def check_openai_agent(mod, name, spec):
+    url = spec.get("base_url")
+    if not (isinstance(url, str) and mod.endpoint_ok(url)):
+        report("warn", f"« {name} » : adresse refusée", "https://, ou http:// vers localhost seulement (`base_url`)")
+        return
+    if spec.get("key_file"):
+        try:
+            mod.read_key(spec["key_file"])
+        except ValueError as e:
+            report("warn", f"« {name} » : {e}", "chmod 600 sur le fichier, ou corrige `key_file`")
+            return
+    status, ids = served_models(mod, spec)
+    if status is None:
+        report("warn", f"« {name} » : {ids}", "lance le serveur (ex. `ollama serve`) ou corrige `base_url`")
+    elif status in (401, 403):
+        report("warn", f"« {name} » : clé refusée ({status})", "vérifie le contenu de `key_file`")
+    elif status != 200:
+        report("warn", f"« {name} » : le serveur répond {status}", "vérifie `base_url` (il se termine souvent par /v1)")
+    else:
+        report("ok", f"« {name} » : {url} répond")
+        models = spec.get("models") if isinstance(spec.get("models"), dict) else {}
+        for m in sorted({v for v in models.values() if isinstance(v, str) and v}) if ids else []:
+            if m in ids or f"{m}:latest" in ids:
+                report("ok", f"  modèle {m} disponible")
+            else:
+                report("warn", f"  modèle {m} absent du serveur", "corrige `models` ou télécharge-le")
+    if not mod.is_local(url):
+        mem = "envoyée" if spec.get("send_memory") is True else "non envoyée"
+        report("ok", f"  hôte distant : memory.md {mem} (`send_memory`)")
+
+
+def check_agents(prefix):
+    """Every agent declared in config.json: program present, Ollama models downloaded, API reachable."""
     try:
         agents = json.load(open(os.path.join(DATA, "config.json"))).get("agents") or {}
     except (OSError, ValueError, AttributeError):
@@ -100,7 +155,14 @@ def check_agents():
         return
     section("Agents déclarés")
     have = None
+    mod, _ = load_module(prefix)
     for name, spec in agents.items():
+        if isinstance(spec, dict) and spec.get("type") == "openai":
+            if mod is None:
+                report("warn", f"« {name} » : assistant.py illisible, vérification impossible")
+            else:
+                check_openai_agent(mod, name, spec)
+            continue
         cmd = spec.get("command") if isinstance(spec, dict) else None
         if not (isinstance(cmd, list) and cmd and all(isinstance(x, str) for x in cmd)):
             report("warn", f"« {name} » : commande invalide", "corrige `command` dans config.json")
@@ -148,8 +210,10 @@ def check_requirements():
         else:
             report(level, f"{cmd} introuvable", why)
     if spec is not None:
-        exe = str(spec["command"][0])
-        if shutil.which(os.path.expanduser(exe)):
+        exe = str(spec["command"][0]) if "command" in spec else ""
+        if not exe:
+            report("ok", f"agent « {agent} » : API {spec.get('base_url', '?')}")
+        elif shutil.which(os.path.expanduser(exe)):
             report("ok", f"agent « {agent} » : {exe}")
         else:
             report("fail", f"agent « {agent} » : {exe} introuvable",
@@ -367,7 +431,7 @@ def main():
         prefix = os.path.expanduser(args[1])
     print(color("1", "Diagnostic d'Iris"))
     check_requirements()
-    check_agents()
+    check_agents(prefix)
     if check_files(prefix):
         check_wiring(prefix)
     check_data(prefix)

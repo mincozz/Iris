@@ -96,6 +96,16 @@ class Fake(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def do_GET(self):
+        Fake.log.append({"path": self.path, "auth": self.headers.get("Authorization")})
+        if self.path.endswith("/models") and Fake.mode != "401":
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(json.dumps({"data": [{"id": "m-fast"}]}).encode())
+        else:
+            self.send_response(401 if Fake.mode == "401" else 404)
+            self.end_headers()
+
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
         Fake.log.append({"path": self.path, "auth": self.headers.get("Authorization"),
@@ -259,6 +269,52 @@ A.CONFIG["agents"]["cli"] = {"command": ["echo"]}
 for name, want in [("claude", False), ("x", False), ("r", True), ("cli", False)]:
     A.AGENT = name
     check(A.agent_remote() is want, f"agent_remote({name}) = {want}")
+
+# ── T5 : iris-doctor ──────────────────────────────────────────────────────
+import json as _json
+import subprocess
+
+
+def doctor(agents, agent="claude", mode="chunks"):
+    """Output of the « Agents déclarés » section, run in a throwaway HOME."""
+    Fake.mode = mode
+    Fake.log.clear()
+    home = tempfile.mkdtemp(prefix="iris-doc-")
+    data = os.path.join(home, ".local/share/qs-assistant")
+    os.makedirs(data, mode=0o700)
+    with open(os.path.join(data, "config.json"), "w") as f:
+        _json.dump({"language": "fr", "agent": agent, "agents": agents}, f)
+    r = subprocess.run([sys.executable, "-I", os.path.join(ROOT, "scripts/iris-doctor"), "--prefix", ROOT],
+                       capture_output=True, text=True, env={"HOME": home, "PATH": os.environ["PATH"]}, timeout=60)
+    out = r.stdout + r.stderr
+    return out.split("Agents déclarés")[1].split("▸")[0] if "Agents déclarés" in out else out
+
+
+good = {"type": "openai", "base_url": BASE, "key_file": key, "models": {"fast": "m-fast", "power": "m-fast"}}
+out = doctor({"loc": good})
+check("loc" in out and "✓" in out and "m-fast" in out, "doctor : point d'accès joignable, modèle trouvé")
+check(Fake.log and Fake.log[0]["path"] == "/v1/models" and Fake.log[0]["auth"] == "Bearer sk-test-key",
+      "doctor : GET /models avec la clé")
+check("sk-test-key" not in out, "doctor : la clé n'est jamais affichée")
+
+out = doctor({"loc": {**good, "models": {"fast": "m-fast", "power": "absent-model"}}})
+check("absent-model" in out and "absent" in out, "doctor : modèle déclaré mais absent signalé")
+
+out = doctor({"loc": {**good, "key_file": os.path.join(HOME, "nokey")}})
+check("nokey" in out and "!" in out, "doctor : clé introuvable signalée")
+
+bad_perm = keyfile("sk-other", 0o644)
+out = doctor({"loc": {**good, "key_file": bad_perm}})
+check("0600" in out and "sk-other" not in out, "doctor : clé trop ouverte signalée sans l'afficher")
+
+out = doctor({"loc": {**good, "base_url": "http://127.0.0.1:1/v1"}})
+check("127.0.0.1:1" in out and "!" in out, "doctor : serveur injoignable signalé")
+
+out = doctor({"loc": good}, mode="401")
+check("401" in out or "clé" in out.lower(), "doctor : clé refusée par le serveur signalée")
+
+out = doctor({"loc": good}, agent="loc")
+check("claude introuvable" not in out and "Traceback" not in out, "doctor : agent openai actif ne plante pas")
 
 if fails:
     print(f"\n{len(fails)} échec(s)")
