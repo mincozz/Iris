@@ -43,6 +43,7 @@ Because an assistant should be *right there*, not one more browser tab. Iris is 
 - 🤖 **Agents**: Claude by default; add Ollama, Gemini or any CLI and switch with one click. The installer downloads your Ollama models.
 - 🔎 **Search**: find an old conversation by typing a few letters (accents and case ignored).
 - ⏰ **Reminders**: "Remind me in 20 min…": an alert on time, even if the PC was off.
+- 🫧 **Pill**: Iris stays at the top centre, under the bar, and unfolds into the chat in one motion. **Drop files on her**: they are attached to the message (she reads them, nothing is copied).
 - 🖼️ **Images**: paste a screenshot with Ctrl+V, Iris reads it.
 - ✅ **Permissions**: an **Allow / Deny** card shows the exact content that would be written.
 - 🔔 **Alerts** *(no Claude quota)*: `git pull` to do (with a button), unpushed work, calendar, disk, battery, failed services, Iris updates, plus a **morning brief**.

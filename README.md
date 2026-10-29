@@ -43,6 +43,7 @@ Parce qu'un assistant, ça doit être *là*, pas dans un onglet de plus. Iris es
 - 🤖 **Agents** : Claude par défaut ; ajoute Ollama, Gemini ou n'importe quelle CLI et change d'un clic. L'installeur télécharge tes modèles Ollama.
 - 🔎 **Recherche** : retrouve une vieille conversation en tapant quelques lettres (accents et casse ignorés).
 - ⏰ **Rappels** : « Rappelle-moi dans 20 min… » : alerte à l'heure, même si le PC était éteint.
+- 🫧 **Pastille** : Iris reste en haut au centre, sous la barre, et se déplie en chat d'un seul mouvement. **Lâche-lui des fichiers dessus** : ils sont joints au message (Iris les lit, rien n'est copié).
 - 🖼️ **Images** : colle une capture avec Ctrl+V, Iris la lit.
 - ✅ **Autorisations** : une carte **Autoriser / Refuser** montre le contenu exact qui serait écrit.
 - 🔔 **Alertes** *(sans quota Claude)* : `git pull` à faire (avec bouton), travail non poussé, agenda, disque, batterie, services en échec, mises à jour d'Iris, plus un **résumé du matin**.

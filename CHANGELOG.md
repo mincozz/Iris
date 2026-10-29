@@ -5,6 +5,7 @@ Les versions suivent les commits de `main` ; Iris se met à jour avec `scripts/i
 ## Non publié
 
 ### Interface
+- Pastille permanente en haut au centre qui se déplie en panneau (une seule animation), avec glisser-déposer de fichiers (≤ 5, joints en `[Fichier joint : chemin]`, lus par `Read`). La fenêtre reste plein écran mais n'accepte les clics que sur la pastille quand elle est fermée.
 - Avatar : deux humeurs en plus (content après une réponse, endormi après 5 min d'inactivité) et un halo pendant qu'Iris travaille ; le contrat avec le shell hôte (`idle|thinking|talking`) ne change pas.
 - Textes plus chaleureux (« Coucou, je suis là », « Et voilà ! ») et une personnalité de mascotte dans les prompts FR/EN.
 

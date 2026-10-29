@@ -3,8 +3,9 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 
-// Chat panel for "Iris", the pixel-art assistant. Slides in on the right,
-// under the bar. Talks to scripts/assistant.py, a daemon that keeps a
+// Chat panel for "Iris", the pixel-art assistant. Always on screen as a small
+// pill under the bar (top centre) that stretches into the chat panel; files
+// dropped on it are attached to the next message. Talks to scripts/assistant.py, a daemon that keeps a
 // streaming `claude -p` open (fast replies), routes between Haiku and
 // Sonnet, stores the conversation history and forwards permission requests
 // here as Autoriser / Refuser cards.
@@ -21,13 +22,15 @@ PanelWindow {
     required property var theme
 
     readonly property bool _open: shellRoot.assistantOpen
-    visible: _open || exitAnim.running
+    visible: true     // always mapped: the pill lives here; input is limited by `mask`
     WlrLayershell.namespace: "quickshell-assistant"
     WlrLayershell.keyboardFocus: _open ? WlrKeyboardFocus.Exclusive
                                        : WlrKeyboardFocus.None
 
     anchors { top: true; left: true; right: true; bottom: true }
     exclusiveZone: 0
+    // Closed: only the pill catches the pointer. Open: the whole window (click outside closes).
+    mask: Region { item: overlay._open ? backdrop : glass }
     color: "transparent"
 
     readonly property int panelWidth: 460
@@ -93,7 +96,6 @@ PanelWindow {
         if (busy) celebrating = false
         else { celebrating = true; celebrateTimer.restart() }
     }
-    onVisibleChanged: { drowsy = false; drowsyTimer.restart() }
     Timer { id: celebrateTimer; interval: 2600; onTriggered: overlay.celebrating = false }
     Timer { id: drowsyTimer; interval: 300000; running: true; onTriggered: overlay.drowsy = true }
 
@@ -145,9 +147,28 @@ PanelWindow {
     // Image pasted with Ctrl+V (a file the daemon saved), sent with the next message.
     property string image: ""
 
+    // Files dropped on the pill / panel (absolute paths, at most 5): only their
+    // path goes into the message, Iris reads them with Read (deny_read_paths applies).
+    property var  files: []
+    property bool dropHover: false
+    function addFiles(urls) {
+        let list = files.slice()
+        for (const u of urls) {
+            const s = u.toString()
+            if (!s.startsWith("file:///")) continue
+            let path
+            try { path = decodeURIComponent(s.slice(7)) } catch (e) { continue }
+            if (path.length > 1024 || /[\x00-\x1f\x7f]/.test(path) || list.indexOf(path) >= 0 || list.length >= 5) continue
+            list.push(path)
+        }
+        files = list
+        showHistory = false
+        Qt.callLater(() => input.forceActiveFocus())
+    }
+
     function send() {
         const typed = input.text.trim()
-        if ((!typed && attached === "" && image === "") || busy) return
+        if ((!typed && attached === "" && image === "" && files.length === 0) || busy) return
         let msg = attached === "" ? typed
             : (typed !== "" ? typed : tr("attached_default", "Voici le texte que j'ai sélectionné :"))
               + "\n\n```\n" + attached + "\n```"
@@ -155,8 +176,13 @@ PanelWindow {
             if (msg === "") msg = tr("image_default", "Regarde cette image :")
             msg += "\n\n" + tr("image_line", "[Image jointe : {path}]").replace("{path}", image)
         }
+        for (const f of files) {
+            if (msg === "") msg = tr("file_default", "Regarde ce fichier :")
+            msg += "\n\n" + tr("file_line", "[Fichier joint : {path}]").replace("{path}", f)
+        }
         attached = ""
         image = ""
+        files = []
         input.text  = ""
         showHistory = false
         _push("user", msg)
@@ -166,7 +192,7 @@ PanelWindow {
     }
     function ask(text) { input.text = text; send() }
     function stop()    { if (busy) cmd({ cmd: "stop" }) }
-    function newChat() { showHistory = false; image = ""; cmd({ cmd: "new" }) }
+    function newChat() { showHistory = false; image = ""; files = []; cmd({ cmd: "new" }) }
     function answer(index, allow) {
         const it = messages.get(index)
         if (it.askState !== "pending") return
@@ -393,18 +419,37 @@ PanelWindow {
 
     on_OpenChanged: {
         if (_open) {
-            exitAnim.stop()
-            enterAnim.restart()
+            drowsy = false; drowsyTimer.restart()
             now = new Date()
             shellRoot.assistantUnread = 0
             list.stick = true; Qt.callLater(() => list.positionViewAtEnd())
             cmd({ cmd: "warm" })     // start Claude now so the first reply is quick
             Qt.callLater(() => input.forceActiveFocus())
         } else {
-            enterAnim.stop()
-            exitAnim.restart()
+            drowsyTimer.restart()
         }
     }
+
+    function toggle() {
+        if (_open) close()
+        else if (typeof shellRoot.openAssistant === "function") shellRoot.openAssistant()
+        else shellRoot.assistantOpen = true
+    }
+
+    // One progress value (0 = pill, 1 = panel) drives size, radius and content.
+    property real p: _open ? 1 : 0
+    Behavior on p { NumberAnimation { duration: overlay._open ? 440 : 300
+                                      easing.type: overlay._open ? Easing.OutCubic : Easing.InOutCubic } }
+    function ramp(a, b) { return Math.max(0, Math.min(1, (p - a) / (b - a))) }
+    readonly property real openH: Math.max(320, overlay.height - 44 - 10)
+
+    readonly property string statusText:
+        toolStatus !== "" ? toolStatus
+        : mood === "thinking" ? tr("thinking", "Je réfléchis…")
+        : mood === "talking"  ? tr("writing", "J'écris…")
+        : faceMood === "happy"  ? tr("happy", "Et voilà !")
+        : faceMood === "sleepy" ? tr("sleepy", "Zzz…")
+        : tr("online", "En ligne")
 
     // Window-wide shortcuts (work even while a message has focus for copying).
     Shortcut { sequence: "Escape"; enabled: overlay._open
@@ -412,44 +457,41 @@ PanelWindow {
     Shortcut { sequence: "Ctrl+N"; enabled: overlay._open; onActivated: overlay.newChat() }
     Shortcut { sequence: "Ctrl+H"; enabled: overlay._open; onActivated: overlay.toggleHistory() }
 
-    // Backdrop: click outside the panel closes it.
+    // Backdrop: click outside the panel closes it (only reachable while open, see `mask`).
     MouseArea {
+        id: backdrop
         anchors.fill: parent
         onClicked: overlay.close()
     }
 
-    ParallelAnimation {
-        id: enterAnim
-        NumberAnimation { target: panel;      property: "opacity"; from: 0; to: 1;     duration: 320; easing.type: Easing.OutCubic }
-        NumberAnimation { target: panelSlide; property: "x";       from: 48; to: 0;    duration: 420; easing.type: Easing.OutBack; easing.overshoot: 0.8 }
-        NumberAnimation { target: panel;      property: "scale";   from: 0.97; to: 1;  duration: 420; easing.type: Easing.OutCubic }
-    }
-    ParallelAnimation {
-        id: exitAnim
-        NumberAnimation { target: panel;      property: "opacity"; to: 0;    duration: 200; easing.type: Easing.InCubic }
-        NumberAnimation { target: panelSlide; property: "x";       to: 48;   duration: 200; easing.type: Easing.InCubic }
-        NumberAnimation { target: panel;      property: "scale";   to: 0.98; duration: 200; easing.type: Easing.InCubic }
+    DropArea {
+        anchors.fill: parent
+        keys: ["text/uri-list"]
+        onEntered: overlay.dropHover = true
+        onExited: overlay.dropHover = false
+        onDropped: drop => {
+            overlay.dropHover = false
+            overlay.addFiles(drop.urls)
+            if (!overlay._open) overlay.toggle()
+        }
     }
 
     // ═════════════════════════════════════════════════════════════════
-    // Glass panel
+    // Glass: the pill that stretches into the panel
     // ═════════════════════════════════════════════════════════════════
     Rectangle {
-        id: panel
-        anchors {
-            right: parent.right; rightMargin: 10
-            top: parent.top;     topMargin: 44
-            bottom: parent.bottom; bottomMargin: 10
-        }
-        width: overlay.panelWidth
-        radius: 24
+        id: glass
+        anchors { top: parent.top; topMargin: 44; horizontalCenter: parent.horizontalCenter }
+        property real pillW: overlay.dropHover && !overlay._open ? 236 : 176
+        Behavior on pillW { NumberAnimation { duration: 220; easing.type: Easing.OutBack } }
+        width:  pillW + (overlay.panelWidth - pillW) * overlay.p
+        height: 40 + (overlay.openH - 40) * overlay.p
+        radius: 20 + 4 * overlay.p
         color: overlay.glassFill
         border.color: overlay.glassStroke; border.width: 1
-        opacity: 0
-        transformOrigin: Item.Right
-        transform: Translate { id: panelSlide; x: 48 }
-
-        MouseArea { anchors.fill: parent }   // swallow clicks
+        scale: !overlay._open && pillHover.hovered ? 1.05 : 1
+        transformOrigin: Item.Top
+        Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
         // Sheen: light from the top, a faint accent glow at the bottom.
         Rectangle {
@@ -474,6 +516,67 @@ PanelWindow {
             }
         }
 
+        // ── Pill content (fades out as the panel opens) ───────────────
+        Item {
+            anchors.fill: parent
+            opacity: 1 - overlay.ramp(0, 0.25)
+            visible: opacity > 0
+            AssistantAvatar {
+                id: pillAvatar
+                anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
+                theme: overlay.theme
+                mood: overlay.dropHover ? "happy" : overlay.faceMood
+                size: 28
+            }
+            Text {
+                anchors { left: pillAvatar.right; leftMargin: 10; right: parent.right; rightMargin: 16
+                          verticalCenter: parent.verticalCenter }
+                elide: Text.ElideRight
+                text: overlay.dropHover ? overlay.tr("drop_here", "Lâche ici") : overlay.statusText
+                color: overlay.busy || overlay.dropHover ? overlay.theme.primary : overlay.theme.fg
+                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+            }
+            Rectangle {      // Iris spoke on her own while the panel was closed
+                visible: overlay.shellRoot.assistantUnread > 0
+                anchors { right: parent.right; top: parent.top; rightMargin: 8; topMargin: 6 }
+                width: 9; height: 9; radius: 4.5
+                color: overlay.theme.error
+                border.color: overlay.glassFill; border.width: 1.5
+            }
+            HoverHandler { id: pillHover; cursorShape: Qt.PointingHandCursor }
+            TapHandler { onTapped: overlay.toggle() }
+        }
+
+        // ── Panel content: fixed size, revealed by the stretching glass ──
+        Item {
+            id: viewport
+            anchors.fill: parent
+            clip: true
+            Item {
+                id: panel
+                width: overlay.panelWidth; height: overlay.openH
+                x: (viewport.width - width) / 2
+                opacity: overlay.ramp(0.3, 0.85)
+                enabled: overlay._open
+
+                MouseArea { anchors.fill: parent }   // swallow clicks
+
+                // Files being dragged over the open panel.
+                Rectangle {
+                    z: 20
+                    anchors.fill: parent; anchors.margins: 8; radius: 18
+                    visible: overlay.dropHover && overlay._open
+                    color: overlay.alpha(overlay.theme.primary, 0.14)
+                    border.color: overlay.alpha(overlay.theme.primary, 0.6); border.width: 2
+                    Text {
+                        anchors.centerIn: parent
+                        text: "\uf0ee  " + overlay.tr("drop_here", "Lâche ici")
+                        color: overlay.theme.primary
+                        font.family: overlay.theme.ff; font.weight: Font.DemiBold
+                        font.pixelSize: overlay.theme.fs + 3
+                    }
+                }
+
         // ── Header ────────────────────────────────────────────────────
         Item {
             id: header
@@ -491,13 +594,14 @@ PanelWindow {
                 Behavior on border.color { ColorAnimation { duration: 250 } }
                 // Soft halo that breathes while she works.
                 Rectangle {
+                    id: halo
                     anchors.fill: parent; anchors.margins: -4; radius: width / 2
                     color: "transparent"
                     border.color: overlay.theme.primary; border.width: 2
                     opacity: 0
                     SequentialAnimation on opacity {
                         running: overlay.busy; loops: Animation.Infinite
-                        onRunningChanged: if (!running) parent.opacity = 0
+                        onRunningChanged: if (!running) halo.opacity = 0
                         NumberAnimation { to: 0.35; duration: 700; easing.type: Easing.InOutSine }
                         NumberAnimation { to: 0.05; duration: 700; easing.type: Easing.InOutSine }
                     }
@@ -559,12 +663,7 @@ PanelWindow {
                     Text {
                         width: parent.width - 13
                         elide: Text.ElideRight
-                        text: overlay.toolStatus !== "" ? overlay.toolStatus
-                            : overlay.mood === "thinking" ? overlay.tr("thinking", "Je réfléchis…")
-                            : overlay.mood === "talking"  ? overlay.tr("writing", "J'écris…")
-                            : overlay.faceMood === "happy" ? overlay.tr("happy", "Et voilà !")
-                            : overlay.faceMood === "sleepy" ? overlay.tr("sleepy", "Zzz…")
-                            : overlay.tr("online", "En ligne")
+                        text: overlay.statusText
                         color: overlay.busy ? overlay.theme.primary : overlay.theme.txt2
                         opacity: overlay.busy ? 1 : 0.75
                         font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 2
@@ -876,6 +975,7 @@ PanelWindow {
             clip: true
             spacing: 12
             model: messages
+            add: Transition { NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 240; easing.type: Easing.OutCubic } }
             boundsBehavior: Flickable.StopAtBounds
             // Three soft dots while the agent has not started to answer.
             footer: Item {
@@ -1376,6 +1476,35 @@ PanelWindow {
             }
         }
 
+        // Dropped files: one removable pill each, above the other pills.
+        Row {
+            visible: overlay.files.length > 0
+            anchors { left: inputBox.left; bottom: inputBox.top
+                      bottomMargin: (overlay.attached !== "" || overlay.image !== "") ? 38 : 6 }
+            spacing: 6
+            Repeater {
+                model: overlay.files
+                delegate: Rectangle {
+                    required property string modelData
+                    height: 26; radius: 13
+                    width: Math.min(150, fileTxt.implicitWidth + 20)
+                    color: overlay.alpha(overlay.theme.primary, 0.14)
+                    border.color: overlay.alpha(overlay.theme.primary, 0.45); border.width: 1
+                    Text {
+                        id: fileTxt
+                        anchors.centerIn: parent
+                        width: Math.min(implicitWidth, 130)
+                        elide: Text.ElideMiddle
+                        text: "\uf15b  " + modelData.split("/").pop()
+                        color: overlay.theme.primary
+                        font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                    }
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    TapHandler { onTapped: overlay.files = overlay.files.filter(f => f !== modelData) }
+                }
+            }
+        }
+
         // ── Input ──────────────────────────────────────────────────────
         Rectangle {
             id: inputBox
@@ -1417,7 +1546,7 @@ PanelWindow {
             // Send / stop
             Rectangle {
                 id: sendBtn
-                readonly property bool ready: input.text.trim() !== "" || overlay.attached !== "" || overlay.image !== ""
+                readonly property bool ready: input.text.trim() !== "" || overlay.attached !== "" || overlay.image !== "" || overlay.files.length > 0
                 anchors { right: parent.right; rightMargin: 7; verticalCenter: parent.verticalCenter }
                 width: 36; height: 36; radius: 18
                 color: overlay.busy ? overlay.theme.error
@@ -1493,6 +1622,8 @@ PanelWindow {
                 color: overlay.theme.outline
                 font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 4
             }
+        }
+    }
         }
     }
 }
