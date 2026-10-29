@@ -23,7 +23,7 @@ Vous êtes une IA qui aide un utilisateur à installer **Iris**, un assistant en
 | `scripts/iris-ask` | Raccourci : envoie la sélection (ou le presse-papiers) à Iris |
 | `scripts/iris-doctor` | Diagnostic en lecture seule : à lancer après l'installation et en cas de panne |
 | `scripts/iris-update` | `git pull --ff-only` du clone puis réinstallation (`--check` : lecture seule) |
-| `test/` | `test-e2e.sh` (installation jetable) et `test-agent.py`, `test-agent-switch.py`, `test-security.py`, `test-search.py`, `test-remind.py`, `test-image.py`, `test-model-link.py`, tous sans compte Claude |
+| `test/` | `test-e2e.sh` (installation jetable) et `test-agent.py`, `test-agent-switch.py`, `test-security.py`, `test-search.py`, `test-remind.py`, `test-image.py`, `test-model-link.py`, `test-usage.py`, tous sans compte Claude |
 | `specs/`, `tasks/` | Spécifications et plan des fonctionnalités (spec, plan, tâches, puis code) |
 | `integration/` | Extraits à greffer à la main, exemples de config |
 | `CHANGELOG.md`, `CONTRIBUTING.md` | Journal des changements et guide de contribution |
