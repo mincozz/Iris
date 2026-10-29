@@ -44,7 +44,7 @@ Commits sans co-auteur.
   - Files : `scripts/iris-doctor`, `test/test-model-link.py`.
   - Scope : S.
 
-- [ ] **T6 : `install.sh --add-openai`**
+- [x] **T6 : `install.sh --add-openai`**
   - Acceptance : `--add-openai "nom=base_url,fast=ID,power=ID[,key_file=CHEMIN]"` (répétable) écrit l'entrée dans `config.json` après les mêmes validations que le daemon ; nom ≠ `claude` ; `--dry-run` n'écrit rien ; rien n'est exécuté ni téléchargé ; sauvegarde `.iris-bak` conservée ; entrée existante non écrasée sans accord.
   - Verify : `shellcheck --severity=warning install.sh` ; `test/test-e2e.sh --no-gui` étendu d'un cas ; `./install.sh --dry-run --add-openai …`.
   - Files : `install.sh`, `test/test-e2e.sh`.

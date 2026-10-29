@@ -188,6 +188,16 @@ check "-y sans --ollama-model : aucun pull"  bash -c "[ \$(wc -l < '$T/ollama.lo
 check "modèle invalide refusé"               bash -c "! '$SRC/install.sh' --prefix '$T/qs' --no-hypr -y --ollama-model 'a;rm -rf /' >/dev/null 2>&1"
 check "agent nommé claude refusé"            bash -c "! '$SRC/install.sh' --prefix '$T/qs' --no-hypr -y --add-agent 'claude=ls' >/dev/null 2>&1"
 check "dry-run : ni pull ni écriture"        bash -c "before=\$(cat '$DATA/config.json'); PATH='$T/bin':\$PATH '$SRC/install.sh' --prefix '$T/qs' --no-hypr -y --dry-run --ollama-model zzz >/dev/null 2>&1; [ \"\$before\" = \"\$(cat '$DATA/config.json')\" ] && ! grep -q zzz '$T/ollama.log'"
+PATH="$T/bin:$PATH" "${AG[@]}" --add-openai "deep=https://api.deepseek.com/v1,fast=deepseek-chat,power=deepseek-reasoner,key_file=~/.config/iris/deepseek.key" --add-openai "loc=http://localhost:1234/v1,fast=qwen" >/dev/null 2>&1
+check "--add-openai : agent openai déclaré"       agent_cfg "assert a['deep']=={'type':'openai','base_url':'https://api.deepseek.com/v1','models':{'fast':'deepseek-chat','power':'deepseek-reasoner'},'key_file':'~/.config/iris/deepseek.key'}"
+check "--add-openai : un seul modèle sert aux deux" agent_cfg "assert a['loc']['models']=={'fast':'qwen','power':'qwen'} and 'key_file' not in a['loc']"
+PATH="$T/bin:$PATH" "${AG[@]}" --add-openai "deep=https://autre.example.com/v1,fast=x" >/dev/null 2>&1
+check "--add-openai : agent existant conservé"      agent_cfg "assert a['deep']['base_url']=='https://api.deepseek.com/v1'"
+check "--add-openai : http hors local refusé"       bash -c "! '$SRC/install.sh' --prefix '$T/qs' --no-hypr -y --add-openai 'x=http://example.com/v1,fast=m' >/dev/null 2>&1"
+check "--add-openai : nom claude refusé"            bash -c "! '$SRC/install.sh' --prefix '$T/qs' --no-hypr -y --add-openai 'claude=https://a.b/v1,fast=m' >/dev/null 2>&1"
+check "--add-openai : option inconnue refusée"      bash -c "! '$SRC/install.sh' --prefix '$T/qs' --no-hypr -y --add-openai 'x=https://a.b/v1,fast=m,cmd=ls' >/dev/null 2>&1"
+check "--add-openai : sans modèle refusé"           bash -c "! '$SRC/install.sh' --prefix '$T/qs' --no-hypr -y --add-openai 'x=https://a.b/v1' >/dev/null 2>&1"
+check "--add-openai : dry-run n'écrit rien"         bash -c "before=\$(cat '$DATA/config.json'); '$SRC/install.sh' --prefix '$T/qs' --no-hypr -y --dry-run --add-openai 'zz=https://a.b/v1,fast=m' >/dev/null 2>&1; [ \"\$before\" = \"\$(cat '$DATA/config.json')\" ]"
 
 step "Mise à jour (iris-update)"
 mkdir -p "$T/upd/src" && ( cd "$SRC" && tar --exclude=.git -cf - . ) | tar -xf - -C "$T/upd/src"

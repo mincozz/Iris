@@ -5,11 +5,14 @@
 #                [--fast-model ID] [--power-model ID] [--ask-key "SUPER + I"] [--ask-edit-key "SUPER + SHIFT + I"]
 #                [--language fr|en|auto]
 #                [--ollama-model ID]... [--add-agent "nom=commande {prompt}"]... [--no-pull]
+#                [--add-openai "nom=base_url,fast=ID[,power=ID][,key_file=CHEMIN]"]...
 # Sans option de config et dans un terminal, l'installateur pose quelques
 # questions ; avec -y ou sans terminal, il garde les défauts.
 # --ollama-model : déclare l'agent « ollama » (1er modèle = rapide, 2e = puissant)
 #   et télécharge ce qui manque (ollama pull ; -y ne télécharge que si l'option
 #   est donnée). --add-agent : déclare une autre CLI (jamais exécutée ici).
+# --add-openai : déclare un serveur compatible OpenAI (Ollama, LM Studio, DeepSeek…) ;
+#   la clé reste dans key_file (chmod 600), jamais dans config.json.
 # Idempotent : on peut le relancer sans risque. Chaque fichier existant
 # modifié est sauvegardé en <fichier>.iris-bak (une seule fois).
 set -euo pipefail
@@ -20,7 +23,7 @@ HYPR="${XDG_CONFIG_HOME:-$HOME/.config}/hypr"
 DATA="$HOME/.local/share/qs-assistant"
 DRY=0; HYPR_ON=1; UNINSTALL=0; YES=0
 ASK_KEY="SUPER + I"; ASK_EDIT_KEY="SUPER + SHIFT + I"; CFG_LANG=""; CFG_NAME=""; CFG_DENY=""; CFG_FAST=""; CFG_POWER=""; RECONF=0; CFG_SET=0
-OLLAMA_MODELS=(); ADD_AGENTS=(); NO_PULL=0
+OLLAMA_MODELS=(); ADD_AGENTS=(); ADD_OPENAI=(); NO_PULL=0
 BEGIN="// >>> iris (install.sh) >>>"; END="// <<< iris (install.sh) <<<"
 
 while [ $# -gt 0 ]; do
@@ -37,6 +40,7 @@ while [ $# -gt 0 ]; do
     --power-model) CFG_POWER="$2"; CFG_SET=1; shift ;;
     --ollama-model) OLLAMA_MODELS+=("$2"); shift ;;
     --add-agent)   ADD_AGENTS+=("$2"); shift ;;
+    --add-openai)  ADD_OPENAI+=("$2"); shift ;;
     --no-pull)     NO_PULL=1 ;;
     --reconfigure) RECONF=1 ;;
     --ask-key)     ASK_KEY="$2"; shift ;;
@@ -195,7 +199,7 @@ fi
 # ── Agents et modèles (--ollama-model, --add-agent) ──────────────────────
 # Fonctionne aussi sur un config.json existant : seules les clés `agents` sont
 # fusionnées (sauvegarde .iris-bak) ; un agent déjà déclaré est conservé.
-if [ ${#OLLAMA_MODELS[@]} -gt 0 ] || [ ${#ADD_AGENTS[@]} -gt 0 ]; then
+if [ ${#OLLAMA_MODELS[@]} -gt 0 ] || [ ${#ADD_AGENTS[@]} -gt 0 ] || [ ${#ADD_OPENAI[@]} -gt 0 ]; then
   step "Agents et modèles"
   for m in "${OLLAMA_MODELS[@]}"; do
     [[ "$m" =~ ^[A-Za-z0-9._:/-]+$ ]] || { echo "modèle invalide : $m" >&2; exit 2; }
@@ -212,12 +216,12 @@ if [ ${#OLLAMA_MODELS[@]} -gt 0 ] || [ ${#ADD_AGENTS[@]} -gt 0 ]; then
     fi
   fi
   if [ "$DRY" = 1 ]; then
-    echo "  [dry-run] agents ajoutés à $DATA/config.json : ${OLLAMA_MODELS[*]:+ollama (${OLLAMA_MODELS[*]}) }${ADD_AGENTS[*]:-}"
+    echo "  [dry-run] agents ajoutés à $DATA/config.json : ${OLLAMA_MODELS[*]:+ollama (${OLLAMA_MODELS[*]}) }${ADD_AGENTS[*]:-} ${ADD_OPENAI[*]:-}"
   elif [ -e "$DATA/config.json" ]; then
     backup "$DATA/config.json"
-    python3 -I - "$DATA/config.json" "$RECONF" "$(IFS=,; echo "${OLLAMA_MODELS[*]:-}")" "${ADD_AGENTS[@]}" <<'PY'
-import json, re, shlex, shutil, sys
-path, reconf, models, *specs = sys.argv[1:]
+    python3 -I - "$DATA/config.json" "$RECONF" "$SRC/scripts" "$(IFS=,; echo "${OLLAMA_MODELS[*]:-}")" "${ADD_AGENTS[@]}" "${ADD_OPENAI[@]/#/openai:}" <<'PY'
+import contextlib, io, json, os, re, shlex, shutil, sys
+path, reconf, scripts, models, *specs = sys.argv[1:]
 cfg = json.load(open(path))
 agents = cfg.setdefault("agents", {})
 
@@ -232,7 +236,33 @@ ms = [m for m in models.split(",") if m]
 if ms:
     put("ollama", {"command": ["ollama", "run", "{model}"],
                    "models": {"fast": ms[0], "power": ms[1] if len(ms) > 1 else ms[0]}, "history": 8})
+def openai_spec(s):
+    """nom=base_url,fast=ID[,power=ID][,key_file=CHEMIN] -> (name, spec). Validated by the daemon's own rules."""
+    head, *opts = s.split(",")
+    name, _, url = head.partition("=")
+    opt = dict(o.partition("=")[::2] for o in opts)
+    models = {k: opt[k] for k in ("fast", "power") if opt.get(k)}
+    if set(opt) - {"fast", "power", "key_file"} or not models:
+        sys.exit(f"--add-openai : « {s} » invalide (options : fast, power, key_file ; un modèle au moins)")
+    spec = {"type": "openai", "base_url": url.strip(),
+            "models": {"fast": models.get("fast") or models["power"], "power": models.get("power") or models["fast"]}}
+    if opt.get("key_file"):
+        spec["key_file"] = opt["key_file"]
+    sys.path.insert(0, scripts)
+    with contextlib.redirect_stderr(io.StringIO()):       # the daemon prints config notes at import
+        import assistant
+    name = name.strip()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,32}", name) or name == "claude" or not assistant.valid_agent(spec):
+        sys.exit(f"--add-openai : « {s} » invalide (nom ≠ claude ; https://, ou http:// vers localhost seulement)")
+    if "key_file" in spec and not os.path.exists(os.path.expanduser(spec["key_file"])):
+        print(f"  ! {spec['key_file']} n'existe pas encore : crée-le (chmod 600) avant de choisir « {name} »")
+    return name, spec
+
+
 for s in specs:
+    if s.startswith("openai:"):
+        put(*openai_spec(s[7:]))
+        continue
     name, _, cmd = s.partition("=")
     name = name.strip()
     argv = shlex.split(cmd)          # a list, never handed to a shell
