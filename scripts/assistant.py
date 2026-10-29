@@ -49,6 +49,8 @@ import time
 import unicodedata
 import urllib.parse
 import uuid
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import re
 import signal
 import socket
@@ -669,6 +671,44 @@ def clipboard_png():
     return r.stdout if r.returncode == 0 and r.stdout.startswith(b"\x89PNG\r\n\x1a\n") else None
 
 
+# ── Quota gauges ─────────────────────────────────────────────────────────
+# Claude Code only reports its limits with a reply, so after a restart the gauges stayed
+# empty until the next message. `claude -p /usage` prints them without calling the model.
+USAGE_SESSION_RE = re.compile(r"Current session:\s*(\d+)% used(?: · resets (\w{3}) (\d{1,2}), (\d{1,2})(?::(\d{2}))?(am|pm) \(([^)]+)\))?")
+USAGE_WEEK_RE = re.compile(r"Current week \(all models\):\s*(\d+)% used")
+
+
+def parse_usage(text, now=None):
+    """(five_hour 0..1, week 0..1, session reset as epoch seconds or 0), or None if unrecognised."""
+    s, w = USAGE_SESSION_RE.search(text), USAGE_WEEK_RE.search(text)
+    if not (s and w):
+        return None
+    resets = 0
+    if s.group(2):
+        try:
+            zone = ZoneInfo(s.group(7))
+            now = (now or datetime.now(zone)).astimezone(zone)
+            at = datetime.strptime(f"{s.group(2)} {s.group(3)} {now.year} {s.group(4)}:{s.group(5) or '00'} {s.group(6)}",
+                                   "%b %d %Y %I:%M %p").replace(tzinfo=zone)
+            if (now - at).days >= 1:         # "Jan 2" read in late December: next year
+                at = at.replace(year=at.year + 1)
+            resets = at.timestamp()
+        except (ValueError, KeyError, OSError):
+            pass                              # unknown zone or odd date: the reset time stays unknown
+    return int(s.group(1)) / 100, int(w.group(1)) / 100, resets
+
+
+def fetch_usage():
+    """parse_usage of `claude -p /usage`; None if claude is missing, fails or says something else."""
+    env = {k: v for k, v in os.environ.items() if k not in BILLING_ENV}
+    try:
+        r = subprocess.run(["claude", "-p", "--no-session-persistence", "/usage"], capture_output=True,
+                           text=True, timeout=30, cwd=os.path.expanduser("~"), env=env)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return parse_usage(r.stdout) if r.returncode == 0 else None
+
+
 # ── Claude process ───────────────────────────────────────────────────────
 class Claude:
     """One streaming `claude -p` process bound to a conversation."""
@@ -1050,6 +1090,7 @@ class Daemon:
         self.queued = []          # alerts that arrived mid-reply
         self.updating = False     # the "Update" button is running iris-update
         self.pending = {}         # request_id → tool input (awaiting a click)
+        self.usage_at = 0         # last time the quota was read with `claude -p /usage`
         # Set if Claude Code ever reports paid "extra usage": Iris then
         # refuses to send anything until restarted.
         self.overage = False
@@ -1105,6 +1146,7 @@ class Daemon:
         c = cmd.get("cmd")
         with self.lock:
             if c == "warm":
+                self._refresh_usage()
                 if time.time() - self.conv.updated > SESSION_IDLE and self.conv.messages:
                     self._new()
                 if not (self.claude and self.claude.alive()):
@@ -1160,6 +1202,18 @@ class Daemon:
             elif c == "hello":
                 self._show_conversation()
                 emit("agents", v=agent_names(), current=AGENT, remote=agent_remote())
+
+    def _refresh_usage(self):
+        """Fill the quota gauges when the panel opens (at most once a minute, Claude only)."""
+        if AGENT != "claude" or time.time() - self.usage_at < 60:
+            return
+        self.usage_at = time.time()
+
+        def work():
+            got = fetch_usage()
+            if got:
+                emit("usage", five=got[0], week=got[1], resets=got[2] or None)
+        threading.Thread(target=work, daemon=True).start()
 
     def _set_agent(self, name):
         """The panel's agent picker. Only names declared in config.json are accepted."""
