@@ -7,14 +7,15 @@ Référence : <https://github.com/Louis-CFM/coucou> (Swift/Tauri, Mac/iOS/Androi
 | `model-link` | Brancher n'importe quel modèle : point d'accès compatible OpenAI (Ollama, LM Studio, DeepSeek, Qwen, Gemini…) avec clé propre, choix du modèle depuis la pastille. Généralise `CommandAgent` et `--ollama-model`. | — |
 | `token-budget` | Réduire les tokens par requête : prompt système allégé, cache de prompt, compactage de l'historique, routage rapide/puissant, compteur affiché. | `model-link` |
 | `hook-bridge` | Socket Unix `$XDG_RUNTIME_DIR/iris.sock` + relais `scripts/iris-hook --agent NOM` (même format que `coucou_agent`) : Iris voit en direct les sessions de Claude Code, Codex, Gemini CLI… lancées dans un terminal. | — |
-| `pill-active` | Bandeau actif plus gros : quand un agent travaille, la pastille s'agrandit et montre une ligne par session (outil en cours, fichier édité `+N −M`, clic = diff). | `hook-bridge` |
-| `hook-approval` | Cartes **Autoriser / Refuser / Toujours** pour les `PermissionRequest` et les `AskUserQuestion` des agents externes, directement dans la pastille. | `hook-bridge`, `pill-active` |
+| `island-ui` | Redesign fidèle à Coucou : îlot noir collé en haut (repos / actif / ouvert), onglets Accueil / Chat / Fichiers, mascotte et étapes d'outils, bulles sobres. Du QML seulement, protocole du daemon inchangé. Spec : `SPEC-island.md`. | — |
+| `pill-active` | Bandeau actif plus gros : quand un agent travaille, l'îlot s'agrandit et montre une ligne par session (outil en cours, fichier édité `+N −M`, clic = diff). | `hook-bridge`, `island-ui` |
+| `hook-approval` | Cartes **Autoriser / Refuser / Toujours** pour les `PermissionRequest` et les `AskUserQuestion` des agents externes, directement dans la pastille. | `hook-bridge`, `island-ui` |
 | `mascot-stats` | Personnalité de la mascotte (réactions au poke, content en fin de tâche, endormi, étourdi) et statistiques d'usage calculées en local (requêtes, tokens, temps gagné). | — |
 | `flow-dictation` | Touche maintenue → micro → transcription locale (whisper.cpp ou faster-whisper) → texte collé là où on écrit. Dictionnaire de mots et nettoyage optionnel par le modèle. | `model-link` (nettoyage seulement) |
 | `notetaker` | Enregistrer micro + sortie audio du système, transcrire, puis résumé / points clés / to-dos par le modèle. Audio supprimé après transcription. | `flow-dictation` (moteur de transcription), `model-link` |
 
 Ordre de construction :
-`model-link` → `token-budget` ; `hook-bridge` → `pill-active` → `hook-approval` ; `mascot-stats` ; `flow-dictation` → `notetaker`.
+`model-link` → `token-budget` ; `island-ui` + `hook-bridge` → `pill-active` → `hook-approval` ; `mascot-stats` ; `flow-dictation` → `notetaker`.
 Les quatre branches sont indépendantes. Pas de cycle.
 
 ## Hors périmètre (volontairement)
