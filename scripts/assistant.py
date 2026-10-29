@@ -38,6 +38,7 @@ Daemon → overlay (stdout, one JSON per line):
   {"t": "history", "v": [{id, title, updated}]}
 """
 import codecs
+import ipaddress
 import json
 import os
 import subprocess
@@ -45,6 +46,7 @@ import sys
 import threading
 import time
 import unicodedata
+import urllib.parse
 import uuid
 import re
 import signal
@@ -107,11 +109,45 @@ DEFAULT_CONFIG = {
 # tools it has of its own run under its own rules.
 
 
+def is_local(url):
+    """True for localhost, loopback addresses and *.local names (any scheme)."""
+    host = urllib.parse.urlsplit(url).hostname or ""
+    if host == "localhost" or host.endswith(".local"):
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def endpoint_ok(url):
+    """https anywhere; plain http only towards this machine."""
+    u = urllib.parse.urlsplit(url)
+    return (u.scheme == "https" and bool(u.hostname)) or (u.scheme == "http" and is_local(url))
+
+
+def read_key(path):
+    """The API key stored in `path`; ValueError if missing, empty or readable by others."""
+    path = os.path.expanduser(path)
+    try:
+        mode = os.stat(path).st_mode
+        if mode & 0o077:
+            raise ValueError(pick(f"{path} doit être en 0600 (chmod 600).", f"{path} must be mode 0600 (chmod 600)."))
+        with open(path) as f:
+            key = f.read().strip()
+    except OSError as e:
+        raise ValueError(pick(f"Clé illisible : {path} ({e.strerror}).", f"Cannot read key: {path} ({e.strerror}).")) from None
+    if not key:
+        raise ValueError(pick(f"{path} est vide.", f"{path} is empty."))
+    return key
+
+
+def _num(v, lo, hi):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and lo <= v <= hi
+
+
 def valid_agent(spec):
     if not isinstance(spec, dict):
-        return False
-    cmd = spec.get("command")
-    if not (isinstance(cmd, list) and cmd and all(isinstance(x, str) and x for x in cmd)):
         return False
     models = spec.get("models", {})
     if not (isinstance(models, dict) and all(isinstance(v, str) for v in models.values())):
@@ -119,7 +155,16 @@ def valid_agent(spec):
     if not isinstance(spec.get("prompt_file", ""), str):
         return False
     hist = spec.get("history", 8)
-    return isinstance(hist, int) and not isinstance(hist, bool) and 0 <= hist <= 50
+    if not (isinstance(hist, int) and not isinstance(hist, bool) and 0 <= hist <= 50):
+        return False
+    if spec.get("type") == "openai":
+        url = spec.get("base_url")
+        return (isinstance(url, str) and endpoint_ok(url) and isinstance(spec.get("key_file", ""), str)
+                and _num(spec.get("timeout", 60), 1, 600) and isinstance(spec.get("send_memory", False), bool))
+    if "type" in spec:
+        return False
+    cmd = spec.get("command")
+    return isinstance(cmd, list) and bool(cmd) and all(isinstance(x, str) and x for x in cmd)
 
 
 def load_config():

@@ -4,12 +4,12 @@ Plan : `tasks/plan-model-link.md`. Spec : `specs/SPEC-model-link.md`.
 Test principal : `python3 -I test/test-model-link.py` (faux serveur HTTP local, `HOME` jetable, sans réseau ni compte).
 Commits sans co-auteur.
 
-- [ ] **T0 : Branche**
+- [x] **T0 : Branche**
   - Acceptance : `feat/model-link` créée depuis `main` ; carte, spec et plan (`specs/*coucou*`, `specs/SPEC-model-link.md`, `tasks/*model-link.md`) commités en premier.
   - Verify : `git log --oneline main..HEAD` ; aucune ligne `Co-Authored-By` (`git log --format=%B | grep -ci co-authored` → 0).
   - Files : specs, tasks.
 
-- [ ] **T1 : Déclarer un agent `openai` (config + règles pures)**
+- [x] **T1 : Déclarer un agent `openai` (config + règles pures)**
   - Acceptance : `valid_agent()` accepte `{"type":"openai","base_url",…,"models"}` et toujours `{"command":[…]}` ; refuse `base_url` absent, schéma ni http ni https, `http://` hors local, `timeout`/`history` hors bornes. `endpoint_ok()` et `read_key()` (refus si `mode & 0o077`, fichier absent, vide) en fonctions pures. Entrée invalide ignorée avec message stderr, repli sur `claude`.
   - Verify : `python3 -I test/test-model-link.py` (tests écrits d'abord, rouges puis verts) ; `python3 -I test/test-agent.py` et `test-agent-switch.py` inchangés et verts.
   - Files : `scripts/assistant.py`, `test/test-model-link.py`.
