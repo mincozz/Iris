@@ -238,6 +238,12 @@ SESSION_IDLE = CONFIG["session_idle_minutes"] * 60
 def agent_names():
     return ["claude", *CONFIG["agents"]]
 
+
+def agent_remote():
+    """True when the active agent is an API on another machine (CLI agents run their own rules)."""
+    spec = CONFIG["agents"].get(AGENT, {})
+    return spec.get("type") == "openai" and not is_local(spec["base_url"])
+
 # Messages that deserve the strong model in "auto" mode: code and real dev
 # work only (Sonnet costs several times Haiku's quota). Everything else,
 # including writing, planning and tidying files, stays on Haiku.
@@ -805,10 +811,14 @@ class CommandAgent:
                          f"\n\nThe user's name is {CONFIG['user_name']}.")
         try:
             with open(MEMORY_FILE) as f:
-                text += pick("\n\n# Ta mémoire\n\n", "\n\n# Your memory\n\n") + f.read()
+                if self._memory_ok():
+                    text += pick("\n\n# Ta mémoire\n\n", "\n\n# Your memory\n\n") + f.read()
         except OSError:
             pass
         return text
+
+    def _memory_ok(self):
+        return True
 
     def _prompt(self, text):
         n = self.spec.get("history", 8)
@@ -913,6 +923,10 @@ class OpenAIAgent(CommandAgent):
     def user(self, text):
         self.stopped = False
         threading.Thread(target=self._chat, args=(text,), daemon=True).start()
+
+    def _memory_ok(self):
+        """A remote server only gets memory.md when `send_memory` says so."""
+        return self.spec.get("send_memory", is_local(self.spec["base_url"]))
 
     def _messages(self, text):
         n = self.spec.get("history", 8)
@@ -1135,7 +1149,7 @@ class Daemon:
                 self._set_agent(cmd.get("name"))
             elif c == "hello":
                 self._show_conversation()
-                emit("agents", v=agent_names(), current=AGENT)
+                emit("agents", v=agent_names(), current=AGENT, remote=agent_remote())
 
     def _set_agent(self, name):
         """The panel's agent picker. Only names declared in config.json are accepted."""
@@ -1149,7 +1163,7 @@ class Daemon:
             os.replace(tmp, AGENT_FILE)
             self._drop_claude()          # the next message starts the new agent
             emit("model", v="")          # clear the badge of the previous agent's last reply
-        emit("agents", v=agent_names(), current=AGENT, switched=switched)
+        emit("agents", v=agent_names(), current=AGENT, remote=agent_remote(), switched=switched)
 
     def _paste_image(self):
         """Ctrl+V in the panel: keep the clipboard image, if there is one, for the next message."""
@@ -1509,6 +1523,7 @@ def ui_strings():
         "group_yesterday": pick("Hier", "Yesterday"),
         "group_older": pick("Plus ancien", "Earlier"),
         "agent_switched": pick("Agent : ", "Agent: "),
+        "agent_remote": pick("distant", "remote"),
         "image_attached": pick("Image jointe", "Attached image"),
         "image_default": pick("Regarde cette image :", "Have a look at this image:"),
         "image_line": pick("[Image jointe : {path}]", "[Attached image: {path}]"),

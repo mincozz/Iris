@@ -32,7 +32,7 @@ Commits sans co-auteur.
 - [x] Essai réel avec Ollama si disponible (`claude` ↔ `ollama`, réponse streamée, stop).
 - [ ] Revue avec toi avant l'interface et les outils.
 
-- [ ] **T4 : Mémoire, pastille « distant » (interface)**
+- [x] **T4 : Mémoire, pastille « distant » (interface)**
   - Acceptance : `send_memory` suit la règle (vrai en local, faux sinon, réglage explicite prioritaire) ; la requête n'embarque pas `memory.md` quand c'est faux ; `agents` émet `remote` ; l'en-tête affiche une pastille « distant » avec info-bulle quand l'agent actif n'est pas local ; chaînes dans `ui_strings()`.
   - Verify : test du corps de requête avec et sans mémoire ; `qmllint overlays/*.qml` ; `test/test-e2e.sh --no-gui` ; vérification visuelle (Quickshell rechargé).
   - Files : `scripts/assistant.py`, `overlays/AssistantOverlay.qml`, `test/test-model-link.py`.

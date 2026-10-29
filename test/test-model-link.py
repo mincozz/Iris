@@ -235,6 +235,31 @@ check(error_of(d) and "127.0.0.1" in error_of(d), f"connexion refusée : {error_
 d, *_ = ask("chunks", spec={"key_file": os.path.join(HOME, "absente")})
 check(error_of(d) and "absente" in error_of(d), f"clé illisible : {error_of(d)}")
 
+# ── T4 : mémoire jamais envoyée à un hôte distant par défaut ─────────────
+os.makedirs(os.path.dirname(A.MEMORY_FILE), exist_ok=True)
+with open(A.MEMORY_FILE, "w") as f:
+    f.write("SECRET-MEMORY-LINE")
+
+
+def system_of(mode="chunks", **spec):
+    ask(mode, spec=spec)
+    return Fake.log[0]["body"]["messages"][0]["content"]
+
+
+check("SECRET-MEMORY-LINE" in system_of(), "hôte local : mémoire envoyée par défaut")
+check("SECRET-MEMORY-LINE" not in system_of(send_memory=False), "hôte local, send_memory faux : pas de mémoire")
+remote = {"type": "openai", "base_url": "https://api.example.com/v1"}
+for flag, want in [({}, False), ({"send_memory": True}, True), ({"send_memory": False}, False)]:
+    A.CONFIG["agents"]["r"] = {**remote, **flag}
+    A.AGENT = "r"
+    a = A.new_agent(FakeDaemon(), A.Conversation({"messages": [{"role": "user", "text": "x"}]}), "m")
+    check(("SECRET-MEMORY-LINE" in a._system()) is want, f"hôte distant {flag or 'par défaut'} : mémoire {want}")
+
+A.CONFIG["agents"]["cli"] = {"command": ["echo"]}
+for name, want in [("claude", False), ("x", False), ("r", True), ("cli", False)]:
+    A.AGENT = name
+    check(A.agent_remote() is want, f"agent_remote({name}) = {want}")
+
 if fails:
     print(f"\n{len(fails)} échec(s)")
     sys.exit(1)

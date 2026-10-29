@@ -59,6 +59,7 @@ PanelWindow {
     property bool   showHistory: false
     property var    agentList:  ["claude"]   // agents the daemon accepts (claude + config.json's "agents")
     property string agent:      "claude"
+    property bool   agentRemote: false   // the active agent is an API on another machine
     property bool   agentMenu:  false
     property string searchQuery: ""      // text typed in the history search field
     // Subscription usage (0..1) reported by Claude Code; -1 = unknown yet.
@@ -376,7 +377,7 @@ PanelWindow {
             if (list.stick) Qt.callLater(() => list.positionViewAtEnd())
             break
         case "agents":
-            agentList = d.v; agent = d.current; agentMenu = false
+            agentList = d.v; agent = d.current; agentRemote = d.remote === true; agentMenu = false
             if (d.switched) _push("nudge", tr("agent_switched", "Agent : ") + d.current)
             break
         case "image":
@@ -579,7 +580,7 @@ PanelWindow {
                 Rectangle {
                     visible: overlay.agentList.length > 1
                     height: 34; radius: 17
-                    width: Math.min(124, agentRow.implicitWidth + 24)
+                    width: Math.min(overlay.agentRemote ? 176 : 124, agentRow.implicitWidth + 24)
                     opacity: overlay.busy ? 0.5 : 1
                     color: overlay.agentMenu ? overlay.alpha(overlay.theme.primary, 0.18)
                          : agentHover.hovered ? overlay.cardHover : overlay.cardFill
@@ -601,6 +602,13 @@ PanelWindow {
                             text: overlay.agent
                             color: overlay.agentMenu ? overlay.theme.primary : overlay.theme.txt2
                             font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+                        }
+                        Text {               // data leaves this machine
+                            visible: overlay.agentRemote
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: overlay.tr("agent_remote", "distant")
+                            color: overlay.theme.warn
+                            font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 4
                         }
                     }
                     HoverHandler { id: agentHover; cursorShape: Qt.PointingHandCursor }
