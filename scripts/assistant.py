@@ -38,6 +38,7 @@ Daemon → overlay (stdout, one JSON per line):
   {"t": "history", "v": [{id, title, updated}]}
 """
 import codecs
+import http.client
 import ipaddress
 import json
 import os
@@ -50,6 +51,7 @@ import urllib.parse
 import uuid
 import re
 import signal
+import socket
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from i18n import LANG, pick   # noqa: E402
@@ -894,8 +896,100 @@ class CommandAgent:
         self.interrupt()
 
 
+class OpenAIAgent(CommandAgent):
+    """Any OpenAI-compatible server (Ollama, LM Studio, DeepSeek…): streamed chat.
+
+    Plain stdlib HTTP, no tools and no permission cards, like CommandAgent
+    (whose prompt, history and model-role handling it reuses). No redirect is
+    followed, so the API key never leaves the declared host.
+    """
+
+    MAX_BYTES = 4_000_000        # a runaway stream is cut here
+
+    def __init__(self, daemon, conv, model, connectors=False):
+        super().__init__(daemon, conv, model, connectors)
+        self.conn = self.sock = None
+
+    def user(self, text):
+        self.stopped = False
+        threading.Thread(target=self._chat, args=(text,), daemon=True).start()
+
+    def _messages(self, text):
+        n = self.spec.get("history", 8)
+        past = self.conv.messages[:-1][-n:] if n else []
+        return [{"role": "system", "content": self._system()},
+                *({"role": "user" if m["role"] == "user" else "assistant", "content": m["text"]} for m in past),
+                {"role": "user", "content": text}]
+
+    def _chat(self, text):
+        try:
+            self._stream(text)
+        except ValueError as e:                   # bad key file, unreadable reply
+            self._result(str(e))
+        except (OSError, http.client.HTTPException) as e:
+            self._result(None if self.stopped else self._net_error(e))
+        finally:
+            if self.conn:
+                self.conn.close()
+
+    def _stream(self, text):
+        spec = self.spec
+        u = urllib.parse.urlsplit(spec["base_url"])
+        headers = {"Content-Type": "application/json"}
+        if spec.get("key_file"):
+            headers["Authorization"] = "Bearer " + read_key(spec["key_file"])
+        cls = http.client.HTTPSConnection if u.scheme == "https" else http.client.HTTPConnection
+        self.conn = cls(u.hostname, u.port, timeout=spec.get("timeout", 60))
+        body = json.dumps({"model": self._role_model(), "stream": True, "messages": self._messages(text)})
+        self.conn.request("POST", u.path.rstrip("/") + "/chat/completions", body, headers)
+        self.sock = self.conn.sock               # getresponse() hands it over and sets conn.sock to None
+        resp = self.conn.getresponse()
+        if resp.status != 200:
+            self._result(self._http_error(resp.status))
+            return
+        got = 0
+        while not self.stopped and got < self.MAX_BYTES:
+            line = resp.readline(65536)
+            got += len(line)
+            if not line:
+                break
+            line = line.decode("utf-8", "replace").strip()
+            if not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if data == "[DONE]":
+                break
+            try:
+                piece = json.loads(data)["choices"][0]["delta"].get("content")
+            except (ValueError, KeyError, IndexError, TypeError, AttributeError):
+                continue
+            if piece:
+                self.daemon.on_event(self, {"type": "stream_event", "event": {
+                    "type": "content_block_delta", "delta": {"type": "text_delta", "text": piece}}})
+        self._result(None)
+
+    def _http_error(self, status):
+        return pick(f"Le serveur a répondu {status}.", f"The server answered {status}.")
+
+    def _net_error(self, e):
+        return pick(f"Connexion impossible : {e}", f"Connection failed: {e}")
+
+    def interrupt(self):
+        self.stopped = True
+        if self.sock:
+            try:
+                self.sock.shutdown(socket.SHUT_RDWR)   # close() alone leaves readline() blocked
+            except OSError:
+                pass
+
+
 def new_agent(daemon, conv, model, connectors=False):
-    cls = CommandAgent if AGENT != "claude" else Claude
+    if AGENT == "claude":
+        cls = Claude
+    elif CONFIG["agents"][AGENT].get("type") == "openai":
+        cls = OpenAIAgent
+    else:
+        cls = CommandAgent
     return cls(daemon, conv, model, connectors)
 
 

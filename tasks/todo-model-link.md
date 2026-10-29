@@ -15,7 +15,7 @@ Commits sans co-auteur.
   - Files : `scripts/assistant.py`, `test/test-model-link.py`.
   - Scope : S.
 
-- [ ] **T2 : Réponse en streaming + stop (tranche verticale minimale)**
+- [x] **T2 : Réponse en streaming + stop (tranche verticale minimale)**
   - Acceptance : `OpenAIAgent` envoie `POST {base_url}/chat/completions` (`stream: true`, `messages` = système + historique + message), émet un `text_delta` par fragment et un `result` final ; `new_agent` aiguille selon la forme de l'entrée ; `{model}` vient de `models.fast|power` ; clé envoyée en `Authorization: Bearer` ; `stop` coupe la connexion même si le serveur se tait ; fin de flux par `[DONE]` ou fermeture propre ; fragments d'un octet et `reasoning_content` gérés ; redirection refusée.
   - Verify : tests avec faux serveur : réponse multi-fragments, flux découpé octet par octet, serveur muet + stop (< 2 s), redirection refusée, en-tête d'autorisation présent.
   - Files : `scripts/assistant.py`, `test/test-model-link.py`.

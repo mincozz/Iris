@@ -6,10 +6,13 @@
 Règles pures (config, URL, fichier de clé) puis, avec un faux serveur HTTP
 local, le streaming, l'arrêt, les erreurs et la mémoire envoyée.
 """
+import json
 import os
-import stat
 import sys
 import tempfile
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HOME = tempfile.mkdtemp(prefix="iris-ml-")
@@ -74,6 +77,137 @@ for label, path in [("0644", keyfile("sk", 0o644)), ("0660", keyfile("sk", 0o660
         check(False, "clé refusée : " + label)
     except ValueError as e:
         check("sk" not in str(e) or label == "absente", "clé refusée : " + label)
+
+# ── T2 : streaming, arrêt, redirection (faux serveur local) ──────────────
+def sse(*deltas, done=True):
+    out = b"".join(b"data: " + json.dumps(d).encode() + b"\n\n" for d in deltas)
+    return out + (b"data: [DONE]\n\n" if done else b"")
+
+
+def delta(text=None, **extra):
+    d = {"choices": [{"delta": ({"content": text} if text is not None else {}) | extra}]}
+    return d
+
+
+class Fake(BaseHTTPRequestHandler):
+    mode = "chunks"
+    log = []
+
+    def log_message(self, *a):
+        pass
+
+    def do_POST(self):
+        body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        Fake.log.append({"path": self.path, "auth": self.headers.get("Authorization"),
+                         "body": json.loads(body)})
+        m = Fake.mode
+        if m == "redirect":
+            self.send_response(302)
+            self.send_header("Location", "http://evil.invalid/steal")
+            self.end_headers()
+            return
+        if m in ("401", "404", "429", "500"):
+            self.send_response(int(m))
+            self.end_headers()
+            self.wfile.write(b'{"error":{"message":"secret-detail sk-test-key"}}')
+            return
+        if m == "garbage":
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"<html>not sse</html>\n")
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.end_headers()
+        data = sse(delta("Hel"), delta(reasoning_content="think"), delta("lo "), delta(),
+                   {"choices": [], "usage": {"total_tokens": 9}}, delta("wor\u00e9ld"),
+                   done=m != "no-done")
+        if m == "bytes":
+            for b in data:
+                self.wfile.write(bytes([b]))
+                self.wfile.flush()
+        elif m == "silent":
+            self.wfile.write(sse(delta("Hi"), done=False))
+            self.wfile.flush()
+            time.sleep(8)
+        elif m == "hang":
+            time.sleep(8)
+        else:
+            self.wfile.write(data)
+
+
+srv = ThreadingHTTPServer(("127.0.0.1", 0), Fake)
+threading.Thread(target=srv.serve_forever, daemon=True).start()
+BASE = f"http://127.0.0.1:{srv.server_address[1]}/v1"
+
+
+class FakeDaemon:
+    def __init__(self):
+        self.events = []
+        self.done = threading.Event()
+
+    def on_event(self, agent, d):
+        self.events.append(d)
+        if d.get("type") == "result":
+            self.done.set()
+
+    def text(self):
+        return "".join(e["event"]["delta"]["text"] for e in self.events if e["type"] == "stream_event")
+
+    def result(self):
+        return next((e for e in self.events if e["type"] == "result"), None)
+
+
+def ask(mode, msg="Salut", spec=None, history=(), wait=10, stop_after=None, model=None):
+    Fake.mode = mode
+    Fake.log.clear()
+    spec = {"type": "openai", "base_url": BASE, "models": {"fast": "m-fast", "power": "m-power"},
+            "timeout": 5, **(spec or {})}
+    A.CONFIG["agents"]["x"] = spec
+    A.AGENT = "x"
+    conv = A.Conversation({"messages": [*history, {"role": "user", "text": msg}]})
+    d = FakeDaemon()
+    agent = A.new_agent(d, conv, model or A.MODELS["fast"])
+    t0 = time.time()
+    agent.user(msg)
+    if stop_after:
+        time.sleep(stop_after)
+        agent.interrupt()
+    d.done.wait(wait)
+    return d, agent, time.time() - t0
+
+
+d, agent, _ = ask("chunks", history=[{"role": "user", "text": "avant"}, {"role": "assistant", "text": "ok"}])
+req = Fake.log[0]
+check(type(agent).__name__ == "OpenAIAgent", "new_agent aiguille vers OpenAIAgent")
+check(d.text() == "Hello woré" "ld", "fragments assemblés, reasoning_content et usage ignorés")
+check(d.result() and not d.result()["is_error"], "résultat final sans erreur")
+check(len([e for e in d.events if e["type"] == "stream_event"]) == 3, "un text_delta par fragment")
+check(req["path"] == "/v1/chat/completions" and req["body"]["stream"] is True, "POST /chat/completions en stream")
+check(req["body"]["model"] == "m-fast", "modèle fast")
+msgs = req["body"]["messages"]
+check([m["role"] for m in msgs] == ["system", "user", "assistant", "user"] and msgs[-1]["content"] == "Salut",
+      "système + historique + message")
+check(req["auth"] is None, "pas de clé déclarée : pas d'en-tête Authorization")
+
+d, *_ = ask("chunks", model=A.MODELS["power"])
+check(Fake.log[0]["body"]["model"] == "m-power", "modèle power")
+
+key = keyfile("sk-test-key\n", 0o600)
+d, *_ = ask("chunks", spec={"key_file": key})
+check(Fake.log[0]["auth"] == "Bearer sk-test-key", "clé envoyée en Bearer")
+
+d, *_ = ask("bytes")
+check(d.text() == "Hello woré" "ld", "flux découpé octet par octet (UTF-8 coupé)")
+d, *_ = ask("no-done")
+check(d.text().endswith("ld") and not d.result()["is_error"], "fin de flux sans [DONE]")
+
+d, _, dt = ask("silent", stop_after=1)
+check(d.text() == "Hi" and d.result() and not d.result()["is_error"] and dt < 3,
+      f"stop coupe un serveur muet ({dt:.1f}s)")
+
+d, *_ = ask("redirect")
+check(d.result() and d.result()["is_error"] and "evil" not in str(d.result()), "redirection refusée")
 
 if fails:
     print(f"\n{len(fails)} échec(s)")
