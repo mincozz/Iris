@@ -5,7 +5,7 @@ Spec : `specs/SPEC-island.md` (validée, valeurs par défaut). Tâches dans `tas
 ## Décisions
 - **QML seulement.** Daemon, IPC et contrat hôte ne changent pas. Les textes passent par `overlay.tr(clé, défaut)` ; les clés vont dans `ui_strings()`, c'est la seule ligne Python touchée.
 - **Une tranche visible par tâche**, du repos vers l'ouvert : repos → actif → carte ouverte → onglets → chat → accueil → fichiers → finitions. Chaque tâche laisse Iris utilisable et installable.
-- **Découpage modéré.** `AssistantOverlay.qml` (1 630 lignes) garde l'état, le daemon et la liste de messages ; on en sort seulement ce qui est neuf : `AssistantTabs.qml`, `AssistantHome.qml`, `AssistantFiles.qml`. La liste de messages est restylée sur place (la sortir risquerait les cartes Autoriser / Refuser).
+- **Découpage modéré.** `AssistantOverlay.qml` (1 630 lignes) garde l'état, le daemon et la liste de messages ; on en sort seulement ce qui est neuf : `AssistantTabs.qml`, `AssistantHome.qml` (pas d'onglet Fichiers : décision du 2026-10-29). La liste de messages est restylée sur place (la sortir risquerait les cartes Autoriser / Refuser).
 - **Géométrie.** Fenêtre toujours plein écran en couche `overlay`, `exclusiveZone: 0`, masque d'entrée limité à l'îlot (fermé) ou à tout l'écran (ouvert). L'îlot est à `y: 0` : il recouvre le milieu de ta barre (40 px, milieu libre) sans toucher ses modules gauche et droite.
 - **Un progrès `p` (0→1) ouvre la carte ; un progrès `act` (0→1) fait grossir l'îlot actif.** Largeur du repos mesurée avec `TextMetrics`, bornée à 200–420 px.
 - **Étapes d'outils de l'Accueil** : tableau `steps` rempli depuis les événements déjà reçus (`toolStatus`, résultats), sans nouvelle commande.
@@ -17,7 +17,7 @@ Spec : `specs/SPEC-island.md` (validée, valeurs par défaut). Tâches dans `tas
 ```
 T1 repos ── T2 actif ──┐
                        ├── T3 carte ouverte ── T4 onglets ── T5 chat ──┬── T6 accueil
-                       │                                              └── T7 fichiers
+                       │                                              └── T7 dépôt de fichiers dans le Chat
                                                                            └── T8 finitions ── T9 docs + installateur
 ```
 T6 et T7 sont indépendantes (fichiers différents) ; on les fait dans l'ordre pour éviter les conflits sur l'overlay.
@@ -28,7 +28,7 @@ T6 et T7 sont indépendantes (fichiers différents) ; on les fait dans l'ordre p
 | Une erreur QML casse **toute ta barre** au rechargement | Haut | `qmllint` avant chaque installation ; j'installe à chaque point d'arrêt, pas à chaque sauvegarde ; retour arrière : `git switch main && ./install.sh -y` (les `.iris-bak` restent) |
 | Masque d'entrée mal calé : l'îlot vole des clics à la barre, ou la carte ouverte laisse des trous | Haut | Masque lié aux rectangles réels ; test à la main : clic sur un module de la barre à gauche et à droite de l'îlot |
 | Animation d'ouverture qui saccade ou qui laisse l'îlot et la carte désynchronisés | Moyen | Un seul `p` pilote largeur, hauteur, rayon et opacité (comme `SPEC-buddy`) ; test visuel à 3 instants |
-| Focus clavier : `Ctrl+1/2/3` ou `Échap` capturés par le champ de saisie | Moyen | `Shortcut` au niveau de la fenêtre ; test Maj+Entrée / Entrée / Échap |
+| Focus clavier : `Ctrl+1/2` ou `Échap` capturés par le champ de saisie | Moyen | `Shortcut` au niveau de la fenêtre ; test Maj+Entrée / Entrée / Échap |
 | Restyle des bulles qui casse les cartes Autoriser / Refuser | Haut | Ne toucher qu'au conteneur extérieur ; test à la main avec une demande qui déclenche une carte, puis Refuser |
 | `steps` de l'Accueil incohérent (événements qui arrivent dans le désordre) | Faible | Remis à zéro à chaque nouveau message ; au plus 6 lignes affichées |
 | Vérification visuelle intrusive | Moyen | Captures **recadrées** sur l'îlot seulement (`grim -g`), supprimées après lecture |

@@ -62,7 +62,7 @@ PanelWindow {
     property string agent:      "claude"
     property bool   agentRemote: false   // the active agent is an API on another machine
     property bool   agentMenu:  false
-    property int    tab:        1       // 0 Accueil, 1 Chat, 2 Fichiers
+    property int    tab:        1       // 0 Accueil, 1 Chat
     readonly property int headerH: 52   // the tab row
     onTabChanged: if (tab === 1 && _open) Qt.callLater(() => input.forceActiveFocus())
     property string searchQuery: ""      // text typed in the history search field
@@ -464,7 +464,6 @@ PanelWindow {
                onActivated: overlay.showHistory ? overlay.showHistory = false : overlay.close() }
     Shortcut { sequence: "Ctrl+1"; enabled: overlay._open; onActivated: overlay.tab = 0 }
     Shortcut { sequence: "Ctrl+2"; enabled: overlay._open; onActivated: overlay.tab = 1 }
-    Shortcut { sequence: "Ctrl+3"; enabled: overlay._open; onActivated: overlay.tab = 2 }
     Shortcut { sequence: "Ctrl+N"; enabled: overlay._open; onActivated: overlay.newChat() }
     Shortcut { sequence: "Ctrl+H"; enabled: overlay._open; onActivated: overlay.toggleHistory() }
 
@@ -617,8 +616,7 @@ PanelWindow {
                 current: overlay.tab
                 model: [
                     { icon: "\uf015", label: overlay.tr("tab_home", "Accueil") },
-                    { icon: "\uf075", label: overlay.tr("tab_chat", "Chat") },
-                    { icon: "\uf0c6", label: overlay.tr("tab_files", "Fichiers") }
+                    { icon: "\uf075", label: overlay.tr("tab_chat", "Chat") }
                 ]
                 onPicked: i => overlay.tab = i
             }
@@ -1584,17 +1582,11 @@ PanelWindow {
         }
         }   // chatView
 
-        // Accueil and Fichiers: placeholders until their own tasks.
+        // Accueil: placeholder until T6.
         Item {
             anchors { fill: parent; topMargin: overlay.headerH }
             visible: overlay.tab === 0
             Text { anchors.centerIn: parent; text: overlay.tr("tab_home", "Accueil"); color: overlay.theme.txt2
-                   font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs }
-        }
-        Item {
-            anchors { fill: parent; topMargin: overlay.headerH }
-            visible: overlay.tab === 2
-            Text { anchors.centerIn: parent; text: overlay.tr("tab_files", "Fichiers"); color: overlay.theme.txt2
                    font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs }
         }
 

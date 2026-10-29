@@ -25,9 +25,9 @@ Commits sans mention de l'assistant.
   - Files : `overlays/AssistantOverlay.qml`.
   - Scope : M.
 
-- [x] **T4 : Onglets Accueil / Chat / Fichiers**
-  - Acceptance : `AssistantTabs.qml` (rangée d'onglets, gauche) ; à droite : historique, nouvelle conversation, agent, mise à jour (≥ 32 px chacun) ; `Ctrl+1/2/3` change d'onglet, `Échap` ferme, focus sur la saisie à l'ouverture du Chat ; onglets Accueil et Fichiers provisoires (vides) ; `AssistantTabs.qml` ajouté à `FILES` dans `install.sh` et `iris-doctor`.
-  - Verify : captures des trois onglets ; raccourcis clavier à la main ; `test-e2e.sh --no-gui` (fichier installé et listé par le doctor).
+- [x] **T4 : Onglets Accueil / Chat** (l'onglet Fichiers, d'abord prévu, a été supprimé le 2026-10-29)
+  - Acceptance : `AssistantTabs.qml` (rangée d'onglets, gauche) ; à droite : historique, nouvelle conversation, agent, mise à jour (≥ 32 px chacun) ; `Ctrl+1/2` change d'onglet, `Échap` ferme, focus sur la saisie à l'ouverture du Chat ; onglets Accueil et Fichiers provisoires (vides) ; `AssistantTabs.qml` ajouté à `FILES` dans `install.sh` et `iris-doctor`.
+  - Verify : captures des deux onglets ; raccourcis clavier à la main ; `test-e2e.sh --no-gui` (fichier installé et listé par le doctor).
   - Files : `overlays/AssistantTabs.qml`, `overlays/AssistantOverlay.qml`, `install.sh`, `scripts/iris-doctor`.
   - Scope : M.
 
@@ -38,7 +38,7 @@ Commits sans mention de l'assistant.
   - Scope : M.
 
 ### Point d'arrêt : carte, onglets, chat
-- [ ] Installé chez toi et validé. Revue avant Accueil et Fichiers.
+- [ ] Installé chez toi et validé. Revue avant l'Accueil.
 
 - [ ] **T6 : Onglet Accueil**
   - Acceptance : grande mascotte à gauche (taille variable d'`AssistantAvatar`) ; nom d'Iris, agent et modèle actifs, étiquette « distant » si besoin ; liste des étapes du tour en cours ou du dernier (`Read ✓`, `Edit ⟳`, `Bash`, `Terminé`, 6 lignes au plus) ; alertes non lues ; prochain rappel lu dans `reminders.json` (section masquée si absent).
@@ -46,11 +46,11 @@ Commits sans mention de l'assistant.
   - Files : `overlays/AssistantHome.qml`, `overlays/AssistantAvatar.qml`, `overlays/AssistantOverlay.qml`, `install.sh`, `scripts/iris-doctor`.
   - Scope : M.
 
-- [ ] **T7 : Onglet Fichiers**
-  - Acceptance : zone de dépôt ; fichiers joints en pastilles retirables (≤ 5) ; image collée avec `Ctrl+V` ; déposer sur l'îlot fermé attache et ouvre le Chat ; mêmes contrôles de chemin qu'aujourd'hui (`file://`, caractères de contrôle refusés, 1 024 caractères).
-  - Verify : dépôt de 1 puis 6 fichiers (le 6ᵉ refusé) ; dépôt sur l'îlot fermé ; chemin avec espaces et accents ; retirer une pastille.
-  - Files : `overlays/AssistantFiles.qml`, `overlays/AssistantOverlay.qml`, `install.sh`, `scripts/iris-doctor`.
-  - Scope : M.
+- [ ] **T7 : Dépôt de fichiers dans le Chat** (remplace l'onglet Fichiers)
+  - Acceptance : la zone « Lâche ici » de la carte ouverte et le survol de l'îlot fermé gardent leur effet avec le nouveau style noir ; fichiers joints en pastilles retirables au-dessus de la saisie (≤ 5) ; image collée avec `Ctrl+V` ; déposer sur l'îlot fermé attache et ouvre le Chat ; mêmes contrôles de chemin qu'aujourd'hui (`file://`, caractères de contrôle refusés, 1 024 caractères).
+  - Verify : dépôt de 1 puis 6 fichiers (le 6ᵉ refusé) ; dépôt sur l'îlot fermé ; chemin avec espaces et accents ; retirer une pastille ; captures recadrées de la zone de dépôt.
+  - Files : `overlays/AssistantOverlay.qml`.
+  - Scope : S.
 
 - [ ] **T8 : Finitions d'ergonomie**
   - Acceptance : cibles ≥ 32 px, texte courant ≥ 14 px, contraste ≥ 4,5:1 (mesuré sur les couleurs), historique et recherche dans la carte, animation fluide à l'ouverture et à la fermeture répétées, aucune erreur dans `qs log` après 20 ouvertures / fermetures.
@@ -59,7 +59,7 @@ Commits sans mention de l'assistant.
   - Scope : S.
 
 - [ ] **T9 : Docs, installateur, CI**
-  - Acceptance : README FR / EN (section d'aperçu, raccourcis `Ctrl+1/2/3`), `CHANGELOG.md`, `AGENTS.md` (carte du dépôt) ; `FILES` à jour partout ; `SPEC-buddy.md` marquée remplacée par `SPEC-island.md`.
+  - Acceptance : README FR / EN (section d'aperçu, raccourcis `Ctrl+1/2`), `CHANGELOG.md`, `AGENTS.md` (carte du dépôt) ; `FILES` à jour partout ; `SPEC-buddy.md` marquée remplacée par `SPEC-island.md`.
   - Verify : `test-e2e.sh --no-gui`, `shellcheck`, CI complète en local.
   - Files : `README.md`, `docs/README.en.md`, `CHANGELOG.md`, `AGENTS.md`, `specs/SPEC-buddy.md`.
   - Scope : S.

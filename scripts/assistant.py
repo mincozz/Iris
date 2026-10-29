@@ -1590,7 +1590,6 @@ def ui_strings():
         "agent_remote": pick("distant", "remote"),
         "tab_home": pick("Accueil", "Home"),
         "tab_chat": pick("Chat", "Chat"),
-        "tab_files": pick("Fichiers", "Files"),
         "drop_here": pick("Lâche ici", "Drop here"),
         "file_default": pick("Regarde ce fichier :", "Have a look at this file:"),
         "file_line": pick("[Fichier joint : {path}]", "[Attached file: {path}]"),
