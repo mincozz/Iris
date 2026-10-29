@@ -31,7 +31,7 @@ Commits sans mention de l'assistant.
   - Files : `overlays/AssistantTabs.qml`, `overlays/AssistantOverlay.qml`, `install.sh`, `scripts/iris-doctor`.
   - Scope : M.
 
-- [ ] **T5 : Chat restylé**
+- [x] **T5 : Chat restylé**
   - Acceptance : message de l'utilisateur en pastille à droite ; réponse d'Iris à gauche avec une puce « nom de l'agent » ; trois points animés pendant l'attente ; champ « Continue… » avec bouton d'envoi rond ; Entrée envoie, Maj+Entrée saute une ligne ; **cartes Autoriser / Refuser, bouton Stop, copie et liens inchangés**.
   - Verify : captures ; une demande qui déclenche une carte (puis Refuser) ; Stop pendant une réponse ; texte multi-lignes.
   - Files : `overlays/AssistantOverlay.qml`, `scripts/assistant.py` (clés de texte).

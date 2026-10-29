@@ -1604,6 +1604,7 @@ def ui_strings():
         "denied": pick("Refusé", "Denied"),
         "replying": pick("Iris répond…", "Iris is replying…"),
         "placeholder": pick("Demande-moi quelque chose…", "Ask me anything…"),
+        "placeholder_more": pick("Continue…", "Continue…"),
         "mode_fast": pick("Rapide", "Fast"),
         "mode_power": pick("Puissant", "Powerful"),
         "day_abbr": pick("j", "d"),

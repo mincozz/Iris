@@ -1130,7 +1130,24 @@ PanelWindow {
                 readonly property bool live: overlay.streaming && index === messages.count - 1
                 width: list.width
                 readonly property bool hasAction: action !== ""
-                height: role === "ask" ? askCard.height : bubble.height + (hasAction ? 42 : 0)
+                readonly property bool chip: role === "assistant"
+                readonly property int chipH: chip ? 22 : 0
+                height: role === "ask" ? askCard.height : chipH + bubble.height + (hasAction ? 42 : 0)
+
+                // Agent name above Iris' replies.
+                Rectangle {
+                    visible: msg.chip
+                    x: 4; y: 0
+                    height: 18; width: chipTxt.implicitWidth + 16; radius: 9
+                    color: overlay.alpha(overlay.agent === "claude" ? overlay.theme.primary : overlay.theme.tertiary, 0.16)
+                    Text {
+                        id: chipTxt
+                        anchors.centerIn: parent
+                        text: overlay.agent
+                        color: overlay.agent === "claude" ? overlay.theme.primary : overlay.theme.tertiary
+                        font.family: overlay.theme.ff; font.pixelSize: 12
+                    }
+                }
 
                 HoverHandler { id: msgHover }
 
@@ -1138,6 +1155,7 @@ PanelWindow {
                 Rectangle {
                     id: bubble
                     visible: msg.role !== "ask"
+                    y: msg.chipH
                     anchors.right: msg.mine ? parent.right : undefined
                     anchors.left:  msg.mine ? undefined : parent.left
                     width: Math.min(body.implicitWidth + 28, list.width * 0.86)
@@ -1491,14 +1509,14 @@ PanelWindow {
             id: inputBox
             anchors { left: parent.left; right: parent.right; bottom: usageRow.top
                       leftMargin: 14; rightMargin: 14; bottomMargin: 8 }
-            height: 50
+            height: Math.max(50, Math.min(130, input.implicitHeight + 26))
             radius: 25
             color: overlay.wellFill
             border.color: input.activeFocus ? overlay.alpha(overlay.theme.primary, 0.6) : overlay.cardStroke
             border.width: 1
             Behavior on border.color { ColorAnimation { duration: 160 } }
 
-            TextInput {
+            TextEdit {
                 id: input
                 anchors {
                     left: attachBtn.right; leftMargin: 10
@@ -1509,16 +1527,23 @@ PanelWindow {
                 selectionColor: overlay.alpha(overlay.theme.primary, 0.45)
                 selectedTextColor: overlay.theme.fg
                 font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs
+                wrapMode: TextEdit.Wrap
                 clip: true
                 // Ctrl+V still pastes text; if the clipboard holds an image the daemon picks it up.
-                Keys.onPressed: e => { if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_V) overlay.cmd({ cmd: "paste_image" }) }
-                Keys.onReturnPressed: overlay.send()
-                Keys.onEnterPressed:  overlay.send()
+                Keys.onPressed: e => {
+                    if ((e.modifiers & Qt.ControlModifier) && e.key === Qt.Key_V) overlay.cmd({ cmd: "paste_image" })
+                    // Enter sends, Shift+Enter inserts a line break.
+                    else if ((e.key === Qt.Key_Return || e.key === Qt.Key_Enter) && !(e.modifiers & Qt.ShiftModifier)) {
+                        overlay.send(); e.accepted = true
+                    }
+                }
 
                 Text {
                     visible: input.text === ""
                     anchors.verticalCenter: parent.verticalCenter
-                    text: overlay.busy ? overlay.tr("replying", "Iris répond…") : overlay.tr("placeholder", "Demande-moi quelque chose…")
+                    text: overlay.busy ? overlay.tr("replying", "Iris répond…")
+                         : messages.count > 0 ? overlay.tr("placeholder_more", "Continue…")
+                         : overlay.tr("placeholder", "Demande-moi quelque chose…")
                     color: overlay.theme.outline
                     font: input.font
                 }
@@ -1527,7 +1552,7 @@ PanelWindow {
             // Paperclip: pick files in the desktop's file dialog
             Rectangle {
                 id: attachBtn
-                anchors { left: parent.left; leftMargin: 7; verticalCenter: parent.verticalCenter }
+                anchors { left: parent.left; leftMargin: 7; bottom: parent.bottom; bottomMargin: 7 }
                 width: 36; height: 36; radius: 18
                 color: attachHover.hovered ? overlay.cardHover : "transparent"
                 Behavior on color { ColorAnimation { duration: 140 } }
@@ -1545,7 +1570,7 @@ PanelWindow {
             Rectangle {
                 id: sendBtn
                 readonly property bool ready: input.text.trim() !== "" || overlay.attached !== "" || overlay.image !== "" || overlay.files.length > 0
-                anchors { right: parent.right; rightMargin: 7; verticalCenter: parent.verticalCenter }
+                anchors { right: parent.right; rightMargin: 7; bottom: parent.bottom; bottomMargin: 7 }
                 width: 36; height: 36; radius: 18
                 color: overlay.busy ? overlay.theme.error
                      : ready ? overlay.theme.primary
