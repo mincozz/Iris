@@ -24,11 +24,12 @@ PanelWindow {
     readonly property bool _open: shellRoot.assistantOpen
     visible: true     // always mapped: the pill lives here; input is limited by `mask`
     WlrLayershell.namespace: "quickshell-assistant"
+    WlrLayershell.layer: WlrLayer.Overlay    // the island sits over the middle of the bar
     WlrLayershell.keyboardFocus: _open ? WlrKeyboardFocus.Exclusive
                                        : WlrKeyboardFocus.None
 
     anchors { top: true; left: true; right: true; bottom: true }
-    exclusiveZone: 0
+    exclusionMode: ExclusionMode.Ignore   // reach the screen's top edge, over the bar's reserved zone
     // Closed: only the pill catches the pointer. Open: the whole window (click outside closes).
     mask: Region { item: overlay._open ? backdrop : glass }
     color: "transparent"
@@ -479,16 +480,29 @@ PanelWindow {
     // ═════════════════════════════════════════════════════════════════
     // Glass: the pill that stretches into the panel
     // ═════════════════════════════════════════════════════════════════
+    // The island hangs from the top edge: at rest the glass extends `bleed` px above the
+    // screen so only its bottom corners show; the bleed shrinks to 0 as the panel opens.
+    readonly property real bleed: 28 * (1 - p)
+    // 0 = resting island, 1 = Iris is working and the island grows to show the step.
+    property real activity: busy && !_open ? 1 : 0
+    Behavior on activity { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+    readonly property real restH: 36 + 28 * activity
+    readonly property color islandInk: "#f2f2f5"
+
     Rectangle {
         id: glass
-        anchors { top: parent.top; topMargin: 44; horizontalCenter: parent.horizontalCenter }
-        property real pillW: overlay.dropHover && !overlay._open ? 236 : 176
-        Behavior on pillW { NumberAnimation { duration: 220; easing.type: Easing.OutBack } }
+        anchors { top: parent.top; topMargin: -overlay.bleed + 44 * overlay.p; horizontalCenter: parent.horizontalCenter }
+        readonly property real restW: Math.max(200, Math.min(420, 14 + 28 + 10 + pillText.implicitWidth + 22))
+        property real pillW: overlay.dropHover && !overlay._open ? Math.max(restW, 260)
+                           : restW + (Math.max(restW, 340) - restW) * overlay.activity
+        Behavior on pillW { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
         width:  pillW + (overlay.panelWidth - pillW) * overlay.p
-        height: 40 + (overlay.openH - 40) * overlay.p
+        height: overlay.bleed + overlay.restH + (overlay.openH - overlay.restH) * overlay.p
         radius: 20 + 4 * overlay.p
-        color: overlay.glassFill
-        border.color: overlay.glassStroke; border.width: 1
+        // Black island at rest, themed glass once open.
+        color: Qt.rgba(overlay.glassFill.r * overlay.p, overlay.glassFill.g * overlay.p,
+                       overlay.glassFill.b * overlay.p, 1 + (overlay.glassFill.a - 1) * overlay.p)
+        border.color: overlay.p > 0.02 ? overlay.glassStroke : Qt.rgba(1, 1, 1, 0.10); border.width: 1
         scale: !overlay._open && pillHover.hovered ? 1.05 : 1
         transformOrigin: Item.Top
         Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
@@ -497,6 +511,7 @@ PanelWindow {
         Rectangle {
             anchors.fill: parent; anchors.margins: 1
             radius: parent.radius - 1
+            opacity: overlay.p
             gradient: Gradient {
                 GradientStop { position: 0.0;  color: overlay.glassShine }
                 GradientStop { position: 0.28; color: "transparent" }
@@ -508,6 +523,7 @@ PanelWindow {
         Rectangle {
             anchors { top: parent.top; topMargin: 1; horizontalCenter: parent.horizontalCenter }
             width: parent.width - 2 * parent.radius; height: 1
+            opacity: overlay.p
             gradient: Gradient {
                 orientation: Gradient.Horizontal
                 GradientStop { position: 0.0; color: "transparent" }
@@ -518,7 +534,7 @@ PanelWindow {
 
         // ── Pill content (fades out as the panel opens) ───────────────
         Item {
-            anchors.fill: parent
+            anchors { fill: parent; topMargin: overlay.bleed }
             opacity: 1 - overlay.ramp(0, 0.25)
             visible: opacity > 0
             AssistantAvatar {
@@ -526,22 +542,50 @@ PanelWindow {
                 anchors { left: parent.left; leftMargin: 14; verticalCenter: parent.verticalCenter }
                 theme: overlay.theme
                 mood: overlay.dropHover ? "happy" : overlay.faceMood
-                size: 28
+                size: 28 + 8 * overlay.activity
             }
             Text {
-                anchors { left: pillAvatar.right; leftMargin: 10; right: parent.right; rightMargin: 16
-                          verticalCenter: parent.verticalCenter }
+                id: pillText
+                anchors { left: pillAvatar.right; leftMargin: 10; verticalCenter: parent.verticalCenter
+                          verticalCenterOffset: -9 * overlay.activity }
+                width: Math.min(implicitWidth, 346)
                 elide: Text.ElideRight
                 text: overlay.dropHover ? overlay.tr("drop_here", "Lâche ici") : overlay.statusText
-                color: overlay.busy || overlay.dropHover ? overlay.theme.primary : overlay.theme.fg
+                color: overlay.busy || overlay.dropHover ? overlay.theme.primary : overlay.islandInk
                 font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 1
+            }
+            Text {           // which agent is working, once the island has grown
+                anchors { left: pillText.left; top: pillText.bottom; topMargin: 1 }
+                width: pillText.width
+                visible: overlay.activity > 0.05; opacity: overlay.activity
+                elide: Text.ElideRight
+                text: overlay.agent + (overlay.agentRemote ? " · " + overlay.tr("agent_remote", "distant") : "")
+                      + (overlay.modelName !== "" ? " · " + overlay.modelName : "")
+                color: Qt.rgba(1, 1, 1, 0.55)
+                font.family: overlay.theme.ff; font.pixelSize: overlay.theme.fs - 3
+            }
+            Item {           // a light bar sweeps along the bottom while she works
+                anchors { left: parent.left; right: parent.right; bottom: parent.bottom
+                          leftMargin: 18; rightMargin: 18; bottomMargin: 8 }
+                height: 2; clip: true
+                visible: overlay.activity > 0.05; opacity: overlay.activity
+                Rectangle { anchors.fill: parent; radius: 1; color: Qt.rgba(1, 1, 1, 0.12) }
+                Rectangle {
+                    id: sweep
+                    width: parent.width * 0.3; height: 2; radius: 1; color: overlay.theme.primary
+                    SequentialAnimation on x {
+                        running: overlay.activity > 0.05; loops: Animation.Infinite
+                        NumberAnimation { from: -sweep.width; to: sweep.parent.width; duration: 1100
+                                          easing.type: Easing.InOutSine }
+                    }
+                }
             }
             Rectangle {      // Iris spoke on her own while the panel was closed
                 visible: overlay.shellRoot.assistantUnread > 0
-                anchors { right: parent.right; top: parent.top; rightMargin: 8; topMargin: 6 }
+                anchors { right: parent.right; top: parent.top; rightMargin: 8; topMargin: 4 }
                 width: 9; height: 9; radius: 4.5
                 color: overlay.theme.error
-                border.color: overlay.glassFill; border.width: 1.5
+                border.color: "#000"; border.width: 1.5
             }
             HoverHandler { id: pillHover; cursorShape: Qt.PointingHandCursor }
             TapHandler { onTapped: overlay.toggle() }
@@ -550,7 +594,7 @@ PanelWindow {
         // ── Panel content: fixed size, revealed by the stretching glass ──
         Item {
             id: viewport
-            anchors.fill: parent
+            anchors { fill: parent; topMargin: overlay.bleed }
             clip: true
             Item {
                 id: panel

@@ -4,13 +4,13 @@ Plan : `tasks/plan-island.md`. Spec : `specs/SPEC-island.md`.
 Contrôles à chaque tâche : `qmllint overlays/*.qml` sans avertissement ; `test/test-e2e.sh --no-gui` vert ; après installation, `qs log` sans erreur d'`Assistant*` ; capture **recadrée** avec `grim -g "X,Y WxH"`, jamais l'écran entier.
 Commits sans mention de l'assistant.
 
-- [ ] **T1 : Îlot au repos**
+- [x] **T1 : Îlot au repos**
   - Acceptance : îlot noir à `y: 0`, centré, coins bas arrondis ; mascotte à gauche, ligne d'état à droite ; largeur 200–420 px selon le texte, « Coucou, je suis là » affiché en entier ; point si non lu ; léger agrandissement au survol ; « Lâche ici » au survol d'un fichier ; le masque d'entrée ne couvre que l'îlot.
   - Verify : capture recadrée ; clic sur les modules de la barre à gauche et à droite : ils répondent ; clic sur l'îlot : ouvre toujours le panneau actuel.
   - Files : `overlays/AssistantOverlay.qml`, `scripts/assistant.py` (clé de texte éventuelle).
   - Scope : M.
 
-- [ ] **T2 : Îlot actif**
+- [x] **T2 : Îlot actif**
   - Acceptance : quand Iris répond, l'îlot grossit (≈ 360×64) avec l'étape en cours (« Réflexion… », « Lecture de … ») et un indicateur animé ; à la fin il se replie avec l'humeur « content ». L'état est piloté par `busy` et `toolStatus`.
   - Verify : un message minuscule au modèle rapide (`qs ipc call assistant ask "dis ok"`) et trois captures recadrées (repos, actif, retour) ; aucune erreur dans `qs log`.
   - Files : `overlays/AssistantOverlay.qml`.
