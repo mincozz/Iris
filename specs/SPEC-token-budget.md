@@ -9,6 +9,11 @@ Réduire de **40 %** les tokens d'entrée facturés sur une conversation de 10 t
 - Un modèle puissant reste puissant (changer de modèle perd le cache de prompt).
 - Prompt FR ≈ 5,1 Ko ; `memory.md` et les recettes y sont ajoutés.
 
+## Mesures (2026-10-30, modèle rapide, 10 tours sans outil)
+- **Baseline : 33 081** tokens d'entrée équivalents (`tasks/token-measures.jsonl`, étiquette `avant`). Le tour 1 crée ≈ 12,7 k de cache (48 % du total) ; chaque tour suivant relit ≈ 14 k.
+- Contexte fixe d'un message (1 tour) : **14,1 k** = ≈ 4,4 k de prompt (9,7 k caractères, mémoire comprise) + ≈ 5,8 k d'outils (Bash, Edit, Write, WebSearch, WebFetch en tête ; `Read,Glob,Grep` seuls : 10,9 k) + ≈ 4 k incompressibles.
+- Pour −40 % il faut retirer ≈ 6 k de contexte fixe : prompt réduit de moitié (≈ −2,2 k) **et** outils lourds chargés à la demande, comme les connecteurs (≈ −3,1 k). L'un sans l'autre n'y arrive pas.
+
 ## Pistes (à trancher après mesure)
 1. **Mesurer d'abord** : script `test/measure-tokens.py` (hors CI, demande un compte Claude) qui rejoue 10 tours scriptés et lit `usage` de chaque `result` : `input_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`. Sortie = tableau par tour + total « équivalent d'entrée » (lecture de cache pondérée 0,1, création 1,25).
 2. **Prompt allégé** : retirer les blocs rarement utiles (organize, rappels, mise à jour) du prompt de base et ne les injecter que si la demande les évoque (même mécanisme que `CONNECT_RE`).
