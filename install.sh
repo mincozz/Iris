@@ -73,7 +73,7 @@ FILES=(
   "scripts/iris-watch.py" "scripts/organize.py" "scripts/iris-ask" "scripts/iris-doctor"
   "scripts/i18n.py" "scripts/assistant-prompt.en.md" "scripts/iris-update"
   "scripts/iris-remind" "scripts/iris-pick"
-  "overlays/AssistantAvatar.qml" "overlays/AssistantTabs.qml" "overlays/AssistantHome.qml" "overlays/AssistantOverlay.qml"
+  "overlays/AssistantAvatar.qml" "overlays/AssistantTabs.qml" "overlays/AssistantHome.qml" "overlays/AssistantOverlay.qml" "overlays/CompanionPhrases.js" "overlays/CompanionSprite.qml" "overlays/CompanionWindow.qml" "overlays/IrisCompanion.qml"
 )
 
 backup() { [ -e "$1" ] && [ ! -e "$1.iris-bak" ] && run cp -p "$1" "$1.iris-bak" || true; }
